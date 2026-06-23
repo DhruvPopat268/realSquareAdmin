@@ -5,13 +5,9 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Search, Plus, Filter, ArrowUpDown, MapPin, Users,
-  MoreVertical, Building2, Calendar, TrendingUp,
-} from "lucide-react";
-import { PROJECTS, type Project, type ProjectStatus, type ProjectType } from "@/data/projectsData";
+import { Search, Plus, MapPin, Users, MoreVertical, Calendar, TrendingUp, ChevronDown } from "lucide-react";
+import { PROJECTS, type Project, type ProjectStatus } from "@/data/projectsData";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   return `$${(n / 1_000).toFixed(0)}K`;
@@ -24,13 +20,6 @@ const statusStyle: Record<ProjectStatus, string> = {
   Planning:  "bg-purple-50 text-purple-600 border border-purple-200",
 };
 
-const typeStyle: Record<ProjectType, string> = {
-  Residential: "bg-sky-50 text-sky-600",
-  Commercial:  "bg-orange-50 text-orange-600",
-  "Mixed Use": "bg-teal-50 text-teal-600",
-  Industrial:  "bg-gray-100 text-gray-600",
-};
-
 const progressColor: Record<ProjectStatus, string> = {
   Active:    "bg-green-500",
   Completed: "bg-blue-500",
@@ -38,121 +27,88 @@ const progressColor: Record<ProjectStatus, string> = {
   Planning:  "bg-purple-400",
 };
 
-// ─── Summary stats ────────────────────────────────────────────────────────────
 const STATS = [
-  { label: "Total Projects",    value: PROJECTS.length },
-  { label: "Active",            value: PROJECTS.filter((p) => p.status === "Active").length },
-  { label: "Completed",         value: PROJECTS.filter((p) => p.status === "Completed").length },
-  { label: "Total Units",       value: PROJECTS.reduce((s, p) => s + p.totalUnits, 0) },
-  { label: "Units Sold",        value: PROJECTS.reduce((s, p) => s + p.soldUnits, 0) },
+  { label: "Total Projects", value: PROJECTS.length },
+  { label: "Active",         value: PROJECTS.filter((p) => p.status === "Active").length },
+  { label: "Completed",      value: PROJECTS.filter((p) => p.status === "Completed").length },
+  { label: "Total Units",    value: PROJECTS.reduce((s, p) => s + p.totalUnits, 0) },
+  { label: "Units Sold",     value: PROJECTS.reduce((s, p) => s + p.soldUnits, 0) },
 ];
 
-// ─── Card ─────────────────────────────────────────────────────────────────────
-function ProjectCard({ p, onClick }: { p: Project; onClick: () => void }) {
+function ProjectRow({ p, onClick }: { p: Project; onClick: () => void }) {
   const pctSold = Math.round((p.soldUnits / p.totalUnits) * 100);
-
   return (
-    <div
-      onClick={onClick}
-      className="bg-card rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition-shadow group"
-    >
-      {/* Cover image */}
-      <div className="relative h-44 overflow-hidden">
-        <img
-          src={p.image}
-          alt={p.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        />
-        <div className="absolute top-3 left-3 flex gap-1.5">
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeStyle[p.type]}`}>{p.type}</span>
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status]}`}>{p.status}</span>
-        </div>
-        <button
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-3 right-3 h-7 w-7 bg-white/90 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground"
-        >
-          <MoreVertical className="h-3.5 w-3.5" />
-        </button>
-        {p.status === "Completed" && (
-          <div className="absolute bottom-0 inset-x-0 bg-blue-600/80 text-white text-[11px] font-semibold text-center py-1">
-            SOLD OUT
-          </div>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="p-4 space-y-3">
-        <div>
-          <h3 className="font-bold text-foreground text-sm leading-snug">{p.title}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{p.developer}</p>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-            <MapPin className="h-3 w-3 shrink-0" />{p.city}
+    <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <img src={p.image} alt={p.title} className="h-12 w-16 rounded-lg object-cover shrink-0" />
+          <div>
+            <p className="font-semibold text-sm text-foreground">{p.title}</p>
+            <p className="text-xs text-muted-foreground">{p.developer}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+              <MapPin className="h-3 w-3" />{p.city}
+            </p>
           </div>
         </div>
-
-        {/* Price range */}
-        <div>
-          <span className="text-base font-bold text-foreground">{fmt(p.priceFrom)}</span>
-          <span className="text-sm text-muted-foreground"> – {fmt(p.priceTo)}</span>
-        </div>
-
-        {/* Progress bar */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{p.soldUnits} / {p.totalUnits} units sold</span>
-            <span className="font-medium text-foreground">{pctSold}%</span>
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground">{p.type}</td>
+      <td className="px-4 py-3">
+        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status]}`}>{p.status}</span>
+      </td>
+      <td className="px-4 py-3 text-sm text-foreground">
+        <span className="font-semibold">{fmt(p.priceFrom)}</span>
+        <span className="text-muted-foreground"> – {fmt(p.priceTo)}</span>
+      </td>
+      <td className="px-4 py-3">
+        <div className="space-y-1 min-w-[120px]">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{p.soldUnits}/{p.totalUnits} sold</span>
+            <span>{pctSold}%</span>
           </div>
           <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${progressColor[p.status]}`}
-              style={{ width: `${p.progress}%` }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>Construction {p.progress}%</span>
-            <span>Est. {p.completionDate}</span>
+            <div className={`h-full rounded-full ${progressColor[p.status]}`} style={{ width: `${p.progress}%` }} />
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" />
-            <span>{p.agent}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5" />
-            <span>{p.launchDate}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+      </td>
+      <td className="px-4 py-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{p.agent}</div>
+        <div className="flex items-center gap-1 mt-0.5"><Calendar className="h-3.5 w-3.5" />{p.launchDate}</div>
+      </td>
+      <td className="px-4 py-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" />Est. {p.completionDate}</div>
+      </td>
+      <td className="px-4 py-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClick(); }}>View Details</DropdownMenuItem>
+            <DropdownMenuItem>Edit</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </td>
+    </tr>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const [search, setSearch]           = useState("");
+  const [search, setSearch]             = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [typeFilter, setTypeFilter]   = useState("All");
-  const [sort, setSort]               = useState<"newest" | "progress" | "units">("newest");
+  const [categoryFilter, setCategoryFilter] = useState("All");
 
-  const filtered = useMemo(() => {
-    let list = PROJECTS.filter((p) => {
+  const filtered = useMemo(() =>
+    PROJECTS.filter((p) => {
       const q = search.toLowerCase();
-      const matchSearch =
-        p.title.toLowerCase().includes(q) ||
-        p.developer.toLowerCase().includes(q) ||
-        p.city.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || p.status === statusFilter;
-      const matchType   = typeFilter === "All"   || p.type   === typeFilter;
-      return matchSearch && matchStatus && matchType;
-    });
-    if (sort === "progress") list = [...list].sort((a, b) => b.progress - a.progress);
-    if (sort === "units")    list = [...list].sort((a, b) => b.totalUnits - a.totalUnits);
-    return list;
-  }, [search, statusFilter, typeFilter, sort]);
+      const matchSearch = p.title.toLowerCase().includes(q) || p.developer.toLowerCase().includes(q) || p.city.toLowerCase().includes(q);
+      const matchStatus   = statusFilter   === "All" || p.status === statusFilter;
+      const matchCategory = categoryFilter === "All" || p.type   === categoryFilter;
+      return matchSearch && matchStatus && matchCategory;
+    }), [search, statusFilter, categoryFilter]);
 
   return (
     <div className="space-y-5">
@@ -180,87 +136,66 @@ export default function ProjectsPage() {
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search projects..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); }}
-            className="pl-8 h-9 w-56 text-sm"
-          />
-        </div>
-
-        {/* Status filter */}
-        <div className="flex items-center gap-0.5 bg-muted rounded-lg p-1">
-          {["All", "Active", "Planning", "On Hold", "Completed"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                statusFilter === s
-                  ? "bg-background shadow text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >{s}</button>
-          ))}
+          <Input placeholder="Search projects..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 w-56 text-sm" />
         </div>
 
         <div className="flex-1" />
 
-        {/* Type filter */}
+        <p className="text-sm text-muted-foreground">{filtered.length} project{filtered.length !== 1 ? "s" : ""}</p>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-              <Building2 className="h-3.5 w-3.5" />
-              {typeFilter === "All" ? "All Types" : typeFilter}
+            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
+              Category: {categoryFilter} <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {["All", "Residential", "Commercial", "Mixed Use", "Industrial"].map((t) => (
-              <DropdownMenuItem key={t} onClick={() => setTypeFilter(t)}>{t}</DropdownMenuItem>
+            {["All", "Residential", "Commercial", "Mixed Use", "Industrial"].map((c) => (
+              <DropdownMenuItem key={c} onClick={() => setCategoryFilter(c)}>{c}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-          <Filter className="h-3.5 w-3.5" /> Filter
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-              <ArrowUpDown className="h-3.5 w-3.5" />
-              {sort === "newest" ? "Newest" : sort === "progress" ? "By Progress" : "By Units"}
+            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
+              Status: {statusFilter} <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setSort("newest")}>Newest</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSort("progress")}>By Progress</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSort("units")}>By Total Units</DropdownMenuItem>
+            {["All", "Active", "Planning", "On Hold", "Completed"].map((s) => (
+              <DropdownMenuItem key={s} onClick={() => setStatusFilter(s)}>{s}</DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Count */}
-      <p className="text-sm text-muted-foreground">
-        {filtered.length} project{filtered.length !== 1 ? "s" : ""} found
-      </p>
-
-      {/* Grid */}
+      {/* List view */}
       {filtered.length === 0 ? (
-        <div className="flex items-center justify-center h-48 text-muted-foreground">
-          No projects match your search.
-        </div>
+        <div className="flex items-center justify-center h-48 text-muted-foreground">No projects match your search.</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-          {filtered.map((p) => (
-            <ProjectCard
-              key={p.id}
-              p={p}
-              onClick={() => navigate(`/projects/${p.id}`)}
-            />
-          ))}
+        <div className="rounded-lg border bg-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40">
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Project</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Price Range</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Progress</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Agent</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Completion</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p) => (
+                <ProjectRow key={p.id} p={p} onClick={() => navigate(`/projects/${p.id}`)} />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

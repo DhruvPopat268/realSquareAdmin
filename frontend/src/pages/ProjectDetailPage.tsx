@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { PROJECTS } from "@/data/projectsData";
 import { Button } from "@/components/ui/button";
 import {
-  ChevronRight, MapPin, Users, Calendar, Building2,
+  ArrowLeft, ChevronRight, MapPin, Users, Calendar, Building2,
   TrendingUp, CheckCircle2, Share2, MoreVertical, Mail,
 } from "lucide-react";
 
@@ -30,9 +30,9 @@ export default function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const p = PROJECTS.find((x) => x.id === Number(id));
-  const [comment, setComment] = useState("");
+  const [comment, setComment]   = useState("");
   const [comments, setComments] = useState<string[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef             = useRef<HTMLTextAreaElement>(null);
 
   const handleComment = () => {
     if (!comment.trim()) return;
@@ -50,16 +50,19 @@ export default function ProjectDetailPage() {
   const pctSold = Math.round((p.soldUnits / p.totalUnits) * 100);
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-5xl mx-auto">
 
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <button onClick={() => navigate("/projects")} className="hover:text-foreground transition-colors">
-          Projects
+      {/* Back + breadcrumb */}
+      <div className="space-y-1">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
         </button>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground font-medium">Project Details</span>
-      </nav>
+        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>Projects</span>
+          <ChevronRight className="h-3 w-3" />
+          <span className="text-foreground font-medium">Project Details</span>
+        </nav>
+      </div>
 
       {/* Cover image */}
       <div className="rounded-xl overflow-hidden h-64 relative">
@@ -97,13 +100,11 @@ export default function ProjectDetailPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-8">
 
-          {/* About */}
           <section>
             <h2 className="text-base font-bold text-foreground mb-2">About the Project</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">{p.description}</p>
           </section>
 
-          {/* Progress */}
           <section>
             <h2 className="text-base font-bold text-foreground mb-1">Sales & Construction Progress</h2>
             <p className="text-xs text-muted-foreground mb-4">Live progress tracking</p>
@@ -131,51 +132,29 @@ export default function ProjectDetailPage() {
             </div>
           </section>
 
-          {/* Details */}
           <section>
             <h2 className="text-base font-bold text-foreground">Project Details</h2>
             <p className="text-xs text-muted-foreground mb-4">Key project information</p>
             <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Developer</p>
-                <p className="font-semibold text-foreground mt-0.5">{p.developer}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Project Type</p>
-                <p className="font-semibold text-foreground mt-0.5">{p.type}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Status</p>
-                <p className="font-semibold text-foreground mt-0.5">{p.status}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Price From</p>
-                <p className="font-semibold text-foreground mt-0.5">{fmt(p.priceFrom)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Price To</p>
-                <p className="font-semibold text-foreground mt-0.5">{fmt(p.priceTo)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Units</p>
-                <p className="font-semibold text-foreground mt-0.5">{p.totalUnits}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Launch Date</p>
-                <p className="font-semibold text-foreground mt-0.5">{p.launchDate}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Completion Date</p>
-                <p className="font-semibold text-foreground mt-0.5">{p.completionDate}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Assigned Agent</p>
-                <p className="font-semibold text-foreground mt-0.5">{p.agent}</p>
-              </div>
+              {[
+                { label: "Developer",       value: p.developer },
+                { label: "Project Type",    value: p.type },
+                { label: "Status",          value: p.status },
+                { label: "Price From",      value: fmt(p.priceFrom) },
+                { label: "Price To",        value: fmt(p.priceTo) },
+                { label: "Total Units",     value: p.totalUnits },
+                { label: "Launch Date",     value: p.launchDate },
+                { label: "Completion Date", value: p.completionDate },
+                { label: "Assigned Agent",  value: p.agent },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="font-semibold text-foreground mt-0.5">{value}</p>
+                </div>
+              ))}
             </div>
           </section>
 
-          {/* Amenities */}
           <section>
             <h2 className="text-base font-bold text-foreground">Amenities & Features</h2>
             <p className="text-xs text-muted-foreground mb-4">What this project offers</p>
@@ -192,16 +171,14 @@ export default function ProjectDetailPage() {
 
         {/* Sidebar */}
         <div className="xl:col-span-1 space-y-4">
-
-          {/* Quick stats */}
           <div className="border rounded-xl p-4 bg-card space-y-3">
             <h3 className="text-sm font-bold text-foreground">Quick Stats</h3>
             <div className="space-y-2.5">
               {[
-                { icon: Building2,  label: "Total Units",    value: p.totalUnits },
-                { icon: TrendingUp, label: "Units Sold",     value: p.soldUnits },
-                { icon: Users,      label: "Units Available",value: p.totalUnits - p.soldUnits },
-                { icon: Calendar,   label: "Days Since Launch",value: Math.floor((Date.now() - new Date(p.launchDate).getTime()) / 86_400_000) },
+                { icon: Building2,  label: "Total Units",     value: p.totalUnits },
+                { icon: TrendingUp, label: "Units Sold",      value: p.soldUnits },
+                { icon: Users,      label: "Units Available", value: p.totalUnits - p.soldUnits },
+                { icon: Calendar,   label: "Days Since Launch", value: Math.floor((Date.now() - new Date(p.launchDate).getTime()) / 86_400_000) },
               ].map((s) => (
                 <div key={s.label} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
@@ -213,7 +190,6 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* Comments */}
           <div className="border rounded-xl p-4 bg-card space-y-3">
             <h3 className="text-sm font-bold text-foreground">Comments</h3>
             <p className="text-xs text-muted-foreground">It's good to talk</p>
@@ -233,10 +209,9 @@ export default function ProjectDetailPage() {
               rows={3}
               className="w-full border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
             />
-            <p className="text-[10px] text-muted-foreground">Press Shift+Enter for new line. Enter to Submit</p>
+            <p className="text-[10px] text-muted-foreground">Press Ctrl+Enter to submit</p>
             <Button className="w-full" size="sm" onClick={handleComment}>Submit</Button>
           </div>
-
         </div>
       </div>
     </div>

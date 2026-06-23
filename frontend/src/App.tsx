@@ -13,6 +13,11 @@ import PropertyDetailPage from "./pages/PropertyDetailPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ProfilePage from "./pages/ProfilePage";
+import PropertyPurposesPage from "./pages/PropertyPurposesPage";
+import PropertyTypesPage from "./pages/PropertyTypesPage";
+import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
+import CitiesPage from "./pages/CitiesPage";
+import StatesPage from "./pages/StatesPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -40,13 +45,18 @@ const App = () => (
 
             {/* Properties */}
             <Route path="/properties"          element={<PropertiesPage />} />
-            <Route path="/properties/sale"     element={<PropertiesPage filterType="For Sale" />} />
-            <Route path="/properties/rent"     element={<PropertiesPage filterType="For Rent" />} />
-            <Route path="/properties/new"      element={<PropertiesPage />} />
+            <Route path="/properties/sale"     element={<PropertiesPage filterType="Sell" />} />
+            <Route path="/properties/rent"     element={<PropertiesPage filterType="Rent" />} />
+            <Route path="/properties/pg"       element={<PropertiesPage filterType="PG / Co-living" />} />
             <Route path="/properties/:id"      element={<PropertyDetailPage />} />
             <Route path="/projects"            element={<ProjectsPage />} />
             <Route path="/projects/:id"        element={<ProjectDetailPage />} />
             <Route path="/units"               element={<Soon title="Units & Floors" />} />
+            <Route path="/states"             element={<StatesPage />} />
+            <Route path="/cities"             element={<CitiesPage />} />
+            <Route path="/property-purposes"   element={<PropertyPurposesPage />} />
+            <Route path="/property-categories" element={<PropertyCategoriesPage />} />
+            <Route path="/property-types"      element={<PropertyTypesPage />} />
 
             {/* Sales & Leads */}
             <Route path="/leads"                    element={<LeadsPage />} />

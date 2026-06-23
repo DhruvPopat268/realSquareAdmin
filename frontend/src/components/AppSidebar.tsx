@@ -92,20 +92,29 @@ const sections = [
     ],
   },
   {
-    title: "Properties",
+    title: "Location Management",
     items: [
+      { type: "link", to: "/states", icon: MapPin, label: "Manage States" },
+      { type: "link", to: "/cities", icon: MapPin, label: "Manage Cities" },
+    ],
+  },
+  {
+    title: "Property Management",
+    items: [
+      { type: "link", to: "/property-purposes",   icon: Tag,    label: "Property Purposes" },
+      { type: "link", to: "/property-categories", icon: Tag,    label: "Property Categories" },
+      { type: "link", to: "/property-types",      icon: Wrench, label: "Property Types" },
       {
-        type: "group", icon: Home, label: "Properties",
-        urls: ["/properties", "/properties/sale", "/properties/rent", "/properties/new"],
+        type: "group", icon: Home, label: "Property Management",
+        urls: ["/properties", "/properties/sale", "/properties/rent", "/properties/pg"],
         items: [
-          { title: "All Properties",     url: "/properties",           icon: Home },
-          { title: "For Sale",           url: "/properties/sale",      icon: Tag },
-          { title: "For Rent",           url: "/properties/rent",      icon: Building2 },
-          { title: "New Listings",       url: "/properties/new",       icon: MapPin },
+          { title: "All Properties",   url: "/properties",      icon: Home },
+          { title: "For Sale",         url: "/properties/sale", icon: Tag },
+          { title: "For Rent",         url: "/properties/rent", icon: Building2 },
+          { title: "PG / Co-living",   url: "/properties/pg",   icon: MapPin },
         ],
       },
-      { type: "link", to: "/projects",   icon: FolderOpen,   label: "Projects" },
-      { type: "link", to: "/units",      icon: Building2,    label: "Units & Floors" },
+      { type: "link", to: "/projects", icon: FolderOpen, label: "Projects" },
     ],
   },
   {
