@@ -124,42 +124,42 @@ const sections = [
       { type: "link", to: "/leads",      icon: Users, label: "Leads" },
     ],
   },
-  {
-    title: "People",
-    items: [
-      { type: "link", to: "/contacts",   icon: BookUser,     label: "Contacts & Orgs" },
-      { type: "link", to: "/brokers",    icon: UserCheck,    label: "Brokers & Agents" },
-      { type: "link", to: "/owners",     icon: ShieldCheck,  label: "Property Owners" },
-    ],
-  },
-  {
-    title: "Marketing",
-    items: [
-      { type: "link", to: "/campaigns",  icon: Megaphone,    label: "Campaigns" },
-      { type: "link", to: "/calendar",   icon: Calendar,     label: "Calendar" },
-    ],
-  },
-  {
-    title: "Reports",
-    items: [
-      { type: "link", to: "/reports/sales",      icon: BarChart2,   label: "Sales Reports" },
-      { type: "link", to: "/reports/performance",icon: TrendingUp,  label: "Agent Performance" },
-    ],
-  },
-  {
-    title: "Documents",
-    items: [
-      { type: "link", to: "/documents",  icon: File,         label: "Documents" },
-      { type: "link", to: "/contracts",  icon: FileText,     label: "Contracts" },
-    ],
-  },
+  // {
+  //   title: "People",
+  //   items: [
+  //     { type: "link", to: "/contacts",   icon: BookUser,     label: "Contacts & Orgs" },
+  //     { type: "link", to: "/brokers",    icon: UserCheck,    label: "Brokers & Agents" },
+  //     { type: "link", to: "/owners",     icon: ShieldCheck,  label: "Property Owners" },
+  //   ],
+  // },
+  // {
+  //   title: "Marketing",
+  //   items: [
+  //     { type: "link", to: "/campaigns",  icon: Megaphone,    label: "Campaigns" },
+  //     { type: "link", to: "/calendar",   icon: Calendar,     label: "Calendar" },
+  //   ],
+  // },
+  // {
+  //   title: "Reports",
+  //   items: [
+  //     { type: "link", to: "/reports/sales",      icon: BarChart2,   label: "Sales Reports" },
+  //     { type: "link", to: "/reports/performance",icon: TrendingUp,  label: "Agent Performance" },
+  //   ],
+  // },
+  // {
+  //   title: "Documents",
+  //   items: [
+  //     { type: "link", to: "/documents",  icon: File,         label: "Documents" },
+  //     { type: "link", to: "/contracts",  icon: FileText,     label: "Contracts" },
+  //   ],
+  // },
 ];
 
 const bottomLinks = [
-  { to: "/notifications", icon: Bell,     label: "Notifications" },
-  { to: "/maintenance",   icon: Wrench,   label: "Maintenance" },
-  { to: "/settings",      icon: Settings, label: "Settings" },
-  { to: "/help",          icon: HelpCircle, label: "Help" },
+  // { to: "/notifications", icon: Bell,     label: "Notifications" },
+  // { to: "/maintenance",   icon: Wrench,   label: "Maintenance" },
+  // { to: "/settings",      icon: Settings, label: "Settings" },
+  // { to: "/help",          icon: HelpCircle, label: "Help" },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
