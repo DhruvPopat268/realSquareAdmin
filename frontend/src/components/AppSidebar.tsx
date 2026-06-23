@@ -1,7 +1,7 @@
 import {
-  LayoutDashboard, Home, Building2, FolderOpen, MapPin, Users, UserCheck,
-  BookUser, Tag, FileText, FileSignature, Calendar, Megaphone, File,
-  BarChart2, TrendingUp, DollarSign, Settings, HelpCircle, ChevronDown,
+  LayoutDashboard, Home, Building2, FolderOpen, MapPin, Users,
+  BookUser, UserCheck, Tag, FileText, Calendar, Megaphone, File,
+  BarChart2, TrendingUp, Settings, HelpCircle, ChevronDown,
   Wrench, Bell, ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -118,20 +118,10 @@ const sections = [
     ],
   },
   {
-    title: "Sales & Leads",
+    title: "Leads & Enquiries",
     items: [
-      { type: "link", to: "/leads",      icon: Users,        label: "Leads" },
-      { type: "link", to: "/offers",     icon: Tag,          label: "Offers" },
-      { type: "link", to: "/agreements", icon: FileSignature, label: "Agreements" },
-      {
-        type: "group", icon: DollarSign, label: "Transactions",
-        urls: ["/transactions", "/transactions/sales", "/transactions/rentals"],
-        items: [
-          { title: "All Transactions",   url: "/transactions",          icon: DollarSign },
-          { title: "Sales",              url: "/transactions/sales",    icon: TrendingUp },
-          { title: "Rentals",            url: "/transactions/rentals",  icon: Building2 },
-        ],
-      },
+      { type: "link", to: "/enquiries",  icon: Users, label: "Enquiries" },
+      { type: "link", to: "/leads",      icon: Users, label: "Leads" },
     ],
   },
   {

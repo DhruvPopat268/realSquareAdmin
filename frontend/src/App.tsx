@@ -18,6 +18,7 @@ import PropertyTypesPage from "./pages/PropertyTypesPage";
 import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
 import CitiesPage from "./pages/CitiesPage";
 import StatesPage from "./pages/StatesPage";
+import EnquiriesPage from "./pages/EnquiriesPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -58,13 +59,9 @@ const App = () => (
             <Route path="/property-categories" element={<PropertyCategoriesPage />} />
             <Route path="/property-types"      element={<PropertyTypesPage />} />
 
-            {/* Sales & Leads */}
-            <Route path="/leads"                    element={<LeadsPage />} />
-            <Route path="/offers"                   element={<Soon title="Offers" />} />
-            <Route path="/agreements"               element={<Soon title="Agreements" />} />
-            <Route path="/transactions"             element={<Soon title="All Transactions" />} />
-            <Route path="/transactions/sales"       element={<Soon title="Sales Transactions" />} />
-            <Route path="/transactions/rentals"     element={<Soon title="Rental Transactions" />} />
+            {/* Leads & Enquiries */}
+            <Route path="/leads"      element={<LeadsPage />} />
+            <Route path="/enquiries" element={<EnquiriesPage />} />
 
             {/* People */}
             <Route path="/contacts"  element={<Soon title="Contacts & Organizations" />} />
