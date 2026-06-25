@@ -126,7 +126,6 @@ export default function PropertyDetailPage() {
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold text-foreground">{p.title}</h1>
-            <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">#{p.refNo}</span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">{p.address}, {p.city}</p>
 
@@ -144,9 +143,6 @@ export default function PropertyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Mail className="h-3.5 w-3.5" /> Send Mail
-          </Button>
           <Button variant="outline" size="icon" className="h-8 w-8">
             <Share2 className="h-3.5 w-3.5" />
           </Button>

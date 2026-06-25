@@ -35,7 +35,7 @@ function fmt(n: number) {
   return `$${(n / 1_000).toFixed(0)}K`;
 }
 
-const mapContainerStyle = { width: "100%", height: "calc(100vh - 280px)" };
+const mapContainerStyle = { width: "100%", height: "100%" };
 const center = { lat: 37.0902, lng: -95.7129 };
 
 export default function ProjectMapView({ projects, onViewProject }: { projects: Project[]; onViewProject: (id: number) => void }) {
@@ -47,9 +47,9 @@ export default function ProjectMapView({ projects, onViewProject }: { projects: 
   const mapProjects = projects.slice(0, 5);
 
   return (
-    <div className="flex gap-4 h-full">
+    <div className="flex gap-4 items-stretch" style={{ height: 1000 }}>
       {/* Left Panel */}
-      <div className="w-96 overflow-y-auto space-y-3 pr-2">
+      <div className="w-96 h-full overflow-y-auto space-y-3 px-1 py-1">
         {mapProjects.map((p) => {
           const pctSold = Math.round((p.soldUnits / p.totalUnits) * 100);
           return (
@@ -100,14 +100,14 @@ export default function ProjectMapView({ projects, onViewProject }: { projects: 
       </div>
 
       {/* Right Panel - Map */}
-      <div className="flex-1 rounded-lg border overflow-hidden">
+      <div className="flex-1 h-full rounded-lg border overflow-hidden">
         <LoadScript googleMapsApiKey={apiKey} onLoad={() => setIsLoaded(true)}>
           {isLoaded && (
             <GoogleMap
               mapContainerStyle={mapContainerStyle}
               center={center}
               zoom={4}
-              options={{ zoomControl: true, streetViewControl: false, mapTypeControl: false, fullscreenControl: true }}
+              options={{ zoomControl: true, streetViewControl: false, mapTypeControl: false, fullscreenControl: true, mapTypeId: "hybrid" }}
             >
               {mapProjects.map((p) => {
                 const label = fmt(p.priceFrom);

@@ -27,10 +27,7 @@ function fmt(n: number) {
   return `$${(n / 1_000).toFixed(0)}K`;
 }
 
-const mapContainerStyle = {
-  width: "100%",
-  height: "calc(100vh - 280px)",
-};
+const mapContainerStyle = { width: "100%", height: "100%" };
 
 const center = {
   lat: 37.0902,
@@ -46,9 +43,9 @@ export default function PropertyMapView({ properties, onViewProperty }: { proper
   const mapProperties = properties.slice(0, 5);
 
   return (
-    <div className="flex gap-4 h-full">
+    <div className="flex gap-4 items-stretch" style={{ height: 1000 }}>
       {/* Left Panel - Property List */}
-      <div className="w-96 overflow-y-auto space-y-3 pr-2">
+      <div className="w-96 h-full overflow-y-auto space-y-3 px-1 py-1">
         {mapProperties.map((p) => (
           <div
             key={p.id}
@@ -89,7 +86,7 @@ export default function PropertyMapView({ properties, onViewProperty }: { proper
       </div>
 
       {/* Right Panel - Map */}
-      <div className="flex-1 rounded-lg border overflow-hidden">
+      <div className="flex-1 h-full rounded-lg border overflow-hidden">
         <LoadScript googleMapsApiKey={apiKey} onLoad={() => setIsLoaded(true)}>
           {isLoaded && (
             <GoogleMap
@@ -101,6 +98,7 @@ export default function PropertyMapView({ properties, onViewProperty }: { proper
                 streetViewControl: false,
                 mapTypeControl: false,
                 fullscreenControl: true,
+                mapTypeId: "hybrid",
               }}
             >
               {mapProperties.map((p) => (
