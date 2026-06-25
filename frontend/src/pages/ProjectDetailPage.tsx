@@ -4,7 +4,7 @@ import { PROJECTS } from "@/data/projectsData";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, ChevronRight, MapPin, Users, Calendar, Building2,
-  TrendingUp, CheckCircle2, Share2, MoreVertical, Mail,
+  TrendingUp, CheckCircle2, Share2, Mail, X, ChevronLeft,
 } from "lucide-react";
 
 function fmt(n: number) {
@@ -13,26 +13,31 @@ function fmt(n: number) {
 }
 
 const statusStyle: Record<string, string> = {
-  Active:    "bg-green-50 text-green-700 border border-green-200",
-  Completed: "bg-blue-50 text-blue-700 border border-blue-200",
-  "On Hold": "bg-amber-50 text-amber-600 border border-amber-200",
-  Planning:  "bg-purple-50 text-purple-600 border border-purple-200",
+  "Pre Launch":         "bg-purple-50 text-purple-600 border border-purple-200",
+  "New Launch":         "bg-blue-50 text-blue-600 border border-blue-200",
+  "Under Construction": "bg-amber-50 text-amber-600 border border-amber-200",
+  "Ready To Move":      "bg-green-50 text-green-700 border border-green-200",
+  "Sold Out":           "bg-gray-100 text-gray-600 border border-gray-200",
 };
 
 const progressColor: Record<string, string> = {
-  Active:    "bg-green-500",
-  Completed: "bg-blue-500",
-  "On Hold": "bg-amber-400",
-  Planning:  "bg-purple-400",
+  "Pre Launch":         "bg-purple-400",
+  "New Launch":         "bg-blue-500",
+  "Under Construction": "bg-amber-400",
+  "Ready To Move":      "bg-green-500",
+  "Sold Out":           "bg-gray-400",
 };
 
 export default function ProjectDetailPage() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const p = PROJECTS.find((x) => x.id === Number(id));
-  const [comment, setComment]   = useState("");
-  const [comments, setComments] = useState<string[]>([]);
-  const textareaRef             = useRef<HTMLTextAreaElement>(null);
+  const { id }     = useParams();
+  const navigate   = useNavigate();
+  const p          = PROJECTS.find((x) => x.id === Number(id));
+
+  const [activeImg, setActiveImg] = useState(0);
+  const [lightbox, setLightbox]   = useState(false);
+  const [comment, setComment]     = useState("");
+  const [comments, setComments]   = useState<string[]>([]);
+  const textareaRef               = useRef<HTMLTextAreaElement>(null);
 
   const handleComment = () => {
     if (!comment.trim()) return;
@@ -50,7 +55,7 @@ export default function ProjectDetailPage() {
   const pctSold = Math.round((p.soldUnits / p.totalUnits) * 100);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
 
       {/* Back + breadcrumb */}
       <div className="space-y-1">
@@ -64,21 +69,48 @@ export default function ProjectDetailPage() {
         </nav>
       </div>
 
-      {/* Cover image */}
-      <div className="rounded-xl overflow-hidden h-64 relative">
-        <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <div className="absolute bottom-4 left-5 flex items-center gap-2">
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyle[p.status]}`}>{p.status}</span>
-          <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-white/20 text-white backdrop-blur-sm">{p.type}</span>
+      {/* Gallery */}
+      <div className="grid grid-cols-4 grid-rows-2 gap-2 h-80 rounded-xl overflow-hidden">
+        <div className="col-span-2 row-span-2 relative cursor-pointer" onClick={() => setLightbox(true)}>
+          <img src={p.images[activeImg]} alt={p.title} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          <div className="absolute bottom-3 left-3 flex items-center gap-2">
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyle[p.status]}`}>{p.status}</span>
+            <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-white/20 text-white backdrop-blur-sm">{p.type}</span>
+          </div>
         </div>
+        {p.images.slice(1, 5).map((img, i) => (
+          <div key={i} className="relative cursor-pointer overflow-hidden" onClick={() => { setActiveImg(i + 1); setLightbox(true); }}>
+            <img src={img} alt={`${p.title} ${i + 2}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+          </div>
+        ))}
       </div>
+
+      {/* Thumbnails */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {p.images.map((img, i) => (
+          <button key={i} onClick={() => setActiveImg(i)} className={`shrink-0 h-14 w-20 rounded-lg overflow-hidden border-2 transition-colors ${activeImg === i ? "border-primary" : "border-transparent"}`}>
+            <img src={img} alt={`thumb-${i}`} className="w-full h-full object-cover" />
+          </button>
+        ))}
+      </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={() => setLightbox(false)}>
+          <button onClick={() => setLightbox(false)} className="absolute top-4 right-4 text-white p-2 rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
+          <button onClick={(e) => { e.stopPropagation(); setActiveImg((i) => (i - 1 + p.images.length) % p.images.length); }} className="absolute left-4 text-white p-2 rounded-full hover:bg-white/10"><ChevronLeft className="h-6 w-6" /></button>
+          <img src={p.images[activeImg]} alt={p.title} className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+          <button onClick={(e) => { e.stopPropagation(); setActiveImg((i) => (i + 1) % p.images.length); }} className="absolute right-4 text-white p-2 rounded-full hover:bg-white/10"><ChevronRight className="h-6 w-6" /></button>
+          <p className="absolute bottom-4 text-white/70 text-sm">{activeImg + 1} / {p.images.length}</p>
+        </div>
+      )}
 
       {/* Title row */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{p.title}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{p.developer}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{p.developer.company}</p>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
             <MapPin className="h-4 w-4 shrink-0" />{p.location}, {p.city}
           </div>
@@ -89,9 +121,6 @@ export default function ProjectDetailPage() {
           </Button>
           <Button variant="outline" size="icon" className="h-8 w-8">
             <Share2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <MoreVertical className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
@@ -127,7 +156,7 @@ export default function ProjectDetailPage() {
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                   <div className={`h-full rounded-full ${progressColor[p.status]}`} style={{ width: `${p.progress}%` }} />
                 </div>
-                <p className="text-xs text-muted-foreground text-right">Est. completion: {p.completionDate}</p>
+                <p className="text-xs text-muted-foreground text-right">Possession: {p.possessionDate}</p>
               </div>
             </div>
           </section>
@@ -137,15 +166,15 @@ export default function ProjectDetailPage() {
             <p className="text-xs text-muted-foreground mb-4">Key project information</p>
             <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
               {[
-                { label: "Developer",       value: p.developer },
+                { label: "Developer",       value: p.developer.company },
                 { label: "Project Type",    value: p.type },
                 { label: "Status",          value: p.status },
                 { label: "Price From",      value: fmt(p.priceFrom) },
                 { label: "Price To",        value: fmt(p.priceTo) },
                 { label: "Total Units",     value: p.totalUnits },
                 { label: "Launch Date",     value: p.launchDate },
-                { label: "Completion Date", value: p.completionDate },
-                { label: "Assigned Agent",  value: p.agent },
+                { label: "Possession Date", value: p.possessionDate },
+                { label: "Sales Manager",   value: p.developer.salesManager },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p className="text-xs text-muted-foreground">{label}</p>
@@ -178,7 +207,7 @@ export default function ProjectDetailPage() {
                 { icon: Building2,  label: "Total Units",     value: p.totalUnits },
                 { icon: TrendingUp, label: "Units Sold",      value: p.soldUnits },
                 { icon: Users,      label: "Units Available", value: p.totalUnits - p.soldUnits },
-                { icon: Calendar,   label: "Days Since Launch", value: Math.floor((Date.now() - new Date(p.launchDate).getTime()) / 86_400_000) },
+                { icon: Calendar,   label: "Possession",      value: p.possessionDate },
               ].map((s) => (
                 <div key={s.label} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">

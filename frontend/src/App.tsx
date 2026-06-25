@@ -9,6 +9,7 @@ import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/Dashboard";
 import LeadsPage from "./pages/LeadsPage";
 import PropertiesPage from "./pages/PropertiesPage";
+import AutoApprovalConfigPage from "./pages/AutoApprovalConfigPage";
 import PropertyDetailPage from "./pages/PropertyDetailPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
@@ -19,6 +20,10 @@ import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
 import CitiesPage from "./pages/CitiesPage";
 import StatesPage from "./pages/StatesPage";
 import EnquiriesPage from "./pages/EnquiriesPage";
+import SystemUsersPage from "./pages/SystemUsersPage";
+import OwnersPage from "./pages/OwnersPage";
+import AgentsBrokersPage from "./pages/AgentsBrokersPage";
+import BuildersDevelopersPage from "./pages/BuildersDevelopersPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -45,6 +50,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
 
             {/* Properties */}
+            <Route path="/auto-approval-config" element={<AutoApprovalConfigPage />} />
             <Route path="/properties"          element={<PropertiesPage />} />
             <Route path="/properties/sale"     element={<PropertiesPage filterType="Sell" />} />
             <Route path="/properties/rent"     element={<PropertiesPage filterType="Rent" />} />
@@ -62,6 +68,14 @@ const App = () => (
             {/* Leads & Enquiries */}
             <Route path="/leads"      element={<LeadsPage />} />
             <Route path="/enquiries" element={<EnquiriesPage />} />
+
+            {/* System Users */}
+            <Route path="/system-users" element={<SystemUsersPage />} />
+
+            {/* People Management */}
+            <Route path="/owners"              element={<OwnersPage />} />
+            <Route path="/agents-brokers"      element={<AgentsBrokersPage />} />
+            <Route path="/builders-developers" element={<BuildersDevelopersPage />} />
 
             {/* People */}
             <Route path="/contacts"  element={<Soon title="Contacts & Organizations" />} />

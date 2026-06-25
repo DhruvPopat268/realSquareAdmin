@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Home, Building2, FolderOpen, MapPin, Users,
   BookUser, UserCheck, Tag, FileText, Calendar, Megaphone, File,
   BarChart2, TrendingUp, Settings, HelpCircle, ChevronDown,
-  Wrench, Bell, ShieldCheck,
+  Wrench, Bell, ShieldCheck, UserCog,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -101,6 +101,7 @@ const sections = [
   {
     title: "Property Management",
     items: [
+      { type: "link", to: "/auto-approval-config", icon: ShieldCheck, label: "Auto Approval Config" },
       { type: "link", to: "/property-purposes",   icon: Tag,    label: "Property Purposes" },
       { type: "link", to: "/property-categories", icon: Tag,    label: "Property Categories" },
       { type: "link", to: "/property-types",      icon: Wrench, label: "Property Types" },
@@ -120,8 +121,32 @@ const sections = [
   {
     title: "Leads & Enquiries",
     items: [
-      { type: "link", to: "/enquiries",  icon: Users, label: "Enquiries" },
-      { type: "link", to: "/leads",      icon: Users, label: "Leads" },
+      { type: "link", to: "/enquiries", icon: Users, label: "Enquiries" },
+      { type: "link", to: "/leads",     icon: Users, label: "Leads" },
+    ],
+  },
+  {
+    title: "Owners Management",
+    items: [
+      { type: "link", to: "/owners", icon: UserCheck, label: "Owners" },
+    ],
+  },
+  {
+    title: "Agent / Broker Management",
+    items: [
+      { type: "link", to: "/agents-brokers", icon: BookUser, label: "Agents / Brokers" },
+    ],
+  },
+  {
+    title: "Builder / Developer Management",
+    items: [
+      { type: "link", to: "/builders-developers", icon: Building2, label: "Builders / Developers" },
+    ],
+  },
+  {
+    title: "User Management",
+    items: [
+      { type: "link", to: "/system-users", icon: UserCog, label: "System Users" },
     ],
   },
   // {

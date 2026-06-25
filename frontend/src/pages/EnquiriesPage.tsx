@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, MoreVertical, ChevronDown, UserCheck, Download } from "lucide-react";
+import { Search, Plus, ChevronDown, UserCheck, Download } from "lucide-react";
 import { toast } from "sonner";
 
 interface Enquiry {
@@ -27,16 +27,16 @@ interface Enquiry {
 }
 
 const ALL_ENQUIRIES: Enquiry[] = [
-  { id: 1,  name: "Shuja ibn Wahb",             initials: "SW", phone: "+91 98000 00001", email: "shuja@example.com",   category: "Residential", propertyType: "Apartment",                purpose: "Rent",           city: "Mumbai",    area: "Andheri West",  specificLocation: "Flat 4B, Sai Residency",   source: "Website",  createdAt: "3 Sep, 2024" },
-  { id: 2,  name: "Ammar ibn Yasir",            initials: "AM", phone: "+91 98000 00002", email: "ammar@example.com",   category: "Residential", propertyType: "Independent House / Villa", purpose: "Sell",           city: "Delhi",     area: "Any",           specificLocation: "Any",                      source: "Referral", createdAt: "8 Sep, 2024" },
-  { id: 3,  name: "Abu Talha al-Ansari",        initials: "AT", phone: "+91 98000 00003", email: "abut@example.com",    category: "Commercial",  propertyType: "Office Space",             purpose: "Rent",           city: "Bangalore", area: "Koramangala",   specificLocation: "2nd Floor, Prestige Tech", source: "Portal",   createdAt: "9 Sep, 2024" },
-  { id: 4,  name: "Zayd ibn Harithah",          initials: "ZH", phone: "+91 98000 00004", email: "zayd@example.com",    category: "Residential", propertyType: "Private Room",             purpose: "PG / Co-living", city: "Pune",      area: "Kothrud",       specificLocation: "Any",                      source: "Website",  createdAt: "11 Sep, 2024" },
-  { id: 5,  name: "Ubadah ibn al-Samit",        initials: "UB", phone: "+91 98000 00005", email: "ubadah@example.com",  category: "Residential", propertyType: "Apartment",                purpose: "Sell",           city: "Hyderabad", area: "Any",           specificLocation: "Any",                      source: "Walk-in",  createdAt: "30 Aug, 2024" },
-  { id: 6,  name: "Al-Arqam ibn Abi al-Arqam",  initials: "AL", phone: "+91 98000 00006", email: "alarqam@example.com", category: "Land / Plot", propertyType: "Commercial Plot",          purpose: "Sell",           city: "Chennai",   area: "OMR",           specificLocation: "Plot No. 14, SIPCOT",      source: "Portal",   createdAt: "24 Aug, 2024" },
-  { id: 7,  name: "Miqdad ibn Aswad",           initials: "MI", phone: "+91 98000 00007", email: "miqdad@example.com",  category: "Commercial",  propertyType: "Warehouse / Godown",       purpose: "Rent",           city: "Mumbai",    area: "Bhiwandi",      specificLocation: "Any",                      source: "Referral", createdAt: "21 Aug, 2024" },
-  { id: 8,  name: "Abu Bakr",                   initials: "AB", phone: "+91 98000 00008", email: "abubakr@example.com", category: "Residential", propertyType: "Apartment",                purpose: "Rent",           city: "Bangalore", area: "Any",           specificLocation: "Any",                      source: "Website",  createdAt: "14 Aug, 2024" },
-  { id: 9,  name: "Uthman ibn Hunaif",          initials: "UT", phone: "+91 98000 00009", email: "uthman@example.com",  category: "Residential", propertyType: "Builder Floor",            purpose: "Sell",           city: "Delhi",     area: "Dwarka",        specificLocation: "House No. 23, Sector 5",   source: "Walk-in",  createdAt: "11 Aug, 2024" },
-  { id: 10, name: "Bilal ibn Rabah",            initials: "BI", phone: "+91 98000 00010", email: "bilal@example.com",   category: "Residential", propertyType: "Shared Room",              purpose: "PG / Co-living", city: "Pune",      area: "Viman Nagar",   specificLocation: "Any",                      source: "Portal",   createdAt: "5 Aug, 2024" },
+  { id: 1,  name: "Shuja ibn Wahb",             initials: "SW", phone: "+91 98000 00001", email: "shuja@example.com",   category: "Residential", propertyType: "Apartment",                purpose: "Rent",           city: "Mumbai",    area: "Andheri West",  budget: "₹20K–₹35K/mo",   specificLocation: "Flat 4B, Sai Residency",   source: "Website",  createdAt: "3 Sep, 2024" },
+  { id: 2,  name: "Ammar ibn Yasir",            initials: "AM", phone: "+91 98000 00002", email: "ammar@example.com",   category: "Residential", propertyType: "Independent House / Villa", purpose: "Sell",           city: "Delhi",     area: "Any",           budget: "₹1.5Cr–₹2.5Cr",  specificLocation: "Any",                      source: "Referral", createdAt: "8 Sep, 2024" },
+  { id: 3,  name: "Abu Talha al-Ansari",        initials: "AT", phone: "+91 98000 00003", email: "abut@example.com",    category: "Commercial",  propertyType: "Office Space",             purpose: "Rent",           city: "Bangalore", area: "Koramangala",   budget: "₹80K–₹1.2L/mo",  specificLocation: "2nd Floor, Prestige Tech", source: "Portal",   createdAt: "9 Sep, 2024" },
+  { id: 4,  name: "Zayd ibn Harithah",          initials: "ZH", phone: "+91 98000 00004", email: "zayd@example.com",    category: "Residential", propertyType: "Private Room",             purpose: "PG / Co-living", city: "Pune",      area: "Kothrud",       budget: "₹8K–₹12K/mo",    specificLocation: "Any",                      source: "Website",  createdAt: "11 Sep, 2024" },
+  { id: 5,  name: "Ubadah ibn al-Samit",        initials: "UB", phone: "+91 98000 00005", email: "ubadah@example.com",  category: "Residential", propertyType: "Apartment",                purpose: "Sell",           city: "Hyderabad", area: "Any",           budget: "₹60L–₹90L",      specificLocation: "Any",                      source: "Walk-in",  createdAt: "30 Aug, 2024" },
+  { id: 6,  name: "Al-Arqam ibn Abi al-Arqam",  initials: "AL", phone: "+91 98000 00006", email: "alarqam@example.com", category: "Land / Plot", propertyType: "Commercial Plot",          purpose: "Sell",           city: "Chennai",   area: "OMR",           budget: "₹2Cr–₹4Cr",      specificLocation: "Plot No. 14, SIPCOT",      source: "Portal",   createdAt: "24 Aug, 2024" },
+  { id: 7,  name: "Miqdad ibn Aswad",           initials: "MI", phone: "+91 98000 00007", email: "miqdad@example.com",  category: "Commercial",  propertyType: "Warehouse / Godown",       purpose: "Rent",           city: "Mumbai",    area: "Bhiwandi",      budget: "₹1.5L–₹2.5L/mo", specificLocation: "Any",                      source: "Referral", createdAt: "21 Aug, 2024" },
+  { id: 8,  name: "Abu Bakr",                   initials: "AB", phone: "+91 98000 00008", email: "abubakr@example.com", category: "Residential", propertyType: "Apartment",                purpose: "Rent",           city: "Bangalore", area: "Any",           budget: "₹25K–₹40K/mo",   specificLocation: "Any",                      source: "Website",  createdAt: "14 Aug, 2024" },
+  { id: 9,  name: "Uthman ibn Hunaif",          initials: "UT", phone: "+91 98000 00009", email: "uthman@example.com",  category: "Residential", propertyType: "Builder Floor",            purpose: "Sell",           city: "Delhi",     area: "Dwarka",        budget: "₹80L–₹1.2Cr",    specificLocation: "House No. 23, Sector 5",   source: "Walk-in",  createdAt: "11 Aug, 2024" },
+  { id: 10, name: "Bilal ibn Rabah",            initials: "BI", phone: "+91 98000 00010", email: "bilal@example.com",   category: "Residential", propertyType: "Shared Room",              purpose: "PG / Co-living", city: "Pune",      area: "Viman Nagar",   budget: "₹6K–₹10K/mo",    specificLocation: "Any",                      source: "Portal",   createdAt: "5 Aug, 2024" },
 ];
 
 const purposeStyle: Record<string, string> = {
@@ -70,9 +70,6 @@ export default function EnquiriesPage() {
   const [convertTargets, setConvertTargets] = useState<Enquiry[]>([]);
 
   // single-convert fields
-  const [verifyName, setVerifyName]   = useState("");
-  const [verifyPhone, setVerifyPhone] = useState("");
-  const [verifyErrors, setVerifyErrors] = useState<{ name?: string; phone?: string }>({});
 
   // per-lead budget map: { [enquiryId]: budget string }
   const [budgets, setBudgets]           = useState<Record<number, string>>({});
@@ -102,9 +99,6 @@ export default function EnquiriesPage() {
 
   function openConvert(targets: Enquiry[]) {
     setConvertTargets(targets);
-    setVerifyName("");
-    setVerifyPhone("");
-    setVerifyErrors({});
     setVerifierName("");
     setVerifierMobile("");
     setVerifierErrors({});
@@ -127,20 +121,10 @@ export default function EnquiriesPage() {
     if (!verifierMobile.trim()) vErrs.mobile = "Verifier mobile is required";
 
     if (convertTargets.length === 1) {
-      const errs: { name?: string; phone?: string } = {};
-      if (!verifyName.trim())  errs.name  = "Name is required";
-      if (!verifyPhone.trim()) errs.phone = "Mobile number is required";
-      if (Object.keys(errs).length || Object.keys(bErrs).length || Object.keys(vErrs).length) {
-        setVerifyErrors(errs);
+      if (Object.keys(bErrs).length || Object.keys(vErrs).length) {
         setBudgetErrors(bErrs);
         setVerifierErrors(vErrs);
         return;
-      }
-      if (verifyName.trim().toLowerCase() !== convertTargets[0].name.toLowerCase()) {
-        setVerifyErrors({ name: "Name does not match" }); return;
-      }
-      if (verifyPhone.trim() !== convertTargets[0].phone) {
-        setVerifyErrors({ phone: "Mobile number does not match" }); return;
       }
     } else {
       if (Object.keys(bErrs).length || Object.keys(vErrs).length) {
@@ -229,33 +213,40 @@ export default function EnquiriesPage() {
               <th className="w-10 px-4 py-3">
                 <Checkbox checked={allChecked} data-state={someChecked && !allChecked ? "indeterminate" : undefined} onCheckedChange={toggleAll} />
               </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contact</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Action</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Customer Name</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Customer Contact Details</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Property Type</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Purpose</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[130px]">Purpose</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">City</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Area</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Specific Location</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Source</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[140px]">Budget</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[130px]">Created Date</th>
               <th className="w-10" />
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={12} className="text-center text-muted-foreground py-16">No enquiries found</td></tr>
+              <tr><td colSpan={10} className="text-center text-muted-foreground py-16">No enquiries found</td></tr>
             ) : filtered.map((e) => (
               <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3"><Checkbox checked={selected.includes(e.id)} onCheckedChange={() => toggle(e.id)} /></td>
+                <td className="px-4 py-3">
+                  {!e.convertedToLead ? (
+                    <button onClick={() => openConvert([e])} className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-medium transition-colors">
+                      <UserCheck className="h-3.5 w-3.5" /> Convert
+                    </button>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 font-medium">Converted</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <Avatar initials={e.initials} />
                     <div>
                       <p className="font-medium text-foreground">{e.name}</p>
-                      {e.convertedToLead && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 font-medium">Lead</span>
-                      )}
+
                     </div>
                   </div>
                 </td>
@@ -270,32 +261,8 @@ export default function EnquiriesPage() {
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{e.city}</td>
                 <td className="px-4 py-3 text-muted-foreground">{e.area}</td>
-                <td className="px-4 py-3">
-                  <span className={e.specificLocation === "Any" ? "text-muted-foreground/60 italic text-xs" : "text-muted-foreground text-xs"}>
-                    {e.specificLocation}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{e.source}</td>
+                <td className="px-4 py-3 text-muted-foreground">{e.budget ?? <span className="italic text-muted-foreground/50 text-xs">—</span>}</td>
                 <td className="px-4 py-3 text-muted-foreground">{e.createdAt}</td>
-                <td className="px-4 py-3">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View</DropdownMenuItem>
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      {!e.convertedToLead && (
-                        <DropdownMenuItem onClick={() => openConvert([e])} className="gap-2 text-emerald-600 focus:text-emerald-600">
-                          <UserCheck className="h-3.5 w-3.5" /> Convert to Lead
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -315,20 +282,8 @@ export default function EnquiriesPage() {
             {convertTargets.length === 1 ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Verify the enquiry details to confirm conversion of <span className="font-semibold text-foreground">{convertTargets[0].name}</span>.
+                  Confirm conversion of <span className="font-semibold text-foreground">{convertTargets[0].name}</span> to a Lead.
                 </p>
-                <div className="space-y-1.5">
-                  <Label htmlFor="verify-name">Full Name <span className="text-destructive">*</span></Label>
-                  <Input id="verify-name" placeholder="Enter enquirer's full name" value={verifyName}
-                    onChange={(e) => { setVerifyName(e.target.value); setVerifyErrors((er) => ({ ...er, name: undefined })); }} />
-                  {verifyErrors.name && <p className="text-xs text-destructive">{verifyErrors.name}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="verify-phone">Mobile Number <span className="text-destructive">*</span></Label>
-                  <Input id="verify-phone" placeholder="Enter registered mobile number" value={verifyPhone}
-                    onChange={(e) => { setVerifyPhone(e.target.value); setVerifyErrors((er) => ({ ...er, phone: undefined })); }} />
-                  {verifyErrors.phone && <p className="text-xs text-destructive">{verifyErrors.phone}</p>}
-                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`budget-${convertTargets[0].id}`}>Budget <span className="text-destructive">*</span></Label>
                   <Input id={`budget-${convertTargets[0].id}`} placeholder="e.g. ₹50L – ₹80L"

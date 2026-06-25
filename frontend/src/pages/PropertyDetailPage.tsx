@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { PROPERTIES } from "@/data/propertiesData";
+import { PROPERTIES, LISTING_STATUS_LABEL } from "@/data/propertiesData";
 import { Button } from "@/components/ui/button";
 import {
   ChevronRight, Mail, Share2, MoreVertical, Bed, Bath,
@@ -16,11 +16,22 @@ function fmtFull(n: number) {
   return "$" + n.toLocaleString();
 }
 
+const purposeStyle: Record<string, string> = {
+  "Sell":           "bg-blue-50 text-blue-700 border border-blue-200",
+  "Rent":           "bg-green-50 text-green-700 border border-green-200",
+  "PG / Co-living": "bg-purple-50 text-purple-700 border border-purple-200",
+};
+
 const statusStyle: Record<string, string> = {
-  Available:    "bg-green-50 text-green-700 border border-green-200",
-  Sold:         "bg-gray-100 text-gray-600 border border-gray-200",
-  Rented:       "bg-blue-50 text-blue-600 border border-blue-200",
-  "Under Offer":"bg-amber-50 text-amber-600 border border-amber-200",
+  PENDING_APPROVAL: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+  ACTIVE:           "bg-green-50 text-green-700 border border-green-200",
+  RESERVED:         "bg-blue-50 text-blue-700 border border-blue-200",
+  SOLD:             "bg-gray-100 text-gray-600 border border-gray-200",
+  RENTED:           "bg-teal-50 text-teal-700 border border-teal-200",
+  EXPIRED:          "bg-orange-50 text-orange-700 border border-orange-200",
+  INACTIVE:         "bg-slate-100 text-slate-500 border border-slate-200",
+  ARCHIVED:         "bg-stone-100 text-stone-500 border border-stone-200",
+  REJECTED:         "bg-red-50 text-red-600 border border-red-200",
 };
 
 function DetailItem({ label, value }: { label: string; value: string | number | undefined }) {
@@ -62,7 +73,7 @@ export default function PropertyDetailPage() {
   const imgs = p.images;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
 
       {/* Breadcrumb */}
       <div className="space-y-1">
@@ -121,8 +132,8 @@ export default function PropertyDetailPage() {
 
           {/* Quick spec chips */}
           <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status]}`}>{p.status}</span>
-            <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">{p.purpose}</span>
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status]}`}>{LISTING_STATUS_LABEL[p.status]}</span>
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${purposeStyle[p.purpose] ?? "bg-muted text-muted-foreground border"}`}>{p.purpose}</span>
             <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">{p.category}</span>
             <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">{p.type}</span>
             {p.beds   !== undefined && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Bed className="h-4 w-4" />{p.beds}</span>}
@@ -161,7 +172,7 @@ export default function PropertyDetailPage() {
             <p className="text-xs text-muted-foreground mb-4">Pricing and listing information</p>
             <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
               <DetailItem label="Purpose"         value={p.purpose} />
-              <DetailItem label="Status"           value={p.status} />
+              <DetailItem label="Status"           value={LISTING_STATUS_LABEL[p.status]} />
               <DetailItem label="List Price"       value={fmtFull(p.price)} />
               <DetailItem label="Previous Price"   value={fmtFull(p.previousPrice)} />
               <DetailItem label="Days on Market"   value={p.daysOnMarket} />
