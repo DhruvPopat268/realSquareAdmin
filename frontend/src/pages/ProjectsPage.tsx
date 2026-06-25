@@ -378,7 +378,7 @@ export default function ProjectsPage() {
       {view === "grid" && (
         filtered.length === 0
           ? <p className="text-center text-muted-foreground py-16">No projects found</p>
-          : <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          : <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
               {filtered.map((p) => (
                 <ProjectCard key={p.id} p={p} onClick={() => navigate(`/projects/${p.id}`)} />
               ))}

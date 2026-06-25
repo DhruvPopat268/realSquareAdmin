@@ -41,41 +41,54 @@ function fmt(n: number) {
 
 function PropertyCard({ p, onClick }: { p: Property; onClick: () => void }) {
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow group">
-      <div className="relative h-48 overflow-hidden">
-        <img src={p.images[0]} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        <div className="absolute top-3 left-3 flex gap-1.5">
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${purposeStyle[p.purpose] ?? "bg-muted text-muted-foreground"}`}>{p.purpose}</span>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status]}`}>{LISTING_STATUS_LABEL[p.status]}</span>
+    <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow">
+      <div className="relative h-52 overflow-hidden">
+        <img src={p.images[0]} alt={p.title} className="w-full h-full object-cover" />
+        {/* Top-left checkbox */}
+        <div className="absolute top-3 left-3">
+          <div className="h-7 w-7 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center">
+            <div className="h-4 w-4 rounded border-2 border-white" />
+          </div>
         </div>
-        <div className="absolute top-3 right-3 flex gap-1">
-          <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-1.5 rounded-full bg-white/90 hover:bg-green-50 text-green-600 transition-colors">
-            <Eye className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-full bg-white/90 hover:bg-blue-50 text-blue-600 transition-colors">
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-full bg-white/90 hover:bg-red-50 text-red-500 transition-colors">
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+        {/* Top-right three dots */}
+        <button onClick={(e) => e.stopPropagation()} className="absolute top-3 right-3 h-7 w-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors">
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+        {/* Image dots */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+          {p.images.slice(0, 5).map((_, i) => (
+            <div key={i} className={`h-1.5 rounded-full ${i === 0 ? "w-3 bg-white" : "w-1.5 bg-white/50"}`} />
+          ))}
         </div>
       </div>
-      <div className="p-4">
-        <p className="text-lg font-bold text-foreground">{fmt(p.price)}</p>
-        <p className="text-sm font-semibold text-foreground mt-0.5">{p.title}</p>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-          <MapPin className="h-3 w-3 shrink-0" />{p.address}
+      <div className="p-3">
+        {/* Price + Ref */}
+        <div className="flex items-center justify-between">
+          <p className="text-xl font-bold text-foreground">{fmt(p.price)}</p>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-semibold text-blue-600">#{p.refNo}</span>
+            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(p.refNo); }} className="text-muted-foreground hover:text-foreground transition-colors">
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground border-t pt-3 flex-wrap">
-          {p.beds   !== undefined && <span className="flex items-center gap-1"><Bed className="h-3.5 w-3.5" />{p.beds} Beds</span>}
-          {p.baths  !== undefined && <span className="flex items-center gap-1"><Bath className="h-3.5 w-3.5" />{p.baths} Baths</span>}
-          {p.sqft !== undefined && <span className="flex items-center gap-1"><Maximize2 className="h-3.5 w-3.5" />{p.sqft.toLocaleString()} sqft</span>}
-          {p.parking !== undefined && <span className="flex items-center gap-1"><Car className="h-3.5 w-3.5" />{p.parking}</span>}
+        {/* Type for purpose */}
+        <p className="text-sm text-muted-foreground mt-0.5">{p.type} for {p.purpose}</p>
+        {/* Address */}
+        <p className="text-sm text-foreground mt-0.5">{p.address}</p>
+        {/* Beds / Baths / Sqft */}
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+          {p.beds   !== undefined && <span className="flex items-center gap-1"><Bed className="h-4 w-4" />{p.beds}</span>}
+          {p.baths  !== undefined && <span className="flex items-center gap-1"><Bath className="h-4 w-4" />{p.baths}</span>}
+          {p.sqft   !== undefined && <span className="flex items-center gap-1 font-medium text-foreground"><Maximize2 className="h-4 w-4" />{p.sqft.toLocaleString()} sqft</span>}
         </div>
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{p.category} · {p.type}</span>
-          <span className="text-xs text-muted-foreground">{p.listedByType}</span>
-        </div>
+        {/* Send Mail */}
+        <button
+          onClick={(e) => e.stopPropagation()}
+          className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <Mail className="h-3.5 w-3.5" /> Send Mail
+        </button>
       </div>
     </div>
   );
