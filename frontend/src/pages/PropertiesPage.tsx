@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Search, Plus, ChevronDown, LayoutGrid, List, Map,
-  Bed, Bath, Maximize2, MapPin, Car, Layers, Pencil, Trash2, Eye,
+  Bed, Bath, Maximize2, MapPin, Layers, Pencil, Trash2, Eye, MoreHorizontal, Copy, Mail,
 } from "lucide-react";
 import { PROPERTIES, type Property, type ListingStatus, LISTING_STATUS_LABEL } from "@/data/propertiesData";
 import { PROPERTY_PURPOSES } from "@/data/propertyPurposesData";
@@ -415,7 +415,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
 
       {/* Grid view */}
       {view === "grid" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
           {filtered.length === 0
             ? <p className="col-span-3 text-center text-muted-foreground py-16">No properties found</p>
             : filtered.map((p) => (
