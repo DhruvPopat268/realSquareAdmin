@@ -6,7 +6,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Search, Plus, ChevronDown, LayoutGrid, List,
+  Search, Plus, ChevronDown, LayoutGrid, List, Map,
   Bed, Bath, Maximize2, MapPin, Car, Layers, Pencil, Trash2, Eye,
 } from "lucide-react";
 import { PROPERTIES, type Property, type ListingStatus, LISTING_STATUS_LABEL } from "@/data/propertiesData";
@@ -14,6 +14,7 @@ import { PROPERTY_PURPOSES } from "@/data/propertyPurposesData";
 import { PROPERTY_TYPES } from "@/data/propertyTypesData";
 import { PROPERTY_CATEGORIES } from "@/data/propertyCategoriesData";
 import { CITIES } from "@/data/citiesData";
+import PropertyMapView from "@/components/PropertyMapView";
 
 const statusStyle: Record<string, string> = {
   PENDING_APPROVAL: "bg-yellow-50 text-yellow-700 border border-yellow-200",
@@ -143,7 +144,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const resolvedListedByType = lockedListedByType ?? state?.listedByType;
   const resolvedListedByName = listedByName ?? state?.listedByName;
   const [search, setSearch]               = useState(resolvedListedByName ?? "");
-  const [view, setView]                   = useState<"grid" | "list">("list");
+  const [view, setView] = useState<"grid" | "list" | "map">("list");
   const [purposeFilter, setPurposeFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [typeFilter, setTypeFilter]       = useState("All");
@@ -327,6 +328,10 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
             className={`p-1.5 rounded-md transition-colors ${view === "list" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
             <List className="h-3.5 w-3.5" />
           </button>
+          <button onClick={() => setView("map")}
+            className={`p-1.5 rounded-md transition-colors ${view === "map" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
+            <Map className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
@@ -389,6 +394,11 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
       </div>
 
       <p className="text-sm text-muted-foreground">{filtered.length} propert{filtered.length !== 1 ? "ies" : "y"} found</p>
+
+      {/* Map view */}
+      {view === "map" && (
+        <PropertyMapView properties={filtered} onViewProperty={(id) => navigate(`/properties/${id}`)} />
+      )}
 
       {/* Grid view */}
       {view === "grid" && (

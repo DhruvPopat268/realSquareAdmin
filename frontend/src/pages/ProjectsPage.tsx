@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Plus, MapPin, Calendar, ChevronDown, Pencil, Trash2, Eye, LayoutGrid, List } from "lucide-react";
+import { Search, Plus, MapPin, Calendar, ChevronDown, Pencil, Trash2, Eye, LayoutGrid, List, Map } from "lucide-react";
 import { PROJECTS, type Project, type ProjectStage, type ListingStatus, PROJECT_STAGE_LABEL, LISTING_STATUS_LABEL } from "@/data/projectsData";
+import ProjectMapView from "@/components/ProjectMapView";
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -181,13 +182,20 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const [search, setSearch]               = useState(state?.listedByName ?? "");
-  const [view, setView] = useState<"grid" | "list">("list");
+  const [view, setView] = useState<"grid" | "list" | "map">("list");
   const [stageFilter, setStageFilter]               = useState("All");
   const [listingStatusFilter, setListingStatusFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [typeFilter, setTypeFilter]         = useState("All");
   const [developerFilter, setDeveloperFilter] = useState("All");
   const [listedByFilter, setListedByFilter]   = useState(state?.listedByType ?? "All");
+
+  const hasFilters = stageFilter !== "All" || listingStatusFilter !== "All" || categoryFilter !== "All" || typeFilter !== "All" || developerFilter !== "All" || listedByFilter !== "All" || search !== "";
+
+  function clearAll() {
+    setSearch(""); setStageFilter("All"); setListingStatusFilter("All");
+    setCategoryFilter("All"); setTypeFilter("All"); setDeveloperFilter("All"); setListedByFilter("All");
+  }
 
   const developerNames = useMemo(() => ["All", ...Array.from(new Set(PROJECTS.map((p) => p.developer.company)))], []);
   const filteredTypes  = useMemo(() => ["All", ...Array.from(new Set(PROJECTS.filter((p) => categoryFilter === "All" || p.category === categoryFilter).map((p) => p.type)))], [categoryFilter]);
@@ -245,7 +253,7 @@ export default function ProjectsPage() {
         ))}
       </div>
 
-      {/* Toolbar */}
+      {/* Toolbar - Row 1 */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -254,41 +262,15 @@ export default function ProjectsPage() {
 
         <div className="flex-1" />
 
-        <p className="text-sm text-muted-foreground">{filtered.length} project{filtered.length !== 1 ? "s" : ""}</p>
-
-        <div className="flex items-center gap-0.5 border rounded-lg p-1">
-          <button onClick={() => setView("grid")}
-            className={`p-1.5 rounded-md transition-colors ${view === "grid" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
-            <LayoutGrid className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => setView("list")}
-            className={`p-1.5 rounded-md transition-colors ${view === "list" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
-            <List className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {developerFilter === "All" ? "All Builders" : developerFilter} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {developerNames.map((d) => (
-              <DropdownMenuItem key={d} onClick={() => setDeveloperFilter(d)}>{d === "All" ? "All Builders" : d}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Category: {categoryFilter} <ChevronDown className="h-3.5 w-3.5" />
+              {categoryFilter === "All" ? "All Categories" : categoryFilter} <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {["All", "Residential", "Commercial", "Mixed Use", "Industrial"].map((c) => (
-              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setTypeFilter("All"); }}>{c}</DropdownMenuItem>
+              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setTypeFilter("All"); }}>{c === "All" ? "All Categories" : c}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -319,6 +301,41 @@ export default function ProjectsPage() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <div className="flex items-center gap-0.5 border rounded-lg p-1">
+          <button onClick={() => setView("grid")}
+            className={`p-1.5 rounded-md transition-colors ${view === "grid" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
+            <LayoutGrid className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => setView("list")}
+            className={`p-1.5 rounded-md transition-colors ${view === "list" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
+            <List className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => setView("map")}
+            className={`p-1.5 rounded-md transition-colors ${view === "map" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
+            <Map className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Toolbar - Row 2 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1" />
+
+        <p className="text-sm text-muted-foreground">{filtered.length} project{filtered.length !== 1 ? "s" : ""}</p>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
+              {developerFilter === "All" ? "All Builders" : developerFilter} <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {developerNames.map((d) => (
+              <DropdownMenuItem key={d} onClick={() => setDeveloperFilter(d)}>{d === "All" ? "All Builders" : d}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
@@ -344,7 +361,18 @@ export default function ProjectsPage() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {hasFilters && (
+          <button onClick={clearAll} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors ml-1 underline underline-offset-2">Clear all</button>
+        )}
       </div>
+
+      <p className="text-sm text-muted-foreground">{filtered.length} project{filtered.length !== 1 ? "s" : ""} found</p>
+
+      {/* Map view */}
+      {view === "map" && (
+        <ProjectMapView projects={filtered} onViewProject={(id) => navigate(`/projects/${id}`)} />
+      )}
 
       {/* Grid view */}
       {view === "grid" && (

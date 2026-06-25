@@ -20,6 +20,8 @@ export interface Property {
   title: string;
   address: string;
   city: string;
+  lat: number;
+  lng: number;
   purpose: string;    // references PropertyPurpose.name  (Sell | Rent | PG / Co-living)
   category: string;   // references PropertyCategory.name (Residential | Commercial | Land / Plot)
   type: string;       // references PropertyType.name filtered by category
@@ -56,6 +58,7 @@ export const PROPERTIES: Property[] = [
     title: "3BHK Apartment, Lakewood Gardens",
     address: "9081 Lakewood Gardens Junction",
     city: "Los Angeles, CA",
+    lat: 34.0522, lng: -118.2437,
     purpose: "Sell",
     category: "Residential",
     type: "Apartment",
@@ -85,6 +88,7 @@ export const PROPERTIES: Property[] = [
     title: "Independent Villa, Green Valley",
     address: "3890 Poplar Drive, Green Valley",
     city: "Denver, CO",
+    lat: 39.7392, lng: -104.9903,
     purpose: "Sell",
     category: "Residential",
     type: "Independent House / Villa",
@@ -114,6 +118,7 @@ export const PROPERTIES: Property[] = [
     title: "Commercial Plot, Maplewood",
     address: "3605 Parker Road, Maplewood",
     city: "Austin, TX",
+    lat: 30.2672, lng: -97.7431,
     purpose: "Sell",
     category: "Land / Plot",
     type: "Commercial Plot",
@@ -141,6 +146,7 @@ export const PROPERTIES: Property[] = [
     title: "2BHK Apartment for Rent, Sunrise Hills",
     address: "7529 E. Pecan Street, Sunrise Hills",
     city: "Phoenix, AZ",
+    lat: 33.4484, lng: -112.0740,
     purpose: "Rent",
     category: "Residential",
     type: "Apartment",
@@ -170,6 +176,7 @@ export const PROPERTIES: Property[] = [
     title: "Office Space for Rent, Ridgeview",
     address: "775 Rolling Green Road, Ridgeview",
     city: "Seattle, WA",
+    lat: 47.6062, lng: -122.3321,
     purpose: "Rent",
     category: "Commercial",
     type: "Office Space",
@@ -199,6 +206,7 @@ export const PROPERTIES: Property[] = [
     title: "Warehouse / Godown for Rent, Southside",
     address: "22 Industrial Estate Rd, Southside",
     city: "Houston, TX",
+    lat: 29.7604, lng: -95.3698,
     purpose: "Rent",
     category: "Commercial",
     type: "Warehouse / Godown",
@@ -227,9 +235,7 @@ export const PROPERTIES: Property[] = [
     title: "PG for Working Professionals, Lakeside",
     address: "112 Lakeside Avenue, Waterfront District",
     city: "Miami, FL",
-    purpose: "PG / Co-living",
-    category: "Residential",
-    type: "Private Room",
+    lat: 25.7617, lng: -80.1918,
     status: "RENTED",
     price: 12000, previousPrice: 13000,
     occupancyType: "Single", mealsIncluded: true,
@@ -255,6 +261,7 @@ export const PROPERTIES: Property[] = [
     title: "Co-living Flat, Marina Bay",
     address: "88 Harbour Front Walk, Marina Bay",
     city: "Miami, FL",
+    lat: 25.7750, lng: -80.2080,
     purpose: "PG / Co-living",
     category: "Residential",
     type: "Entire Flat (Co-living)",

@@ -28,6 +28,8 @@ export interface Project {
   developer: { company: string; salesManager: string; mobile: string; email: string };
   location: string;
   city: string;
+  lat: number;
+  lng: number;
   purpose: string;
   category: ProjectCategory;
   type: string;
@@ -58,6 +60,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "Horizon Developers", salesManager: "Arjun Nair", mobile: "+91 98001 11003", email: "arjun@example.com" },
     location: "Downtown Financial District",
     city: "New York, NY",
+    lat: 40.7128, lng: -74.0060,
     purpose: "Sell",
     category: "Residential",
     type: "Apartment",
@@ -88,6 +91,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "EcoLiving Group", salesManager: "Karan Joshi", mobile: "+91 98001 11007", email: "karan@example.com" },
     location: "Green Valley Heights",
     city: "Los Angeles, CA",
+    lat: 34.0522, lng: -118.2437,
     purpose: "Sell",
     category: "Residential",
     type: "Independent House / Villa",
@@ -119,6 +123,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "BlueSea Properties", salesManager: "Sunita Reddy", mobile: "+91 98100 41001", email: "sunita@example.com" },
     location: "Waterfront Marina",
     city: "Miami, FL",
+    lat: 25.7617, lng: -80.1918,
     purpose: "Sell",
     category: "Mixed Use",
     type: "Mixed Use Building",
@@ -150,6 +155,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "Urban Nest Realty", salesManager: "Harish Patel", mobile: "+91 98100 41002", email: "harish@example.com" },
     location: "Maplewood Suburb",
     city: "Austin, TX",
+    lat: 30.2672, lng: -97.7431,
     purpose: "Sell",
     category: "Residential",
     type: "Townhouse",
@@ -184,6 +190,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "Commercial Capital Co.", salesManager: "Meera Bansal", mobile: "+91 98100 41003", email: "meera@example.com" },
     location: "Ridgeview Commerce Zone",
     city: "Seattle, WA",
+    lat: 47.6062, lng: -122.3321,
     purpose: "Sell",
     category: "Commercial",
     type: "Office Space",
@@ -214,6 +221,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "Aqua Developments", salesManager: "Arjun Nair", mobile: "+91 98001 11003", email: "arjun@example.com" },
     location: "Lakeshore Drive",
     city: "Chicago, IL",
+    lat: 41.8781, lng: -87.6298,
     purpose: "Sell",
     category: "Residential",
     type: "Apartment",
@@ -245,6 +253,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "Sunridge Communities", salesManager: "Karan Joshi", mobile: "+91 98001 11007", email: "karan@example.com" },
     location: "Sunridge North",
     city: "Denver, CO",
+    lat: 39.7392, lng: -104.9903,
     purpose: "Sell",
     category: "Residential",
     type: "Independent House / Villa",
@@ -276,6 +285,7 @@ export const PROJECTS: Project[] = [
     developer: { company: "Southwest Living", salesManager: "Sunita Reddy", mobile: "+91 98100 41001", email: "sunita@example.com" },
     location: "Sunrise Hills East",
     city: "Phoenix, AZ",
+    lat: 33.4484, lng: -112.0740,
     purpose: "Sell",
     category: "Residential",
     type: "Independent House / Villa",
