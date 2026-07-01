@@ -7,6 +7,7 @@ export interface ProfileData {
   role: string;
   profilePhoto?: string;
   permissions: string[];
+  isSuperAdmin: boolean;
   lastLogin: string | null;
 }
 
@@ -27,14 +28,19 @@ export const ProfileProvider = ({ children }: { children: React.ReactNode }) => 
 
   const refreshProfile = useCallback(() => {
     api.get("/admin/auth/me")
-      .then(res => setProfile({
-        name:         res.data.data.name,
-        email:        res.data.data.email,
-        role:         res.data.data.role,
-        profilePhoto: res.data.data.profilePhoto,
-        permissions:  res.data.data.permissions ?? [],
-        lastLogin:    res.data.data.lastLogin ?? null,
-      }))
+      .then(res => {
+        const data = res.data.data;
+        const roleObj = typeof data.role === "object" && data.role !== null ? data.role : null;
+        setProfile({
+          name:         data.profile?.name  ?? "",
+          email:        data.profile?.email ?? "",
+          role:         roleObj?.name ?? "",
+          profilePhoto: data.profile?.profilePhoto,
+          permissions:  roleObj?.permissions ?? [],
+          isSuperAdmin: data.isSuperAdmin ?? false,
+          lastLogin:    data.lastLogin ?? null,
+        });
+      })
       .catch(() => {});
   }, []);
 
@@ -42,7 +48,7 @@ export const ProfileProvider = ({ children }: { children: React.ReactNode }) => 
 
   const hasPermission = (key: string) => {
     if (!profile) return false;
-    if (profile.role === "admin") return true;
+    if (profile.isSuperAdmin) return true;
     return profile.permissions.includes(key);
   };
 

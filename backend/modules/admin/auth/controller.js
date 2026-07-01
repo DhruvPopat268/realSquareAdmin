@@ -2,10 +2,13 @@ const jwt    = require("jsonwebtoken");
 const path   = require("path");
 const crypto = require("crypto");
 const { validationResult } = require("express-validator");
-const SystemUser        = require("./model");
+const SystemUser        = require("../../../modules/systemUsers.model");
 const SystemUserSession = require("./session.model");
 const SystemUserOtp     = require("./otp.model");
 const { sendEmail }     = require("../../../utils/emailService");
+
+const POPULATE_ROLE    = "name permissions isActive";
+const EXCLUDE_PASSWORD = "-profile.password";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -15,8 +18,8 @@ const COOKIE_OPTIONS = {
 };
 
 const TEMPLATES = {
-  forgotPassword:   path.join(__dirname, "templates", "forgot-password.html"),
-  passwordChanged:  path.join(__dirname, "templates", "password-changed.html"),
+  forgotPassword:  path.join(__dirname, "templates", "forgot-password.html"),
+  passwordChanged: path.join(__dirname, "templates", "password-changed.html"),
 };
 
 const generateToken = (id) =>
@@ -30,21 +33,38 @@ const generateOtp = () =>
 // ── Register ──────────────────────────────────────────────────────────────────
 const register = async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty())
-    return res.status(400).json({ success: false, errors: errors.array() });
+  if (!errors.isEmpty()) {
+    const grouped = {};
+    errors.array().forEach(({ path, msg }) => {
+      grouped[path] = grouped[path] ? `${grouped[path]}, ${msg}` : msg;
+    });
+    const message = Object.values(grouped).join(" | ");
+    return res.status(400).json({ success: false, message });
+  }
 
-  const { name, email, password } = req.body;
+  const { name, email, password, role, isSuperAdmin } = req.body;
 
   try {
-    const exists = await SystemUser.findOne({ email });
+    const exists = await SystemUser.findOne({ "profile.email": email });
     if (exists)
       return res.status(409).json({ success: false, message: "Email already registered" });
 
-    const admin = await SystemUser.create({ name, email, password });
+    const admin = await SystemUser.create({
+      profile:      { name, email, password },
+      role:         role || undefined,
+      isSuperAdmin: isSuperAdmin ?? false,
+    });
+    await admin.populate("role", "name permissions isActive");
 
     res.status(201).json({
       success: true,
-      data: { userId: admin._id, name: admin.name, email: admin.email, role: admin.role },
+      data: {
+        userId:       admin._id,
+        name:         admin.profile.name,
+        email:        admin.profile.email,
+        role:         admin.role,
+        isSuperAdmin: admin.isSuperAdmin,
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -54,13 +74,19 @@ const register = async (req, res) => {
 // ── Login ─────────────────────────────────────────────────────────────────────
 const login = async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty())
-    return res.status(400).json({ success: false, errors: errors.array() });
+  if (!errors.isEmpty()) {
+    const grouped = {};
+    errors.array().forEach(({ path, msg }) => {
+      grouped[path] = grouped[path] ? `${grouped[path]}, ${msg}` : msg;
+    });
+    const message = Object.values(grouped).join(" | ");
+    return res.status(400).json({ success: false, message });
+  }
 
   const { email, password } = req.body;
 
   try {
-    const admin = await SystemUser.findOne({ email });
+    const admin = await SystemUser.findOne({ "profile.email": email }).populate("role", "name permissions isActive");
     if (!admin || !(await admin.matchPassword(password)))
       return res.status(401).json({ success: false, message: "Invalid email or password" });
 
@@ -85,7 +111,13 @@ const login = async (req, res) => {
 
     res.json({
       success: true,
-      data: { userId: admin._id, name: admin.name, email: admin.email, role: admin.role },
+      data: {
+        userId:       admin._id,
+        name:         admin.profile.name,
+        email:        admin.profile.email,
+        role:         admin.role,
+        isSuperAdmin: admin.isSuperAdmin,
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -117,24 +149,23 @@ const sendOtp = async (req, res) => {
     return res.status(400).json({ success: false, message: "Email is required" });
 
   try {
-    const admin = await SystemUser.findOne({ email });
+    const admin = await SystemUser.findOne({ "profile.email": email });
     if (!admin)
       return res.status(404).json({ success: false, message: "No account found with this email" });
 
     if (!admin.isActive)
       return res.status(403).json({ success: false, message: "Account is deactivated" });
 
-    // delete any existing OTP for this user
     await SystemUserOtp.deleteMany({ userId: admin._id });
 
     const otp = generateOtp();
     await SystemUserOtp.create({ userId: admin._id, otp });
 
     await sendEmail({
-      to: admin.email,
-      subject: "Your RealSquare Password Reset Code",
+      to:           admin.profile.email,
+      subject:      "Your RealSquare Password Reset Code",
       templatePath: TEMPLATES.forgotPassword,
-      variables: { OTP: otp },
+      variables:    { OTP: otp },
     });
 
     res.json({ success: true, message: "OTP sent to your email" });
@@ -147,8 +178,14 @@ const sendOtp = async (req, res) => {
 // POST /api/admin/auth/forgot-password  { otp, newPassword }
 const forgotPassword = async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty())
-    return res.status(400).json({ success: false, errors: errors.array() });
+  if (!errors.isEmpty()) {
+    const grouped = {};
+    errors.array().forEach(({ path, msg }) => {
+      grouped[path] = grouped[path] ? `${grouped[path]}, ${msg}` : msg;
+    });
+    const message = Object.values(grouped).join(" | ");
+    return res.status(400).json({ success: false, message });
+  }
 
   const { otp, newPassword } = req.body;
 
@@ -161,21 +198,19 @@ const forgotPassword = async (req, res) => {
     if (!admin)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    admin.password = newPassword;
+    admin.profile.password = newPassword;
     await admin.save();
     await otpRecord.deleteOne();
 
-    // revoke all sessions
     await SystemUserSession.deleteMany({ userId: admin._id });
 
-    // send confirmation email
     await sendEmail({
-      to: admin.email,
-      subject: "Your RealSquare Password Has Been Changed",
+      to:           admin.profile.email,
+      subject:      "Your RealSquare Password Has Been Changed",
       templatePath: TEMPLATES.passwordChanged,
       variables: {
-        NAME:       admin.name,
-        EMAIL:      admin.email,
+        NAME:       admin.profile.name,
+        EMAIL:      admin.profile.email,
         CHANGED_AT: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
         LOGIN_URL:  process.env.CLIENT_URL || "http://localhost:8080/login",
       },
@@ -191,8 +226,14 @@ const forgotPassword = async (req, res) => {
 // POST /api/admin/auth/change-password  { oldPassword, newPassword, confirmPassword }  (protected)
 const changePassword = async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty())
-    return res.status(400).json({ success: false, errors: errors.array() });
+  if (!errors.isEmpty()) {
+    const grouped = {};
+    errors.array().forEach(({ path, msg }) => {
+      grouped[path] = grouped[path] ? `${grouped[path]}, ${msg}` : msg;
+    });
+    const message = Object.values(grouped).join(" | ");
+    return res.status(400).json({ success: false, message });
+  }
 
   const { oldPassword, newPassword, confirmPassword } = req.body;
 
@@ -208,21 +249,19 @@ const changePassword = async (req, res) => {
     if (oldPassword === newPassword)
       return res.status(400).json({ success: false, message: "New password must be different from old password" });
 
-    admin.password = newPassword;
+    admin.profile.password = newPassword;
     await admin.save();
 
-    // revoke all other sessions except current
     const currentToken = req.cookies?.admin_token || req.headers.authorization?.split(" ")[1];
     await SystemUserSession.deleteMany({ userId: admin._id, token: { $ne: currentToken } });
 
-    // send confirmation email
     await sendEmail({
-      to: admin.email,
-      subject: "Your RealSquare Password Has Been Changed",
+      to:           admin.profile.email,
+      subject:      "Your RealSquare Password Has Been Changed",
       templatePath: TEMPLATES.passwordChanged,
       variables: {
-        NAME:       admin.name,
-        EMAIL:      admin.email,
+        NAME:       admin.profile.name,
+        EMAIL:      admin.profile.email,
         CHANGED_AT: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
         LOGIN_URL:  process.env.CLIENT_URL || "http://localhost:8080/login",
       },
@@ -234,4 +273,171 @@ const changePassword = async (req, res) => {
   }
 };
 
-module.exports = { register, login, logout, getMe, sendOtp, forgotPassword, changePassword };
+// ── Get All System Users ──────────────────────────────────────────────────────
+const getUsers = async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.isActive === "true")  filter.isActive = true;
+    if (req.query.isActive === "false") filter.isActive = false;
+    if (req.query.role)                filter.role = req.query.role;
+    if (req.query.search) {
+      filter.$or = [
+        { "profile.name":  new RegExp(req.query.search.trim(), "i") },
+        { "profile.email": new RegExp(req.query.search.trim(), "i") },
+        { "profile.phone": new RegExp(req.query.search.trim(), "i") },
+      ];
+    }
+
+    const users = await SystemUser.find(filter)
+      .select(EXCLUDE_PASSWORD)
+      .populate("role", POPULATE_ROLE)
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Get Single System User ────────────────────────────────────────────────────
+const getUserById = async (req, res) => {
+  try {
+    const user = await SystemUser.findById(req.params.id)
+      .select(EXCLUDE_PASSWORD)
+      .populate("role", POPULATE_ROLE);
+
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+
+    res.json({ success: true, data: user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Update System User ────────────────────────────────────────────────────────
+const updateUser = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    const grouped = {};
+    errors.array().forEach(({ path, msg }) => {
+      grouped[path] = grouped[path] ? `${grouped[path]}, ${msg}` : msg;
+    });
+    const message = Object.values(grouped).join(" | ");
+    return res.status(400).json({ success: false, message });
+  }
+
+  try {
+    if (req.body.profile?.email) {
+      const exists = await SystemUser.findOne({ "profile.email": req.body.profile.email, _id: { $ne: req.params.id } });
+      if (exists)
+        return res.status(409).json({ success: false, message: "Email already in use" });
+    }
+
+    const user = await SystemUser.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).select(EXCLUDE_PASSWORD).populate("role", POPULATE_ROLE);
+
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+
+    res.json({ success: true, data: user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Delete System User ────────────────────────────────────────────────────────
+const deleteUser = async (req, res) => {
+  try {
+    if (req.params.id === req.user._id.toString())
+      return res.status(400).json({ success: false, message: "You cannot delete your own account" });
+
+    const user = await SystemUser.findByIdAndDelete(req.params.id);
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+
+    await SystemUserSession.deleteMany({ userId: req.params.id });
+
+    res.json({ success: true, message: "User deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Get Me (own profile) ──────────────────────────────────────────────────────
+const getMyProfile = async (req, res) => {
+  try {
+    const user = await SystemUser.findById(req.user._id)
+      .select(EXCLUDE_PASSWORD)
+      .populate("role", POPULATE_ROLE);
+    res.json({ success: true, data: user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Update My Profile ─────────────────────────────────────────────────────────
+const updateMyProfile = async (req, res) => {
+  try {
+    // prevent role / isSuperAdmin escalation via this endpoint
+    delete req.body.role;
+    delete req.body.isSuperAdmin;
+    if (req.body.profile) delete req.body.profile.password;
+
+    if (req.body.profile?.email) {
+      const exists = await SystemUser.findOne({ "profile.email": req.body.profile.email, _id: { $ne: req.user._id } });
+      if (exists)
+        return res.status(409).json({ success: false, message: "Email already in use" });
+    }
+
+    const user = await SystemUser.findByIdAndUpdate(
+      req.user._id,
+      req.body,
+      { new: true, runValidators: true }
+    ).select(EXCLUDE_PASSWORD).populate("role", POPULATE_ROLE);
+
+    res.json({ success: true, data: user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Change My Password ────────────────────────────────────────────────────────
+const changeMyPassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword)
+    return res.status(400).json({ success: false, message: "currentPassword and newPassword are required" });
+
+  if (newPassword.length < 6)
+    return res.status(400).json({ success: false, message: "New password must be at least 6 characters" });
+
+  if (currentPassword === newPassword)
+    return res.status(400).json({ success: false, message: "New password must be different from current password" });
+
+  try {
+    const user = await SystemUser.findById(req.user._id);
+
+    if (!(await user.matchPassword(currentPassword)))
+      return res.status(401).json({ success: false, message: "Current password is incorrect" });
+
+    user.profile.password = newPassword;
+    await user.save();
+
+    const currentToken = req.cookies?.admin_token || req.headers.authorization?.split(" ")[1];
+    await SystemUserSession.deleteMany({ userId: user._id, token: { $ne: currentToken } });
+
+    res.json({ success: true, message: "Password changed successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = {
+  register, login, logout, getMe, sendOtp, forgotPassword, changePassword,
+  getUsers, getUserById, updateUser, deleteUser,
+  getMyProfile, updateMyProfile, changeMyPassword,
+};

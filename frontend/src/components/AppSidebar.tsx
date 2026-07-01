@@ -146,7 +146,8 @@ const sections = [
   {
     title: "User Management",
     items: [
-      { type: "link", to: "/system-users", icon: UserCog, label: "System Users" },
+      { type: "link", to: "/system-users-roles", icon: ShieldCheck, label: "System User Roles" },
+      { type: "link", to: "/system-users",       icon: UserCog,    label: "System Users" },
     ],
   },
   // {

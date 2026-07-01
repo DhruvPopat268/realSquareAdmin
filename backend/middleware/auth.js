@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const SystemUser = require("../modules/admin/auth/model");
+const SystemUser = require("../modules/systemUsers.model");
 const SystemUserSession = require("../modules/admin/auth/session.model");
 const Customer = require("../modules/customer/auth/model");
 
@@ -39,7 +39,7 @@ const protect = async (req, res, next) => {
         decoded.id,
         { lastActivity: new Date() },
         { new: true }
-      ).select("-password");
+      ).select("-profile.password").populate("role", "name permissions isActive");
     } else if (decoded.type === "customer") {
       req.user = await Customer.findById(decoded.id).select("-password");
     }
@@ -55,7 +55,7 @@ const protect = async (req, res, next) => {
 };
 
 const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  if (req.user && req.user.isSuperAdmin) {
     next();
   } else {
     res.status(403).json({ success: false, message: "Admin access only" });

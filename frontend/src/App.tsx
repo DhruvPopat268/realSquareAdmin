@@ -21,6 +21,7 @@ import CitiesPage from "./pages/CitiesPage";
 import StatesPage from "./pages/StatesPage";
 import EnquiriesPage from "./pages/EnquiriesPage";
 import SystemUsersPage from "./pages/SystemUsersPage";
+import SystemUsersRolesPage from "./pages/SystemUsersRolesPage";
 import OwnersPage from "./pages/OwnersPage";
 import AgentsBrokersPage from "./pages/AgentsBrokersPage";
 import BuildersDevelopersPage from "./pages/BuildersDevelopersPage";
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/enquiries" element={<EnquiriesPage />} />
 
             {/* System Users */}
+            <Route path="/system-users-roles" element={<SystemUsersRolesPage />} />
             <Route path="/system-users" element={<SystemUsersPage />} />
 
             {/* People Management */}
