@@ -130,7 +130,7 @@ export default function SystemUsersPage() {
   function openEdit(u: SystemUser) {
     setEditTarget(u);
     setForm({
-      name:         u.profile?.name  || "",
+      name:         u.profile?.name || u.profile?.fullName || "",
       email:        u.profile?.email || "",
       phone:        u.profile?.phone || "",
       password:     "",
@@ -326,7 +326,7 @@ export default function SystemUsersPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 w-12 text-muted-foreground text-xs">{(page - 1) * pageSize + i + 1}</td>
-                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{u.profile?.name || "—"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{u.profile?.name || u.profile?.fullName || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{u.profile?.email || "—"}</td>
                 <td className="px-4 py-3">
                   {u.role
@@ -512,7 +512,7 @@ export default function SystemUsersPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete User</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground py-2">
-            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.profile?.name}</span>? This action cannot be undone.
+            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.profile?.name || deleteTarget?.profile?.fullName}</span>? This action cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>

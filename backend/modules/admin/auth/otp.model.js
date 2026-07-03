@@ -4,7 +4,11 @@ const otpSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "SystemUser",
-    required: true,
+    default: null,
+  },
+  mobile: {
+    type: String,
+    default: null,
   },
   otp: {
     type: String,

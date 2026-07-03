@@ -30,7 +30,20 @@ const generateToken = (id) =>
 const generateOtp = () =>
   crypto.randomInt(100000, 999999).toString();
 
-// ── Register ──────────────────────────────────────────────────────────────────
+const PROFILE_FIELDS = ["profile", "customerProfile", "ownerProfile", "brokerProfile", "builderProfile"];
+
+const normalizeProfile = (user) => {
+  const obj = user.toObject();
+  for (const field of PROFILE_FIELDS) {
+    if (obj[field]) {
+      obj.profile = obj[field];
+      if (field !== "profile") delete obj[field];
+      break;
+    }
+  }
+  return obj;
+};
+
 const register = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -293,7 +306,7 @@ const getUsers = async (req, res) => {
       .populate("role", POPULATE_ROLE)
       .sort({ createdAt: -1 });
 
-    res.json({ success: true, data: users });
+    res.json({ success: true, data: users.map(normalizeProfile) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -309,7 +322,7 @@ const getUserById = async (req, res) => {
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    res.json({ success: true, data: user });
+    res.json({ success: true, data: normalizeProfile(user) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

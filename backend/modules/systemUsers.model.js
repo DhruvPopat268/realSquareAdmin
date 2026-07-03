@@ -33,16 +33,18 @@ const ownerProfileSchema = new mongoose.Schema({
   fullName:        { type: String, trim: true },
   email:           { type: String, lowercase: true, trim: true },
   mobile:          { type: String, trim: true },
+  profilePhoto:    { type: String },
   businessDetails: { type: ownerBusinessDetailsSchema },
 }, { _id: false });
 
 const customerProfileSchema = new mongoose.Schema({
-  fullName: { type: String, trim: true },
-  email:    { type: String, lowercase: true, trim: true },
-  mobile:   { type: String, trim: true },
-  location: { type: locationSchema },
-  bio:      { type: String, trim: true },
-  verified: { type: Boolean, default: false },
+  fullName:     { type: String, trim: true },
+  email:        { type: String, lowercase: true, trim: true },
+  mobile:       { type: String, trim: true },
+  profilePhoto: { type: String },
+  location:     { type: locationSchema },
+  bio:          { type: String, trim: true },
+  verified:     { type: Boolean, default: false },
 }, { _id: false });
 
 // ── Broker profile sub-schema ───────────────────────────────────────────────
@@ -50,6 +52,7 @@ const brokerProfileSchema = new mongoose.Schema({
   fullName:          { type: String, trim: true },
   email:             { type: String, lowercase: true, trim: true },
   mobile:            { type: String, trim: true },
+  profilePhoto:      { type: String },
   yearsOfExperience: { type: Number },
   agencyName:        { type: String, trim: true },
   bio:               { type: String, trim: true },
@@ -60,6 +63,7 @@ const builderProfileSchema = new mongoose.Schema({
   name:                   { type: String, trim: true },
   email:                  { type: String, lowercase: true, trim: true },
   mobile:                 { type: String, trim: true },
+  profilePhoto:           { type: String },
   gstNumber:              { type: String, trim: true },
   cinNumber:              { type: String, trim: true },
   foundedYear:            { type: Number },
@@ -70,6 +74,7 @@ const builderProfileSchema = new mongoose.Schema({
 // ── Base system user schema ───────────────────────────────────────────────────
 const systemUserSchema = new mongoose.Schema(
   {
+    mobile:          { type: String, trim: true, sparse: true },  // top-level mobile for OTP-based users
     role:            { type: mongoose.Schema.Types.ObjectId, ref: "SystemUserRole" },
     isSuperAdmin:    { type: Boolean, default: false },
     isActive:        { type: Boolean, default: true },
@@ -83,6 +88,8 @@ const systemUserSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+systemUserSchema.index({ mobile: 1 }, { unique: true, sparse: true });
 
 // ── Password hashing ──────────────────────────────────────────────────────────
 systemUserSchema.pre("save", async function () {

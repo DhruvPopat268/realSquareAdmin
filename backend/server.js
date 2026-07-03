@@ -11,7 +11,11 @@ const app = express();
 connectDB();
 
 // ── Middleware
-app.use(cors({ origin: process.env.CLIENT_URL || "http://192.168.0.184:8080", credentials: true }));
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(",").map((u) => u.trim())
+  : ["http://192.168.0.184:5173", "http://192.168.0.184:8080"];
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -20,6 +24,9 @@ app.use(cookieParser());
 app.get("/api/health", (req, res) => {
   res.json({ success: true, message: "RealSquare API is running", env: process.env.NODE_ENV });
 });
+
+// ── Static Storage
+app.use("/storage", express.static("/var/www/storage"));
 
 // ── API Routes
 app.use("/api", routes);
