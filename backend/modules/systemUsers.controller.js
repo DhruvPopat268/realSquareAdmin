@@ -283,11 +283,10 @@ const verifyChangeMobileOtp = async (req, res) => {
 // PUT /api/system-users/update-profile  (multipart/form-data)
 const updateProfile = async (req, res) => {
   try {
-    const currentUser = await SystemUser.findById(req.user._id);
-
-    const profileField = Object.values(ALLOWED_ROLES).find((field) => currentUser[field]?.mobile);
+    const roleId = req.user.role?._id?.toString() || req.body.role;
+    const profileField = roleId ? ALLOWED_ROLES[roleId] : null;
     if (!profileField)
-      return res.status(400).json({ success: false, message: "No profile found to update" });
+      return res.status(400).json({ success: false, message: "role is required" });
 
     delete req.body.role;
     delete req.body.mobile;
@@ -297,6 +296,7 @@ const updateProfile = async (req, res) => {
       req.body.profilePhoto = toUrl(profilePhotoFile.path);
 
     const updateData = {};
+    if (!req.user.role) updateData.role = roleId;
     Object.keys(req.body).forEach((key) => {
       updateData[`${profileField}.${key}`] = req.body[key];
     });
