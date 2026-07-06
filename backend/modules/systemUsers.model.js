@@ -78,6 +78,7 @@ const systemUserSchema = new mongoose.Schema(
     role:            { type: mongoose.Schema.Types.ObjectId, ref: "SystemUserRole" },
     isSuperAdmin:    { type: Boolean, default: false },
     isActive:        { type: Boolean, default: true },
+    autoApprovalProperties: { type: Boolean, default: false },
     lastLogin:       { type: Date },
     lastActivity:    { type: Date },
     profile:         { type: panelUserProfileSchema },   // panel users (admin / staff)

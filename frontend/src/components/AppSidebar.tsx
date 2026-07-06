@@ -126,6 +126,12 @@ const sections = [
     ],
   },
   {
+    title: "Customers Management",
+    items: [
+      { type: "link", to: "/customers", icon: Users, label: "Customers" },
+    ],
+  },
+  {
     title: "Owners Management",
     items: [
       { type: "link", to: "/owners", icon: UserCheck, label: "Owners" },

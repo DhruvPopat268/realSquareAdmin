@@ -82,11 +82,18 @@ export default function SystemUsersPage() {
     return p;
   }
 
+  const APP_ROLE_IDS = new Set([
+    import.meta.env.VITE_OWNER_ROLE,
+    import.meta.env.VITE_BROKER_ROLE,
+    import.meta.env.VITE_BUILDER_ROLE,
+    import.meta.env.VITE_CUSTOMER_ROLE,
+  ].filter(Boolean));
+
   async function fetchUsers(sf = statusFilter, rid = roleFilter?.id, q = search) {
     setLoading(true);
     try {
       const res = await systemUsersService.getAll(buildParams(sf, rid, q));
-      setData(res.data.data);
+      setData(res.data.data.filter((u) => !u.role || !APP_ROLE_IDS.has(u.role._id)));
     } catch (err: any) {
       toast({ variant: "destructive", title: extractMsg(err, "Failed to load users") });
     } finally {
@@ -308,9 +315,9 @@ export default function SystemUsersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="py-16"><Spinner fullPage={false} size="md" label="Loading users..." /></td></tr>
+              <tr><td colSpan={9} className="py-16"><Spinner fullPage={false} size="md" label="Loading users..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={10} className="text-center text-muted-foreground py-16">No users found</td></tr>
+              <tr><td colSpan={9} className="text-center text-muted-foreground py-16">No users found</td></tr>
             ) : paged.map((u, i) => (
               <tr key={u._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-20">
@@ -326,7 +333,9 @@ export default function SystemUsersPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 w-12 text-muted-foreground text-xs">{(page - 1) * pageSize + i + 1}</td>
-                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{u.profile?.name || u.profile?.fullName || "—"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">
+                  {u.customerProfile?.fullName || u.ownerProfile?.fullName || u.brokerProfile?.fullName || u.builderProfile?.name || u.profile?.name || "—"}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{u.profile?.email || "—"}</td>
                 <td className="px-4 py-3">
                   {u.role

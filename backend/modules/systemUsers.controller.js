@@ -82,7 +82,7 @@ const sendOtp = async (req, res) => {
       user = await SystemUser.create({ mobile, isActive: true });
 
     await SystemUserOtp.deleteMany({ userId: user._id });
-    await SystemUserOtp.create({ userId: user._id, otp: DUMMY_OTP });
+    await SystemUserOtp.create({ userId: user._id, mobile, otp: DUMMY_OTP });
 
     // TODO: replace with real SMS OTP delivery
     res.json({ success: true, message: "OTP sent successfully" });
@@ -159,8 +159,10 @@ const completeProfile = async (req, res) => {
       profileData.profilePhoto = toUrl(profilePhotoFile.path);
 
     const businessLogoFile = fileByField(req.files, "businessLogo");
-    if (businessLogoFile)
-      profileData.businessDetails = { ...profileData.businessDetails, logo: toUrl(businessLogoFile.path) };
+    if (businessLogoFile) {
+      const existing = typeof profileData.businessDetails === "object" ? profileData.businessDetails : {};
+      profileData.businessDetails = { ...existing, logo: toUrl(businessLogoFile.path) };
+    }
 
     const requiredFields = REQUIRED_FIELDS[role] || [];
     const missingFields = requiredFields.filter((field) => {
@@ -205,55 +207,69 @@ const completeProfile = async (req, res) => {
 // ── Send Change Mobile OTP (protected) ────────────────────────────────────────
 // POST /api/system-users/send-change-mobile-otp  { mobile }
 const sendChangeMobileOtp = async (req, res) => {
-  const { mobile } = req.body;
+  const { newMobile } = req.body;
 
-  if (!mobile)
-    return res.status(400).json({ success: false, message: "mobile is required" });
+  if (!newMobile)
+    return res.status(400).json({ success: false, message: "newMobile is required" });
 
-  if (!MOBILE_REGEX.test(mobile))
-    return res.status(400).json({ success: false, message: "mobile must be exactly 10 digits" });
+  if (!MOBILE_REGEX.test(newMobile))
+    return res.status(400).json({ success: false, message: "newMobile must be exactly 10 digits" });
 
   try {
-    const existing = await SystemUser.findOne({ $or: MOBILE_OR_QUERY(mobile), _id: { $ne: req.user._id } });
+    if (newMobile === req.user.mobile)
+      return res.status(400).json({ success: false, message: "New mobile must be different from old mobile" });
+
+    const existing = await SystemUser.findOne({ $or: MOBILE_OR_QUERY(newMobile), _id: { $ne: req.user._id } });
     if (existing)
       return res.status(409).json({ success: false, message: "Mobile already in use" });
 
     await SystemUserOtp.deleteMany({ userId: req.user._id });
-    await SystemUserOtp.create({ userId: req.user._id, otp: DUMMY_OTP });
 
-    // TODO: replace with real SMS OTP delivery to new mobile
-    res.json({ success: true, message: "OTP sent to new mobile" });
+    // OTP for old mobile verification
+    await SystemUserOtp.create({ userId: req.user._id, mobile: req.user.mobile, otp: DUMMY_OTP });
+    // OTP for new mobile verification
+    await SystemUserOtp.create({ userId: req.user._id, mobile: newMobile, otp: DUMMY_OTP });
+
+    // TODO: replace with real SMS OTP delivery
+    // send DUMMY_OTP to req.user.mobile (old)
+    // send DUMMY_OTP to mobile (new)
+    res.json({ success: true, message: "OTP sent to both old and new mobile" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
 // ── Verify Change Mobile OTP (protected) ──────────────────────────────────────
-// POST /api/system-users/verify-change-mobile-otp  { mobile, otp }
+// POST /api/system-users/verify-change-mobile-otp  { newMobile, oldOtp, newOtp }
 const verifyChangeMobileOtp = async (req, res) => {
-  const { mobile, otp } = req.body;
+  const { newMobile, oldOtp, newOtp } = req.body;
 
-  if (!mobile || !otp)
-    return res.status(400).json({ success: false, message: "mobile and otp are required" });
+  if (!newMobile || !oldOtp || !newOtp)
+    return res.status(400).json({ success: false, message: "newMobile, oldOtp and newOtp are required" });
 
-  if (!MOBILE_REGEX.test(mobile))
-    return res.status(400).json({ success: false, message: "mobile must be exactly 10 digits" });
+  if (!MOBILE_REGEX.test(newMobile))
+    return res.status(400).json({ success: false, message: "newMobile must be exactly 10 digits" });
 
-  if (!OTP_REGEX.test(otp))
-    return res.status(400).json({ success: false, message: "otp must be exactly 6 digits" });
+  if (!OTP_REGEX.test(oldOtp) || !OTP_REGEX.test(newOtp))
+    return res.status(400).json({ success: false, message: "OTPs must be exactly 6 digits" });
 
   try {
-    const otpRecord = await SystemUserOtp.findOne({ userId: req.user._id, otp });
-    if (!otpRecord)
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    const oldOtpRecord = await SystemUserOtp.findOne({ userId: req.user._id, mobile: req.user.mobile, otp: oldOtp });
+    if (!oldOtpRecord)
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP for old mobile" });
 
-    await otpRecord.deleteOne();
+    const newOtpRecord = await SystemUserOtp.findOne({ userId: req.user._id, mobile: newMobile, otp: newOtp });
+    if (!newOtpRecord)
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP for new mobile" });
+
+    await oldOtpRecord.deleteOne();
+    await newOtpRecord.deleteOne();
 
     const currentUser = await SystemUser.findById(req.user._id);
     const profileField = Object.values(ALLOWED_ROLES).find((field) => currentUser[field]?.mobile);
 
-    const updateData = { mobile };
-    if (profileField) updateData[`${profileField}.mobile`] = mobile;
+    const updateData = { mobile: newMobile };
+    if (profileField) updateData[`${profileField}.mobile`] = newMobile;
 
     await SystemUser.findByIdAndUpdate(req.user._id, { $set: updateData });
 
@@ -314,14 +330,20 @@ const deleteAccount = async (req, res) => {
 // GET /api/system-users/me
 const getMe = async (req, res) => {
   try {
-    const user = await SystemUser.findById(req.user._id)
-      .select("-profile.password")
-      .populate("role", "name permissions isActive");
+    const userId = req.user._id;
+    const role   = req.user.role;
 
-    if (!user)
-      return res.status(404).json({ success: false, message: "User not found" });
+    console.log("[GetMe] Accessed by userId:", userId);
+    console.log("[GetMe] Role:", role ? `${role.name} (${role._id})` : "No role assigned");
 
-    res.json({ success: true, data: user });
+    const allowedRoles = Object.keys(ALLOWED_ROLES);
+    if (role && !allowedRoles.includes(role._id.toString())) {
+      console.log("[GetMe] Access denied — role not in allowed list:", role._id);
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    console.log("[GetMe] Access granted for userId:", userId);
+    res.json({ success: true, data: req.user });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
