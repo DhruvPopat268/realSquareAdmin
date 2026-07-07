@@ -26,6 +26,8 @@ import CustomersPage from "./pages/CustomersPage";
 import OwnersPage from "./pages/OwnersPage";
 import AgentsBrokersPage from "./pages/AgentsBrokersPage";
 import BuildersDevelopersPage from "./pages/BuildersDevelopersPage";
+import PlansPage from "./pages/PlansPage";
+import CoinsOffersPage from "./pages/CoinsOffersPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -80,6 +82,12 @@ const App = () => (
             <Route path="/owners"              element={<OwnersPage />} />
             <Route path="/agents-brokers"      element={<AgentsBrokersPage />} />
             <Route path="/builders-developers" element={<BuildersDevelopersPage />} />
+
+            {/* Plans */}
+            <Route path="/plans" element={<PlansPage />} />
+
+            {/* Coins Offers */}
+            <Route path="/coins-offers" element={<CoinsOffersPage />} />
 
             {/* People */}
             <Route path="/contacts"  element={<Soon title="Contacts & Organizations" />} />
