@@ -94,4 +94,24 @@ const createCoinsOrder = async (req, res) => {
   }
 };
 
-module.exports = { createCoinsOrder };
+// ── Cancel Coins Order ──────────────────────────────────────────────────────────
+const cancelCoinsOrder = async (req, res) => {
+  try {
+    const transaction = await PaymentTransaction.findById(req.params.transactionId);
+    if (!transaction)
+      return res.status(404).json({ success: false, message: "Transaction not found" });
+
+    if (transaction.status === "Success")
+      return res.json({ success: true, message: "Payment already completed" });
+
+    transaction.status        = "Failed";
+    transaction.failureReason = "Cancelled by user";
+    await transaction.save();
+
+    res.json({ success: true, message: "Transaction marked as failed" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { createCoinsOrder, cancelCoinsOrder };
