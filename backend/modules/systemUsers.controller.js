@@ -53,7 +53,7 @@ const issueToken = async (userId) => {
     const oldest = await SystemUserSession.findOne({ userId }).sort({ createdAt: 1 });
     if (oldest) await oldest.deleteOne();
   }
-  const token = jwt.sign({ id: userId, type: "user" }, process.env.USER_JWT_SECRET, {
+  const token = jwt.sign({ id: userId }, process.env.USER_JWT_SECRET, {
     expiresIn: process.env.USER_JWT_EXPIRES_IN,
   });
   await SystemUserSession.create({ userId, token });
@@ -283,7 +283,7 @@ const verifyChangeMobileOtp = async (req, res) => {
 // PUT /api/system-users/update-profile  (multipart/form-data)
 const updateProfile = async (req, res) => {
   try {
-    const roleId = req.user.role?._id?.toString() || req.body.role;
+    const roleId = req.userRole || req.body.role;
     const profileField = roleId ? ALLOWED_ROLES[roleId] : null;
     if (!profileField)
       return res.status(400).json({ success: false, message: "role is required" });
@@ -296,7 +296,7 @@ const updateProfile = async (req, res) => {
       req.body.profilePhoto = toUrl(profilePhotoFile.path);
 
     const updateData = {};
-    if (!req.user.role) updateData.role = roleId;
+    if (!req.userRole) updateData.role = roleId;
     Object.keys(req.body).forEach((key) => {
       updateData[`${profileField}.${key}`] = req.body[key];
     });
@@ -330,19 +330,19 @@ const deleteAccount = async (req, res) => {
 // GET /api/system-users/me
 const getMe = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const role   = req.user.role;
+    const role = req.user.role;
+    const roleId = req.userRole;
 
-    console.log("[GetMe] Accessed by userId:", userId);
-    console.log("[GetMe] Role:", role ? `${role.name} (${role._id})` : "No role assigned");
+    console.log("[GetMe] Accessed by userId:", req.user._id);
+    console.log("[GetMe] Role:", role ? `${role.name} (${roleId})` : "No role assigned");
 
     const allowedRoles = Object.keys(ALLOWED_ROLES);
-    if (role && !allowedRoles.includes(role._id.toString())) {
-      console.log("[GetMe] Access denied — role not in allowed list:", role._id);
+    if (roleId && !allowedRoles.includes(roleId)) {
+      console.log("[GetMe] Access denied — role not in allowed list:", roleId);
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    console.log("[GetMe] Access granted for userId:", userId);
+    console.log("[GetMe] Access granted for userId:", req.user._id);
     res.json({ success: true, data: req.user });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

@@ -3,12 +3,16 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./database/config");
-const routes = require("./routes/index");
+const routes                = require("./routes/index");
+const { manageOnlinePayment } = require("./webhook/manageOnlinePayment");
 
 const app = express();
 
 // ── Connect Database
 connectDB();
+
+// ── Webhook (must be before express.json() to get raw body)
+app.post("/api/webhook", express.raw({ type: "application/json" }), manageOnlinePayment);
 
 // ── Middleware
 const allowedOrigins = process.env.CLIENT_URL

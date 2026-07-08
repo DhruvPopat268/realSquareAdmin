@@ -15,14 +15,18 @@ const userProtect = async (req, res, next) => {
     if (!session)
       return res.status(401).json({ success: false, message: "Session expired or logged out" });
 
-    req.user = await SystemUser.findByIdAndUpdate(
+    const user = await SystemUser.findByIdAndUpdate(
       decoded.id,
       { lastActivity: new Date() },
       { new: true }
     ).populate("role", "name permissions isActive");
 
-    if (!req.user)
+    if (!user)
       return res.status(401).json({ success: false, message: "User not found" });
+
+    req.user = user;
+    req.userRole = user.role?._id?.toString() ?? null;
+    console.log(req.user, req.userRole);
 
     next();
   } catch (err) {
