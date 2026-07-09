@@ -47,6 +47,8 @@ const manageOnlinePayment = async (req, res) => {
     if (notes.coinsOfferId) {
       const offer = await CoinsOffer.findById(notes.coinsOfferId);
       if (offer) {
+        if (purchaseAmount !== offer.amount)
+          throw new Error(`Amount mismatch: expected ${offer.amount}, got ${purchaseAmount}`);
         coinsToCredit = offer.coins;
         offerSnapshot = {
           offerId:     offer._id,
@@ -57,6 +59,8 @@ const manageOnlinePayment = async (req, res) => {
         };
       }
     } else if (notes.coins) {
+      if (purchaseAmount !== Number(notes.coins))
+        throw new Error(`Amount mismatch: expected ${notes.coins}, got ${purchaseAmount}`);
       coinsToCredit = Number(notes.coins);
     }
 
