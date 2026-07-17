@@ -72,8 +72,15 @@ function PlanCard({ plan, onToggle, onEdit }: { plan: Plan; onToggle: (plan: Pla
         {isPaid && plan.expiryType && (
           <FeatureRow icon={Calendar} label={`${plan.expiryType} Validity`} />
         )}
-        {isPaid && plan.amount != null && (
-          <FeatureRow icon={IndianRupee} label={`₹${plan.amount} or ${plan.coins} Coins`} />
+        {isPaid && (plan.amount != null || plan.coins != null) && (
+          <FeatureRow
+            icon={IndianRupee}
+            label={
+              plan.amount && plan.coins ? `₹${plan.amount} or ${plan.coins} Coins` :
+              plan.amount              ? `₹${plan.amount}` :
+                                         `${plan.coins} Coins`
+            }
+          />
         )}
         {plan.roles.length > 0 && (
           <FeatureRow icon={Users} label={`For: ${plan.roles.map(roleLabel).join(", ")}`} />
@@ -197,9 +204,9 @@ export default function PlansPage() {
     if (form.numberOfPropertiesGiven <= 0)         e.numberOfPropertiesGiven = "Must be greater than 0";
     if (form.leadsPerDay <= 0)                     e.leadsPerDay = "Must be greater than 0";
     if (form.planType === "Paid") {
-      if (!form.expiryType)                 e.expiryType = "Required for Paid plans";
-      if (!form.coins && form.coins !== 0)  e.coins  = "Required for Paid plans";
-      if (!form.amount && form.amount !== 0) e.amount = "Required for Paid plans";
+      if (!form.expiryType)                         e.expiryType = "Required for Paid plans";
+      if ((!form.coins  || form.coins  <= 0) &&
+          (!form.amount || form.amount <= 0))        e.coins = "Set at least coins or amount (must be > 0)";
     }
     return e;
   }
@@ -376,15 +383,15 @@ export default function PlansPage() {
                   {errors.expiryType && <p className="text-xs text-destructive">{errors.expiryType}</p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label>Coins <span className="text-destructive">*</span></Label>
-                    <Input type="number" min={0} placeholder="0" value={form.coins ?? ""} onChange={(e) => set("coins", Number(e.target.value))} />
+                    <Label>Coins</Label>
+                    <Input type="number" min={1} placeholder="Not set" value={form.coins ?? ""} onChange={(e) => set("coins", e.target.value === "" ? undefined : Number(e.target.value))} />
                     {errors.coins && <p className="text-xs text-destructive">{errors.coins}</p>}
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Amount (₹) <span className="text-destructive">*</span></Label>
-                    <Input type="number" min={0} placeholder="0" value={form.amount ?? ""} onChange={(e) => set("amount", Number(e.target.value))} />
+                    <Label>Amount (₹)</Label>
+                    <Input type="number" min={1} placeholder="Not set" value={form.amount ?? ""} onChange={(e) => set("amount", e.target.value === "" ? undefined : Number(e.target.value))} />
                     {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
                   </div>
                 </div>

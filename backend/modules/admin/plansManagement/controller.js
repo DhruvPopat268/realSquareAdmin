@@ -16,11 +16,14 @@ const createPlan = async (req, res) => {
       return res.status(400).json({ success: false, message: "planType must be Free or Paid" });
 
     if (planType === "Paid") {
-      if (!expiryType || coins == null || amount == null)
-        return res.status(400).json({ success: false, message: "expiryType, coins and amount are required for Paid plans" });
+      if (!expiryType)
+        return res.status(400).json({ success: false, message: "expiryType is required for Paid plans" });
 
       if (!["Weekly", "Monthly", "Yearly"].includes(expiryType))
         return res.status(400).json({ success: false, message: "expiryType must be Weekly, Monthly or Yearly" });
+
+      if ((!coins || coins <= 0) && (!amount || amount <= 0))
+        return res.status(400).json({ success: false, message: "Set at least coins or amount (must be greater than 0) for Paid plans" });
     }
 
     const exists = await Plan.findOne({ name: new RegExp(`^${name.trim()}$`, "i") });
@@ -39,8 +42,8 @@ const createPlan = async (req, res) => {
 
     if (planType === "Paid") {
       planData.expiryType = expiryType;
-      planData.coins      = coins;
-      planData.amount     = amount;
+      if (coins  && coins  > 0) planData.coins  = coins;
+      if (amount && amount > 0) planData.amount = amount;
     }
 
     const plan = await Plan.create(planData);
@@ -95,11 +98,14 @@ const updatePlan = async (req, res) => {
       return res.status(400).json({ success: false, message: "planType must be Free or Paid" });
 
     if (planType === "Paid") {
-      if (!expiryType || coins == null || amount == null)
-        return res.status(400).json({ success: false, message: "expiryType, coins and amount are required for Paid plans" });
+      if (!expiryType)
+        return res.status(400).json({ success: false, message: "expiryType is required for Paid plans" });
 
       if (!["Weekly", "Monthly", "Yearly"].includes(expiryType))
         return res.status(400).json({ success: false, message: "expiryType must be Weekly, Monthly or Yearly" });
+
+      if ((!coins || coins <= 0) && (!amount || amount <= 0))
+        return res.status(400).json({ success: false, message: "Set at least coins or amount (must be greater than 0) for Paid plans" });
     }
 
     const duplicate = await Plan.findOne({
@@ -109,17 +115,28 @@ const updatePlan = async (req, res) => {
     if (duplicate)
       return res.status(409).json({ success: false, message: "Plan name already exists" });
 
-    const planData = {
+    const $set = {
       name: name.trim(), description, planType,
       numberOfPropertiesGiven, leadsPerDay,
-      roles: roles ?? [],
-      isActive: isActive ?? true,
+      roles:     roles ?? [],
+      isActive:  isActive ?? true,
       expiryType: planType === "Paid" ? expiryType : undefined,
-      coins:      planType === "Paid" ? coins      : undefined,
-      amount:     planType === "Paid" ? amount     : undefined,
     };
 
-    const plan = await Plan.findByIdAndUpdate(req.params.id, planData, { new: true, runValidators: true });
+    const $unset = {};
+
+    if (planType === "Paid") {
+      if (coins  && coins  > 0) $set.coins  = coins;  else $unset.coins  = 1;
+      if (amount && amount > 0) $set.amount = amount; else $unset.amount = 1;
+    } else {
+      $unset.coins = 1; $unset.amount = 1; $unset.expiryType = 1;
+    }
+
+    const plan = await Plan.findByIdAndUpdate(
+      req.params.id,
+      { $set, ...(Object.keys($unset).length && { $unset }) },
+      { new: true, runValidators: true }
+    );
     if (!plan)
       return res.status(404).json({ success: false, message: "Plan not found" });
 

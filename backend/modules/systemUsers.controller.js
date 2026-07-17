@@ -1,6 +1,9 @@
 const SystemUser        = require("./systemUsers.model");
 const SystemUserSession = require("./systemUsers.session.model");
 const SystemUserOtp     = require("./systemUsers.otp.model");
+const UserCoinsWallet   = require("./mixed/userCoinsWallet/model");
+const PurchasedPlan     = require("./mixed/purchasedPlans/model");
+const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 
 const DUMMY_OTP = "123456";
@@ -343,7 +346,22 @@ const getMe = async (req, res) => {
     }
 
     console.log("[GetMe] Access granted for userId:", req.user._id);
-    res.json({ success: true, data: req.user });
+    const [wallet, purchased] = await Promise.all([
+      UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
+      PurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
+    ]);
+
+    let activePlan = null;
+    if (purchased) {
+      activePlan = {
+        name:                    purchased.plan.name,
+        numberOfPropertiesGiven: purchased.plan.numberOfPropertiesGiven,
+        propertiesUsed:          purchased.propertiesUsed,
+        expiryDate:              toIST(purchased.expiryDate),
+      };
+    }
+
+    res.json({ success: true, data: { ...req.user.toObject(), coinsBalance: wallet?.currentBalance ?? 0, activePlan } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

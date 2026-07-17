@@ -1,10 +1,10 @@
 const crypto             = require("crypto");
-const mongoose           = require("mongoose");
 const PaymentTransaction = require("../modules/mixed/transactions/model");
-const CoinsTransaction   = require("../modules/mixed/coinsTransactions/model");
-const AdminWallet        = require("../modules/admin/adminWallet/model");
-const UserCoinsWallet    = require("../modules/mixed/userCoinsWallet/model");
-const CoinsOffer         = require("../modules/admin/coinsOffersManagement/model");
+
+const handlers = {
+  CoinsPurchase: require("./helpers/handleCoinsPurchase"),
+  PlanPurchase:  require("./helpers/handlePlanPurchase"),
+};
 
 const manageOnlinePayment = async (req, res) => {
   try {
@@ -26,7 +26,7 @@ const manageOnlinePayment = async (req, res) => {
     if (event.event !== "payment.captured" || !payment)
       return res.status(200).json({ success: true });
 
-    const { order_id, id: razorpayPaymentId, amount } = payment;
+    const { order_id, amount } = payment;
 
     // ── 3. Find the pending PaymentTransaction ────────────────────────────────
     const txn = await PaymentTransaction.findOne({ razorpayOrderId: order_id });
@@ -39,84 +39,12 @@ const manageOnlinePayment = async (req, res) => {
 
     const purchaseAmount = amount / 100; // paise → ₹
 
-    // ── 4. Resolve coins from CoinsOffer if applicable ────────────────────────
-    let coinsToCredit = purchaseAmount; // default: 1 coin = ₹1
-    let offerSnapshot = null;
+    // ── 4. Route to the appropriate handler based on txn.reason ──────────────
+    const handler = handlers[txn.reason];
+    if (!handler)
+      return res.status(200).json({ success: true, message: `No handler for reason: ${txn.reason}` });
 
-    const notes = payment.notes ?? {};
-    if (notes.coinsOfferId) {
-      const offer = await CoinsOffer.findById(notes.coinsOfferId);
-      if (offer) {
-        if (purchaseAmount !== offer.amount)
-          throw new Error(`Amount mismatch: expected ${offer.amount}, got ${purchaseAmount}`);
-        coinsToCredit = offer.coins;
-        offerSnapshot = {
-          offerId:     offer._id,
-          name:        offer.name,
-          description: offer.description,
-          coins:       offer.coins,
-          amount:      offer.amount,
-        };
-      }
-    } else if (notes.coins) {
-      if (purchaseAmount !== Number(notes.coins))
-        throw new Error(`Amount mismatch: expected ${notes.coins}, got ${purchaseAmount}`);
-      coinsToCredit = Number(notes.coins);
-    }
-
-    // ── 5. Run all DB writes in a MongoDB transaction ─────────────────────────
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const adminWallet = await AdminWallet.findOneAndUpdate(
-        {},
-        {
-          $inc: { currentBalance: purchaseAmount, totalCredited: purchaseAmount },
-          $set: { lastCreditedAt: new Date(), lastCreditedAmount: purchaseAmount },
-        },
-        { new: true, upsert: true, session }
-      );
-
-      txn.razorpayPaymentId = razorpayPaymentId;
-      txn.razorpaySignature = signature;
-      txn.status            = "Success";
-      txn.balanceBefore     = adminWallet.currentBalance - purchaseAmount;
-      txn.balanceAfter      = adminWallet.currentBalance;
-      await txn.save({ session });
-
-      const userWallet = await UserCoinsWallet.findOneAndUpdate(
-        { user: txn.user },
-        {
-          $inc:         { currentBalance: coinsToCredit, totalCreditedCoins: coinsToCredit },
-          $setOnInsert: { userType: txn.userType },
-        },
-        { new: true, upsert: true, session }
-      );
-
-      await CoinsTransaction.create(
-        [{
-          user:          txn.user,
-          userType:      txn.userType,
-          type:          "Credit",
-          coins:         coinsToCredit,
-          reason:        "CoinsPurchase",
-          refId:         txn._id,
-          refModel:      "PaymentTransaction",
-          coinsOffer:    offerSnapshot,
-          balanceBefore: userWallet.currentBalance - coinsToCredit,
-          balanceAfter:  userWallet.currentBalance,
-        }],
-        { session }
-      );
-
-      await session.commitTransaction();
-    } catch (txnErr) {
-      await session.abortTransaction();
-      throw txnErr;
-    } finally {
-      session.endSession();
-    }
+    await handler(txn, payment, purchaseAmount, signature);
 
     return res.status(200).json({ success: true });
   } catch (err) {

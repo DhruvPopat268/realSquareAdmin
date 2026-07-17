@@ -9,8 +9,8 @@ const planSchema = new mongoose.Schema(
     expiryType:             { type: String, enum: ["Weekly", "Monthly", "Yearly"] },
     leadsPerDay:            { type: Number, required: true },
     roles:                  { type: [String], default: [] },
-    coins:                  { type: Number },
-    amount:                 { type: Number },
+    coins:                  { type: Number, min: 1 },
+    amount:                 { type: Number, min: 1 },
     isActive:               { type: Boolean, default: true },
   },
   { timestamps: true }
