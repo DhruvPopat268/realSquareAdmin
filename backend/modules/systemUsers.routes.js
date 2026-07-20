@@ -1,11 +1,12 @@
 const express            = require("express");
-const { completeProfile, sendOtp, verifyOtp, logout, updateProfile, deleteAccount, sendChangeMobileOtp, verifyChangeMobileOtp, getMe } = require("./systemUsers.controller");
+const { completeProfile, sendOtp, verifyOtp, logout, updateProfile, deleteAccount, sendChangeMobileOtp, verifyChangeMobileOtp, getMe, getActiveUsers } = require("./systemUsers.controller");
 const { uploadImage }    = require("../utils/upload");
 const { userProtect } = require("../middleware/userAuth");
 
 const router = express.Router();
 
 router.get("/me",                        userProtect, getMe);
+router.get("/active-users",              getActiveUsers);
 router.post("/send-otp",                 sendOtp);
 
 router.post("/verify-otp",           verifyOtp);

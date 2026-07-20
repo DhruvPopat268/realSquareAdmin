@@ -59,7 +59,6 @@ const getPlans = async (req, res) => {
     const filter = {};
     if (req.query.isActive === "true")  filter.isActive = true;
     if (req.query.isActive === "false") filter.isActive = false;
-    if (req.query.planType)            filter.planType  = req.query.planType;
     if (req.query.search)              filter.name      = new RegExp(req.query.search.trim(), "i");
 
     const plans = await Plan.find(filter).sort({ createdAt: -1 });

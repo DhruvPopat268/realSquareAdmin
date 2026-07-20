@@ -6,9 +6,8 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, ChevronDown, Check, Building2, Zap, Calendar, Users, Coins, IndianRupee, Pencil } from "lucide-react";
+import { Plus, Search, Check, Building2, Zap, Calendar, Users, Coins, IndianRupee, Pencil } from "lucide-react";
 import { plansService, type Plan, type CreatePlanPayload } from "@/services/plansService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
@@ -16,7 +15,6 @@ import { cn } from "@/lib/utils";
 
 const EXPIRY_OPTIONS = ["Weekly", "Monthly", "Yearly"] as const;
 const TYPE_OPTIONS   = ["Free", "Paid"] as const;
-
 const ROLE_OPTIONS = [
   { id: import.meta.env.VITE_OWNER_ROLE,   label: "Owner" },
   { id: import.meta.env.VITE_BROKER_ROLE,  label: "Broker" },
@@ -138,7 +136,6 @@ export default function PlansPage() {
   const [plans, setPlans]           = useState<Plan[]>([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState("");
-  const [typeFilter, setTypeFilter] = useState<"All" | "Free" | "Paid">("All");
 
   const [open, setOpen]             = useState(false);
   const [editTarget, setEditTarget]  = useState<Plan | null>(null);
@@ -146,17 +143,16 @@ export default function PlansPage() {
   const [errors, setErrors]          = useState<Record<string, string>>({});
   const [submitting, setSubmitting]  = useState(false);
 
-  function buildParams(tf = typeFilter, q = search) {
+  function buildParams(q = search) {
     const p: Record<string, string> = {};
-    if (tf !== "All") p.planType = tf;
-    if (q.trim())     p.search   = q.trim();
+    if (q.trim()) p.search = q.trim();
     return p;
   }
 
-  async function fetchPlans(tf = typeFilter, q = search) {
+  async function fetchPlans(q = search) {
     setLoading(true);
     try {
-      const res = await plansService.getAll(buildParams(tf, q));
+      const res = await plansService.getAll(buildParams(q));
       setPlans(res.data.data);
     } catch {
       toast({ variant: "destructive", title: "Failed to load plans" });
@@ -165,7 +161,7 @@ export default function PlansPage() {
     }
   }
 
-  useEffect(() => { fetchPlans("All", ""); }, []);
+  useEffect(() => { fetchPlans(""); }, []);
 
   function openEdit(plan: Plan) {
     setEditTarget(plan);
@@ -274,24 +270,12 @@ export default function PlansPage() {
           <Input
             placeholder="Search plans..."
             value={search}
-            onChange={(e) => { setSearch(e.target.value); fetchPlans(typeFilter, e.target.value); }}
+            onChange={(e) => { setSearch(e.target.value); fetchPlans(e.target.value); }}
             className="pl-8 h-9 w-56 text-sm"
           />
         </div>
         <div className="flex-1" />
         <p className="text-sm text-muted-foreground">{plans.length} plan{plans.length !== 1 ? "s" : ""}</p>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Type: {typeFilter} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {(["All", "Free", "Paid"] as const).map((t) => (
-              <DropdownMenuItem key={t} onClick={() => { setTypeFilter(t); fetchPlans(t, search); }}>{t}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       {/* Plans Grid */}

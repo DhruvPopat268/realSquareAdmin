@@ -329,6 +329,39 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+// ── Get Active Users (Owner / Broker / Builder) ─────────────────────────────
+// GET /api/system-users/active-users
+const getActiveUsers = async (req, res) => {
+  try {
+    const allowedRoleIds = [
+      process.env.OWNER_ROLE_ID,
+      process.env.BROKER_ROLE_ID,
+      process.env.BUILDER_ROLE_ID,
+    ];
+
+    const users = await SystemUser.find(
+      { role: { $in: allowedRoleIds } },
+      { mobile: 1, role: 1, ownerProfile: 1, brokerProfile: 1, builderProfile: 1 }
+    ).populate("role", "name").lean();
+
+    const data = users.map((u) => ({
+      _id:    u._id,
+      mobile: u.mobile,
+      name:
+        u.ownerProfile?.fullName ??
+        u.brokerProfile?.fullName ??
+        u.builderProfile?.name ??
+        null,
+      role:     u.role?._id,
+      roleName: u.role?.name ?? null,
+    }));
+
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // ── Get Me (protected) ───────────────────────────────────────────────────────
 // GET /api/system-users/me
 const getMe = async (req, res) => {
@@ -383,5 +416,5 @@ const logout = async (req, res) => {
 module.exports = {
   sendOtp, verifyOtp, completeProfile,
   sendChangeMobileOtp, verifyChangeMobileOtp,
-  updateProfile, deleteAccount, logout, getMe,
+  updateProfile, deleteAccount, logout, getMe, getActiveUsers,
 };

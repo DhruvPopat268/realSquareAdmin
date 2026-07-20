@@ -27,7 +27,10 @@ import OwnersPage from "./pages/OwnersPage";
 import AgentsBrokersPage from "./pages/AgentsBrokersPage";
 import BuildersDevelopersPage from "./pages/BuildersDevelopersPage";
 import PlansPage from "./pages/PlansPage";
+import PurchasedPlansPage from "./pages/PurchasedPlansPage";
 import CoinsOffersPage from "./pages/CoinsOffersPage";
+import CoinsTransactionsPage from "./pages/CoinsTransactionsPage";
+import WalletTransactionsPage from "./pages/WalletTransactionsPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -84,10 +87,15 @@ const App = () => (
             <Route path="/builders-developers" element={<BuildersDevelopersPage />} />
 
             {/* Plans */}
-            <Route path="/plans" element={<PlansPage />} />
+            <Route path="/plans"           element={<PlansPage />} />
+            <Route path="/purchased-plans" element={<PurchasedPlansPage />} />
 
-            {/* Coins Offers */}
-            <Route path="/coins-offers" element={<CoinsOffersPage />} />
+            {/* Coins */}
+            <Route path="/coins-offers"       element={<CoinsOffersPage />} />
+            <Route path="/coins-transactions" element={<CoinsTransactionsPage />} />
+
+            {/* Wallet */}
+            <Route path="/wallet/transactions" element={<WalletTransactionsPage />} />
 
             {/* People */}
             <Route path="/contacts"  element={<Soon title="Contacts & Organizations" />} />

@@ -18,6 +18,14 @@ export interface SystemUser {
   updatedAt: string;
 }
 
+export interface ActiveUser {
+  _id: string;
+  mobile: string;
+  name: string | null;
+  role: string;
+  roleName: string | null;
+}
+
 export const systemUsersService = {
   getAll:  (params?: Record<string, string>) =>
     api.get<{ success: boolean; data: SystemUser[] }>("/admin/auth/system-users", { params }),
@@ -29,4 +37,6 @@ export const systemUsersService = {
     api.put<{ success: boolean; data: SystemUser }>(`/admin/auth/system-users/${id}`, payload),
   remove:  (id: string) =>
     api.delete(`/admin/auth/system-users/${id}`),
+  getActiveUsers: () =>
+    api.get<{ success: boolean; data: ActiveUser[] }>("/system-users/active-users"),
 };

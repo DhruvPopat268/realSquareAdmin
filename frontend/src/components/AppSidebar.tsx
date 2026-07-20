@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Home, Building2, FolderOpen, MapPin, Users,
   BookUser, UserCheck, Tag, FileText, Calendar, Megaphone, File,
   BarChart2, TrendingUp, Settings, HelpCircle, ChevronDown,
-  Wrench, Bell, ShieldCheck, UserCog, Coins,
+  Wrench, Bell, ShieldCheck, UserCog, Coins, Wallet,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -121,13 +121,21 @@ const sections = [
   {
     title: "Plans Management",
     items: [
-      { type: "link", to: "/plans", icon: Tag, label: "Plans" },
+      { type: "link", to: "/plans",           icon: Tag,      label: "Plans" },
+      { type: "link", to: "/purchased-plans", icon: FileText, label: "Purchased Plans" },
     ],
   },
   {
-    title: "Coins Offers Management",
+    title: "Coins Management",
     items: [
-      { type: "link", to: "/coins-offers", icon: Coins, label: "Coins Offers" },
+      { type: "link", to: "/coins-offers",       icon: Coins, label: "Coins Offers" },
+      { type: "link", to: "/coins-transactions", icon: Coins, label: "Coins Transactions" },
+    ],
+  },
+  {
+    title: "Wallet Management",
+    items: [
+      { type: "link", to: "/wallet/transactions", icon: Wallet, label: "Wallet Transactions" },
     ],
   },
   {
