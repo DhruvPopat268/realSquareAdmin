@@ -100,6 +100,91 @@ const createPlanOrder = async (req, res) => {
   }
 };
 
+// ── Create Razorpay Order for Plan Upgrade (Online) ─────────────────────────
+const upgradePlanOrder = async (req, res) => {
+  try {
+    const { planId } = req.body;
+    if (!planId)
+      return res.status(400).json({ success: false, message: "planId is required" });
+
+    const userType = ROLE_USERTYPE_MAP[req.userRole];
+    if (!userType)
+      return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
+
+    const activePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    if (!activePlan)
+      return res.status(400).json({ success: false, message: "No active plan found to upgrade" });
+
+    const plan = await Plan.findById(planId);
+    if (!plan || !plan.isActive)
+      return res.status(404).json({ success: false, message: "Plan not found or inactive" });
+
+    if (plan.planType !== "Paid")
+      return res.status(400).json({ success: false, message: "Only paid plans require an order" });
+
+    if (!plan.roles.includes(req.userRole))
+      return res.status(403).json({ success: false, message: "This plan is not available for your role" });
+
+    if (!plan.amount)
+      return res.status(400).json({ success: false, message: "This plan cannot be purchased online" });
+
+    if (activePlan.plan.planId.toString() === planId)
+      return res.status(400).json({ success: false, message: "You already have this plan as your active plan" });
+
+    const purchaseAmount = plan.amount;
+
+    const razorpayOrder = await razorpay.orders.create({
+      amount:   purchaseAmount * 100,
+      currency: "INR",
+      receipt:  `u_${req.user._id.toString().slice(-8)}_${Date.now().toString().slice(-8)}`,
+      notes: {
+        userId:        req.user._id.toString(),
+        userType,
+        planId:        plan._id.toString(),
+        activePlanId:  activePlan._id.toString(),
+        isUpgrade:     "true",
+      },
+    });
+
+    const adminWallet   = await AdminWallet.findOne();
+    const balanceBefore = adminWallet?.currentBalance ?? 0;
+
+    const transaction = await PaymentTransaction.create({
+      user:            req.user._id,
+      userType,
+      reason:          "PlanUpgrade",
+      razorpayOrderId: razorpayOrder.id,
+      amount:          purchaseAmount,
+      currency:        "INR",
+      balanceBefore,
+      balanceAfter:    balanceBefore + purchaseAmount,
+      status:          "Pending",
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        orderId:       razorpayOrder.id,
+        amount:        razorpayOrder.amount,
+        currency:      razorpayOrder.currency,
+        transactionId: transaction._id,
+        activePlanId:  activePlan._id,
+        plan: {
+          name:                    plan.name,
+          planType:                plan.planType,
+          numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
+          expiryType:              plan.expiryType,
+          leadsPerDay:             plan.leadsPerDay,
+          amount:                  plan.amount,
+        },
+      },
+    });
+  } catch (err) {
+    console.error("upgradePlanOrder error:", err);
+    res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
+  }
+};
+
 // ── Cancel Plan Order ─────────────────────────────────────────────────────────
 const cancelPlanOrder = async (req, res) => {
   try {
@@ -123,7 +208,22 @@ const cancelPlanOrder = async (req, res) => {
 // ── Get Active Plans for the user's role ─────────────────────────────────────
 const getActivePlans = async (req, res) => {
   try {
-    const plans = await Plan.find({ isActive: true, roles: req.userRole }).select("-__v -roles -createdAt -updatedAt");
+    const wantsUpgrade = req.query.userWantToUpgrade === "true";
+
+    const filter = { isActive: true, roles: req.userRole };
+
+    let plans = await Plan.find(filter).select("-__v -roles -createdAt -updatedAt");
+
+    if (wantsUpgrade) {
+      const activePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+      if (activePlan) {
+        plans = plans.map((p) => ({
+          ...p.toObject(),
+          currentPlan: p._id.toString() === activePlan.plan.planId.toString(),
+        }));
+      }
+    }
+
     res.json({ success: true, data: plans });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -240,4 +340,108 @@ const purchasePlan = async (req, res) => {
   }
 };
 
-module.exports = { createPlanOrder, cancelPlanOrder, getActivePlans, purchasePlan };
+// ── Upgrade Plan (Free or with Coins) ───────────────────────────────────────
+const upgradePlan = async (req, res) => {
+  try {
+    const { planId } = req.body;
+    if (!planId)
+      return res.status(400).json({ success: false, message: "planId is required" });
+
+    const userType = ROLE_USERTYPE_MAP[req.userRole];
+    if (!userType)
+      return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
+
+    const activePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    if (!activePlan)
+      return res.status(400).json({ success: false, message: "No active plan found to upgrade" });
+
+    if (activePlan.plan.planId.toString() === planId)
+      return res.status(400).json({ success: false, message: "You already have this plan as your active plan" });
+
+    const plan = await Plan.findById(planId);
+    if (!plan || !plan.isActive)
+      return res.status(404).json({ success: false, message: "Plan not found or inactive" });
+
+    if (!plan.roles.includes(req.userRole))
+      return res.status(403).json({ success: false, message: "This plan is not available for your role" });
+
+    if (plan.planType !== "Paid")
+      return res.status(400).json({ success: false, message: "Only paid plans can be used for upgrade" });
+
+    const expiryDurationDays = Number(process.env[`${plan.expiryType?.toUpperCase()}_PLAN_EXPIRY_DAYS`]);
+    const startDate          = new Date();
+    const expiryDate         = new Date(startDate);
+    expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
+
+    const planSnapshot = {
+      planId:                  plan._id,
+      name:                    plan.name,
+      planType:                plan.planType,
+      numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
+      expiryType:              plan.expiryType,
+      leadsPerDay:             plan.leadsPerDay,
+      coins:                   plan.coins,
+      amount:                  plan.amount,
+    };
+
+    // ── Paid Plan (Coins) ─────────────────────────────────────────────────────
+    if (!plan.coins)
+      return res.status(400).json({ success: false, message: "This plan cannot be purchased with coins" });
+
+    const userWallet = await UserCoinsWallet.findOne({ user: req.user._id });
+    if (!userWallet || userWallet.currentBalance < plan.coins)
+      return res.status(400).json({ success: false, message: "Insufficient coins balance" });
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      userWallet.currentBalance    -= plan.coins;
+      userWallet.totalDebitedCoins += plan.coins;
+      await userWallet.save({ session });
+
+      const newPlan = new PurchasedPlan({
+        user:          req.user._id,
+        userType,
+        plan:          planSnapshot,
+        paymentMethod: "Coins",
+        coinsPaid:     plan.coins,
+        startDate,
+        expiryDate,
+        expiryDurationDays,
+        status:        "Active",
+      });
+      await newPlan.save({ session });
+
+      activePlan.status        = "Cancelled";
+      activePlan.changedPlanTo  = newPlan._id;
+      await activePlan.save({ session });
+
+      const coinsTxn = new CoinsTransaction({
+        user:          req.user._id,
+        userType,
+        type:          "Debit",
+        coins:         plan.coins,
+        reason:        "PlanUpgrade",
+        refId:         newPlan._id,
+        refModel:      "PurchasedPlan",
+        balanceBefore: userWallet.currentBalance + plan.coins,
+        balanceAfter:  userWallet.currentBalance,
+      });
+      await coinsTxn.save({ session });
+
+      await session.commitTransaction();
+      res.status(201).json({ success: true, data: newPlan });
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      session.endSession();
+    }
+  } catch (err) {
+    console.error("upgradePlan error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { createPlanOrder, upgradePlanOrder, cancelPlanOrder, getActivePlans, purchasePlan, upgradePlan };

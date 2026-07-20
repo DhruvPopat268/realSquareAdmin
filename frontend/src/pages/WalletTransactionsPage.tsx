@@ -16,6 +16,18 @@ const STATUS_VARIANTS: Record<string, "default" | "destructive" | "secondary"> =
   Pending: "secondary",
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  Success: "bg-green-100 text-green-700",
+  Failed:  "bg-red-100 text-red-700",
+  Pending: "bg-yellow-100 text-yellow-700",
+};
+
+const CREDIT_REASONS = new Set(["PlanPurchase", "CoinsPurchase", "AdminCredit", "PlanUpgrade"]);
+
+function txnType(reason: string) {
+  return CREDIT_REASONS.has(reason) ? "Credit" : "Debit";
+}
+
 const REASON_COLORS: Record<string, string> = {
   PlanPurchase:  "bg-blue-100 text-blue-700",
   CoinsPurchase: "bg-purple-100 text-purple-700",
@@ -195,6 +207,7 @@ export default function WalletTransactionsPage() {
                 <th className="px-4 py-3 text-left">#</th>
                 <th className="px-4 py-3 text-left">User</th>
                 <th className="px-4 py-3 text-left">User Type</th>
+                <th className="px-4 py-3 text-left">Transaction Type</th>
                 <th className="px-4 py-3 text-left">Reason</th>
                 <th className="px-4 py-3 text-left">Amount</th>
                 <th className="px-4 py-3 text-left">Balance Before</th>
@@ -213,13 +226,18 @@ export default function WalletTransactionsPage() {
                     <p className="text-xs text-muted-foreground">{txn.user.mobile}</p>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{txn.userType}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={txnType(txn.reason) === "Credit" ? "default" : "destructive"} className="text-xs">
+                      {txnType(txn.reason)}
+                    </Badge>
+                  </td>
                   <td className="px-4 py-3"><Badge className={`text-xs ${REASON_COLORS[txn.reason] ?? "bg-muted text-muted-foreground"}`}>{txn.reason}</Badge></td>
                   <td className="px-4 py-3 font-semibold">₹{txn.amount.toLocaleString()}</td>
                   <td className="px-4 py-3">₹{txn.balanceBefore.toLocaleString()}</td>
                   <td className="px-4 py-3">₹{txn.balanceAfter.toLocaleString()}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{txn.razorpayOrderId}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={STATUS_VARIANTS[txn.status] ?? "secondary"} className="text-xs">{txn.status}</Badge>
+                    <Badge className={`text-xs ${STATUS_COLORS[txn.status] ?? "bg-muted text-muted-foreground"}`}>{txn.status}</Badge>
                   </td>
                   <td className="px-4 py-3 text-xs">
                     <p>{new Date(txn.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>

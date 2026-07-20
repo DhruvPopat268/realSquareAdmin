@@ -26,9 +26,10 @@ const getPurchasedPlans = async (req, res) => {
     ]);
 
     const stats = {
-      active:   statsRaw.find((s) => s._id === "Active")?.count   ?? 0,
-      expired:  statsRaw.find((s) => s._id === "Expired")?.count  ?? 0,
-      consumed: statsRaw.find((s) => s._id === "Consumed")?.count ?? 0,
+      active:    statsRaw.find((s) => s._id === "Active")?.count    ?? 0,
+      expired:   statsRaw.find((s) => s._id === "Expired")?.count   ?? 0,
+      consumed:  statsRaw.find((s) => s._id === "Consumed")?.count  ?? 0,
+      cancelled: statsRaw.find((s) => s._id === "Cancelled")?.count ?? 0,
     };
 
     res.json({

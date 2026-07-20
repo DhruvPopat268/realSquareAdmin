@@ -26,7 +26,7 @@ export interface PurchasedPlan {
 export interface PurchasedPlansResponse {
   success: boolean;
   data: PurchasedPlan[];
-  stats: { active: number; expired: number; consumed: number };
+  stats: { active: number; expired: number; consumed: number; cancelled: number };
   pagination: { total: number; page: number; limit: number; totalPages: number };
 }
 

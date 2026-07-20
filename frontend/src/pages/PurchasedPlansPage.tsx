@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Archive } from "lucide-react";
+import { FileText, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Archive, Ban } from "lucide-react";
 import { purchasedPlansService, type PurchasedPlan } from "@/services/purchasedPlansService";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { useToast } from "@/hooks/use-toast";
@@ -18,16 +18,23 @@ function userName(u: PurchasedPlan["user"]) {
 }
 
 const STATUS_VARIANTS: Record<string, "default" | "destructive" | "secondary"> = {
-  Active: "default",
-  Expired: "destructive",
-  Consumed: "secondary",
+  Active:    "default",
+  Expired:   "destructive",
+  Consumed:  "secondary",
+  Cancelled: "destructive",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  Active:    "bg-green-100 text-green-700",
+  Consumed:  "bg-yellow-100 text-yellow-700",
+  Cancelled: "bg-purple-100 text-purple-700",
 };
 
 export default function PurchasedPlansPage() {
   const { toast } = useToast();
 
   const [plans, setPlans]       = useState<PurchasedPlan[]>([]);
-  const [stats, setStats]       = useState({ active: 0, expired: 0, consumed: 0 });
+  const [stats, setStats]       = useState({ active: 0, expired: 0, consumed: 0, cancelled: 0 });
   const [loading, setLoading]   = useState(true);
   const [total, setTotal]       = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -85,7 +92,7 @@ export default function PurchasedPlansPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -113,6 +120,15 @@ export default function PurchasedPlansPage() {
             <p className="text-xl font-bold">{stats.consumed.toLocaleString()}</p>
           </div>
         </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+            <Ban className="h-5 w-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Cancelled</p>
+            <p className="text-xl font-bold text-purple-600">{stats.cancelled.toLocaleString()}</p>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -132,7 +148,7 @@ export default function PurchasedPlansPage() {
           <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="Select Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
-            {["Active", "Expired", "Consumed"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            {["Active", "Expired", "Consumed", "Cancelled"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={pending.userType} onValueChange={(v) => set("userType", v)}>
@@ -210,7 +226,10 @@ export default function PurchasedPlansPage() {
                     <p className="text-muted-foreground">{new Date(p.expiryDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={STATUS_VARIANTS[p.status] ?? "secondary"} className="text-xs">{p.status}</Badge>
+                    <Badge
+                      variant={STATUS_COLORS[p.status] ? undefined : (STATUS_VARIANTS[p.status] ?? "secondary")}
+                      className={`text-xs ${STATUS_COLORS[p.status] ?? ""}`}
+                    >{p.status}</Badge>
                   </td>
                   <td className="px-4 py-3 text-xs">
                     <p>{new Date(p.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>

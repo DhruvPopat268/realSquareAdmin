@@ -8,7 +8,7 @@ const coinsTransactionSchema = new mongoose.Schema(
     coins:       { type: Number, required: true },
     reason:      {
       type: String,
-      enum: ["PlanPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"],
+      enum: ["PlanPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit", "PlanUpgrade"],
       required: true,
     },
     // reference to the related document (purchasedPlan or transaction)

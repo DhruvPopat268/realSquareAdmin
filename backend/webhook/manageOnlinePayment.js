@@ -4,6 +4,7 @@ const PaymentTransaction = require("../modules/mixed/transactions/model");
 const handlers = {
   CoinsPurchase: require("./helpers/handleCoinsPurchase"),
   PlanPurchase:  require("./helpers/handlePlanPurchase"),
+  PlanUpgrade:   require("./helpers/handlePlanUpgrade"),
 };
 
 const manageOnlinePayment = async (req, res) => {
