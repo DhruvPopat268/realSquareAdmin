@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./database/config");
+const { connectRedis } = require("./redis/config");
 const routes                = require("./routes/index");
 const { manageOnlinePayment } = require("./webhook/manageOnlinePayment");
 
@@ -10,6 +11,9 @@ const app = express();
 
 // ── Connect Database
 connectDB();
+
+// ── Connect Redis
+if (process.env.NODE_ENV !== "development") connectRedis();
 
 // ── Webhook (must be before express.json() to get raw body)
 app.post("/api/webhook", express.raw({ type: "application/json" }), manageOnlinePayment);
