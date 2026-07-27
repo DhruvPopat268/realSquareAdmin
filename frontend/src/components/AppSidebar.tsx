@@ -104,7 +104,8 @@ const sections = [
       { type: "link", to: "/auto-approval-config", icon: ShieldCheck, label: "Auto Approval Config" },
       { type: "link", to: "/property-purposes",   icon: Tag,    label: "Property Purposes" },
       { type: "link", to: "/property-categories", icon: Tag,    label: "Property Categories" },
-      { type: "link", to: "/property-types",      icon: Wrench, label: "Property Types" },
+      { type: "link", to: "/property-types",        icon: Wrench, label: "Property Types" },
+      { type: "link", to: "/furnishings-amenities",  icon: Tag,    label: "Furnishings & Amenities" },
       {
         type: "group", icon: Home, label: "Property Management",
         urls: ["/properties", "/properties/sale", "/properties/rent", "/properties/pg"],

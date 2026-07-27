@@ -1,0 +1,130 @@
+const { validationResult } = require("express-validator");
+const PropertyListing    = require("./model");
+const AutoApprovalConfig = require("../../admin/autoApprovalConfig/model");
+const PropertyCategory   = require("../../admin/propertyCategories/model");
+const PropertyPurpose    = require("../../admin/propertyPurposes/model");
+const PropertyType       = require("../../admin/propertyTypes/model");
+const City               = require("../../admin/cities/model");
+const FurnishingAmenity  = require("../../admin/furnishingsAndAmenities/model");
+
+const toUrl = (filePath) =>
+  `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
+
+// ── Auto-approval resolution ──────────────────────────────────────────────────
+async function resolveStatus(user) {
+  if (!user.autoApprovalProperties) return "UnderReview";
+  const roleConfig = await AutoApprovalConfig.findOne({ roleId: user.role });
+  if (roleConfig?.isActive) return "Active";
+  return "UnderReview";
+}
+
+// ── POST /property-listings ───────────────────────────────────────────────────
+const create = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty())
+    return res.status(400).json({ success: false, errors: errors.array() });
+
+  const {
+    categoryId, listingTypeId, propertyTypeId, cityId, locality,
+    residentialDetails, plotDetails, pgDetails, commercialDetails,
+    sellInfo, rentInfo,
+  } = req.body;
+
+  try {
+    const [category, listingType, propertyType, city] = await Promise.all([
+      PropertyCategory.findById(categoryId).select("name"),
+      PropertyPurpose.findById(listingTypeId).select("name"),
+      PropertyType.findById(propertyTypeId).select("name"),
+      City.findById(cityId).select("name"),
+    ]);
+
+    if (!category)     return res.status(404).json({ success: false, message: "Category not found" });
+    if (!listingType)  return res.status(404).json({ success: false, message: "Listing type not found" });
+    if (!propertyType) return res.status(404).json({ success: false, message: "Property type not found" });
+    if (!city)         return res.status(404).json({ success: false, message: "City not found" });
+
+    // resolve furnishings & amenities from IDs
+    let resolvedResidential = residentialDetails;
+    if (residentialDetails) {
+      const allIds = [
+        ...(residentialDetails.furnishings || []).map((f) => f.furnishingId),
+        ...(residentialDetails.amenities   || []).map((a) => a.amenityId),
+      ];
+      const items   = await FurnishingAmenity.find({ _id: { $in: allIds } }).select("name");
+      const itemMap = Object.fromEntries(items.map((i) => [i._id.toString(), i.name]));
+
+      resolvedResidential = {
+        ...residentialDetails,
+        furnishings: (residentialDetails.furnishings || []).map((f) => ({
+          id:    f.furnishingId,
+          name:  itemMap[f.furnishingId],
+          count: f.count,
+        })),
+        amenities: (residentialDetails.amenities || []).map((a) => ({
+          id:   a.amenityId,
+          name: itemMap[a.amenityId],
+          count: a.count,
+        })),
+      };
+    }
+
+    // build denormalized listedBy from req.user
+    const u       = req.user;
+    const profile = u.ownerProfile || u.brokerProfile || u.builderProfile || u.profile || {};
+    const listedByDoc = {
+      id:           u._id,
+      name:         profile.fullName || profile.name,
+      mobile:       profile.mobile   || u.mobile,
+      email:        profile.email,
+      profilePhoto: profile.profilePhoto,
+      role: { id: u.role?._id, name: u.role?.name },
+    };
+
+    const status = await resolveStatus(u);
+
+    const listing = await PropertyListing.create({
+      category:    { id: category._id,      name: category.name },
+      listingType: { id: listingType._id,   name: listingType.name },
+      propertyType:{ id: propertyType._id,  name: propertyType.name },
+      city:        { id: city._id,          name: city.name },
+      locality,
+      listedBy: listedByDoc,
+      residentialDetails: resolvedResidential,
+      plotDetails,
+      pgDetails,
+      commercialDetails,
+      sellInfo,
+      rentInfo,
+      status,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: status === "Active" ? "Property listed successfully" : "Property is in under review",
+      data: listing,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /property-listings/:id/media ─────────────────────────────────────────
+const uploadMedia = async (req, res) => {
+  try {
+    const listing = await PropertyListing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    if (!req.files?.length)
+      return res.status(400).json({ success: false, message: "No images uploaded" });
+
+    const urls = req.files.map((f) => toUrl(f.path));
+    listing.media.images.push(...urls);
+    await listing.save();
+
+    res.json({ success: true, data: { images: listing.media.images } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { create, uploadMedia };

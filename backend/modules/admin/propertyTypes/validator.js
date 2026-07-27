@@ -4,12 +4,14 @@ const createPropertyTypeValidator = [
   body("name").trim().notEmpty().withMessage("Name is required"),
   body("propertyCategory").notEmpty().withMessage("Property category is required").isMongoId().withMessage("Invalid property category ID"),
   body("description").optional().trim(),
+  body("order").optional().isInt({ min: 0 }).withMessage("Order must be a non-negative integer"),
 ];
 
 const updatePropertyTypeValidator = [
   body("name").optional().trim().notEmpty().withMessage("Name cannot be empty"),
   body("propertyCategory").optional().isMongoId().withMessage("Invalid property category ID"),
   body("description").optional().trim(),
+  body("order").optional().isInt({ min: 0 }).withMessage("Order must be a non-negative integer"),
   body("isActive").optional().isBoolean().withMessage("isActive must be a boolean"),
 ];
 

@@ -12,6 +12,8 @@ const coinsOffersRoutes          = require("./coinsOffersManagement/routes");
 const coinsTransactionsRoutes    = require("./coinsTransactions/routes");
 const purchasedPlansRoutes       = require("./purchasedPlans/routes");
 const walletManagementRoutes     = require("./walletManagement/routes");
+const furnishingsAmenitiesRoutes  = require("./furnishingsAndAmenities/routes");
+const autoApprovalConfigRoutes    = require("./autoApprovalConfig/routes");
 // add more admin feature routes here as you build them
 // const propertyRoutes = require("./property/routes");
 // const leadRoutes     = require("./lead/routes");
@@ -30,6 +32,8 @@ router.use("/coins-offers",        coinsOffersRoutes);
 router.use("/coins-transactions",  coinsTransactionsRoutes);
 router.use("/purchased-plans",     purchasedPlansRoutes);
 router.use("/wallet",              walletManagementRoutes);
+router.use("/furnishings-amenities",  furnishingsAmenitiesRoutes);
+router.use("/auto-approval-config",  autoApprovalConfigRoutes);
 // router.use("/properties", propertyRoutes);
 // router.use("/leads",      leadRoutes);
 

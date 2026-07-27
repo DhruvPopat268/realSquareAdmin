@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, ChevronDown, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import { propertyTypesService, type PropertyType } from "@/services/propertyTypesService";
 import { propertyCategoriesService, type PropertyCategory } from "@/services/propertyCategoriesService";
 import { useToast } from "@/hooks/use-toast";
@@ -28,11 +28,11 @@ const categoryColors: Record<string, string> = {
 export default function PropertyTypesPage() {
   const { toast } = useToast();
 
-  const [data, setData]                   = useState<PropertyType[]>([]);
-  const [categories, setCategories]       = useState<PropertyCategory[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [search, setSearch]               = useState("");
-  const [statusFilter, setStatusFilter]   = useState<"All" | "Yes" | "No">("All");
+  const [data, setData]                     = useState<PropertyType[]>([]);
+  const [categories, setCategories]         = useState<PropertyCategory[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [search, setSearch]                 = useState("");
+  const [statusFilter, setStatusFilter]     = useState<"All" | "Yes" | "No">("All");
   const [categoryFilter, setCategoryFilter] = useState<{ id: string; name: string } | null>(null);
 
   // dialog
@@ -44,11 +44,6 @@ export default function PropertyTypesPage() {
   const [isActive, setIsActive]       = useState(true);
   const [errors, setErrors]           = useState<{ name?: string; category?: string }>({});
   const [submitting, setSubmitting]   = useState(false);
-
-  // delete
-  const [deleteTarget, setDeleteTarget] = useState<PropertyType | null>(null);
-  const [deleteOpen, setDeleteOpen]     = useState(false);
-  const [deleting, setDeleting]         = useState(false);
 
   function buildParams(sf: "All" | "Yes" | "No", cid?: string, q?: string) {
     const p: Record<string, string> = {};
@@ -93,8 +88,8 @@ export default function PropertyTypesPage() {
 
   async function handleSubmit() {
     const errs: { name?: string; category?: string } = {};
-    if (!name.trim())  errs.name     = "Name is required";
-    if (!categoryId)   errs.category = "Category is required";
+    if (!name.trim()) errs.name     = "Name is required";
+    if (!categoryId)  errs.category = "Category is required";
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSubmitting(true);
@@ -105,17 +100,21 @@ export default function PropertyTypesPage() {
         toast({ title: "Property type updated successfully" });
       } else {
         const res = await propertyTypesService.create({ name: name.trim(), propertyCategory: categoryId, description, isActive });
-        setData((prev) => [res.data.data, ...prev]);
+        setData((prev) => {
+          const next = [...prev, res.data.data];
+          next.sort((a, b) => {
+            const catCmp = a.propertyCategory.name.localeCompare(b.propertyCategory.name);
+            return catCmp !== 0 ? catCmp : a.order - b.order;
+          });
+          return next;
+        });
         toast({ title: "Property type created successfully" });
       }
       setOpen(false);
     } catch (err: any) {
       const msg = err?.response?.data?.message;
-      if (msg?.toLowerCase().includes("already exists")) {
-        setErrors((e) => ({ ...e, name: "Property type name already exists in this category" }));
-      } else {
-        toast({ variant: "destructive", title: msg || "Something went wrong" });
-      }
+      if (msg?.toLowerCase().includes("name already exists")) setErrors((e) => ({ ...e, name: "Property type name already exists in this category" }));
+      else toast({ variant: "destructive", title: msg || "Something went wrong" });
     } finally {
       setSubmitting(false);
     }
@@ -130,24 +129,22 @@ export default function PropertyTypesPage() {
     }
   }
 
-  function openDelete(t: PropertyType) { setDeleteTarget(t); setDeleteOpen(true); }
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
+  async function handleReorder(t: PropertyType, direction: "up" | "down") {
     try {
-      await propertyTypesService.remove(deleteTarget._id);
-      setData((prev) => prev.filter((t) => t._id !== deleteTarget._id));
-      toast({ title: "Property type deleted successfully" });
-      setDeleteOpen(false);
+      const res = await propertyTypesService.reorder(t._id, direction);
+      // replace items of that category with updated sorted list
+      const others = prev.filter((i) => i.propertyCategory._id !== t.propertyCategory._id);
+        const updated = [...others, ...res.data.data];
+        // preserve backend sort: group by category name, then by order
+        updated.sort((a, b) => {
+          const catCmp = a.propertyCategory.name.localeCompare(b.propertyCategory.name);
+          return catCmp !== 0 ? catCmp : a.order - b.order;
+        });
+        setData(updated);
     } catch {
-      toast({ variant: "destructive", title: "Failed to delete property type" });
-    } finally {
-      setDeleting(false);
+      toast({ variant: "destructive", title: "Failed to reorder" });
     }
   }
-
-  const selectedCategoryName = categoryFilter ? categoryFilter.name : "All";
 
   return (
     <div className="space-y-4">
@@ -174,7 +171,7 @@ export default function PropertyTypesPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Category: {selectedCategoryName} <ChevronDown className="h-3.5 w-3.5" />
+              Category: {categoryFilter ? categoryFilter.name : "All"} <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-60 overflow-y-auto">
@@ -202,11 +199,12 @@ export default function PropertyTypesPage() {
         <table className="w-full text-sm table-fixed">
           <thead>
             <tr className="border-b bg-muted/40">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-20">Actions</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-36">Actions</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-12">#</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Description</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-32">Display Order</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Updated</th>
@@ -214,47 +212,54 @@ export default function PropertyTypesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="py-16"><Spinner size="md" label="Loading property types..." /></td></tr>
+              <tr><td colSpan={9} className="py-16"><Spinner size="md" label="Loading property types..." /></td></tr>
             ) : data.length === 0 ? (
-              <tr><td colSpan={8} className="text-center text-muted-foreground py-16">No property types found</td></tr>
-            ) : data.map((t, i) => (
-              <tr key={t._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-3 w-20">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => openEdit(t)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => openDelete(t)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </td>
-                <td className="px-4 py-3 w-12 text-muted-foreground text-xs">{i + 1}</td>
-                <td className="px-4 py-3 font-semibold text-foreground">{t.name}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${categoryColors[t.propertyCategory?.name] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>
-                    {t.propertyCategory?.name}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground"><span className="line-clamp-2">{t.description || "—"}</span></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Switch checked={t.isActive} onCheckedChange={() => toggleActive(t)} className="scale-90" />
-                    <span className={`text-xs font-medium ${t.isActive ? "text-green-600" : "text-muted-foreground"}`}>
-                      {t.isActive ? "Yes" : "No"}
+              <tr><td colSpan={9} className="text-center text-muted-foreground py-16">No property types found</td></tr>
+            ) : data.map((t, i) => {
+              const sameCategory = data.filter((d) => d.propertyCategory._id === t.propertyCategory._id).sort((a, b) => a.order - b.order);
+              const isFirst = sameCategory[0]?._id === t._id;
+              const isLast  = sameCategory[sameCategory.length - 1]?._id === t._id;
+              return (
+                <tr key={t._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3 w-36">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleReorder(t, "up")} disabled={isFirst} className="p-1.5 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => handleReorder(t, "down")} disabled={isLast} className="p-1.5 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => openEdit(t)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 w-12 text-muted-foreground text-xs">{i + 1}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{t.name}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${categoryColors[t.propertyCategory?.name] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>
+                      {t.propertyCategory?.name}
                     </span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <p className="text-sm text-foreground">{fmtDate(t.createdAt).date}</p>
-                  <p className="text-xs text-muted-foreground">{fmtDate(t.createdAt).time}</p>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <p className="text-sm text-foreground">{fmtDate(t.updatedAt).date}</p>
-                  <p className="text-xs text-muted-foreground">{fmtDate(t.updatedAt).time}</p>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground"><span className="line-clamp-2">{t.description || "—"}</span></td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">{t.order}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={t.isActive} onCheckedChange={() => toggleActive(t)} className="scale-90" />
+                      <span className={`text-xs font-medium ${t.isActive ? "text-green-600" : "text-muted-foreground"}`}>{t.isActive ? "Yes" : "No"}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <p className="text-sm text-foreground">{fmtDate(t.createdAt).date}</p>
+                    <p className="text-xs text-muted-foreground">{fmtDate(t.createdAt).time}</p>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <p className="text-sm text-foreground">{fmtDate(t.updatedAt).date}</p>
+                    <p className="text-xs text-muted-foreground">{fmtDate(t.updatedAt).time}</p>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -309,17 +314,6 @@ export default function PropertyTypesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Delete Property Type</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name}</span>? This action cannot be undone.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? "Deleting..." : "Delete"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

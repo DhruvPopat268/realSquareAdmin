@@ -6,6 +6,7 @@ export interface PropertyType {
   name: string;
   propertyCategory: PropertyCategory;
   description: string;
+  order: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -13,7 +14,8 @@ export interface PropertyType {
 
 export const propertyTypesService = {
   getAll: (params?: Record<string, string>) => api.get<{ success: boolean; data: PropertyType[] }>("/admin/property-types", { params }),
-  create: (payload: { name: string; propertyCategory: string; description?: string; isActive: boolean }) => api.post<{ success: boolean; data: PropertyType }>("/admin/property-types", payload),
-  update: (id: string, payload: Partial<{ name: string; propertyCategory: string; description: string; isActive: boolean }>) => api.put<{ success: boolean; data: PropertyType }>(`/admin/property-types/${id}`, payload),
+  create: (payload: { name: string; propertyCategory: string; description?: string; order?: number; isActive: boolean }) => api.post<{ success: boolean; data: PropertyType }>("/admin/property-types", payload),
+  update: (id: string, payload: Partial<{ name: string; propertyCategory: string; description: string; order: number; isActive: boolean }>) => api.put<{ success: boolean; data: PropertyType }>(`/admin/property-types/${id}`, payload),
   remove: (id: string) => api.delete(`/admin/property-types/${id}`),
+  reorder: (id: string, direction: "up" | "down") => api.patch<{ success: boolean; data: PropertyType[] }>(`/admin/property-types/${id}/reorder`, { direction }),
 };

@@ -1,0 +1,259 @@
+1).. residential fields for sell and rent :-
+
+sell property types :- apartment , independent house , duplex , independent floor , villa , penthouse , studio , plot , farm house , agricultural land
+
+rent property types :- apartment , independent house , duplex , independent floor , villa , penthouse , studio , farm house 
+
+1).. Apartment , inpendent house , duplex , independent floor , villa , penthouse , studio , farm house  :-
+
+-building/project/society name
+-locality ( map suggestion )
+-BHK
+-built up area - area unit (sq feet , sq yard , sq meter )  
+-furnish type
+-furnishing & amenities
+
+if sell 
+
+- cost
+- construction status ( under con , ready to move )
+
+if rent 
+
+-monthly rent 
+-available from date
+-security deposit ( none , 1month , 2month , custom in rs )
+
+2).. plot , agricultural land :-
+
+for sell
+
+-building/project/society name
+-locality ( map suggestion )
+-plot area ( l*w ) - area unit 
+- length 
+- width
+- plot price
+- possession status ( immediate , in future )
+
+2).. residential pg/co-living :-
+
+- locality ( map suggestion )
+
+pg details;-
+
+-pg name 
+-total beds available
+- pg is for ( girls , boys )
+- best suited for ( student , professionals )
+- meals available ( yes ( breakfast , lunch , dinner or no )
+- notice period ( days )
+- lock in period ( days )
+- common areas ( living room , kitchen , dining hall , study room/library , breakout room 
+
+room details :-
+
+- room type ( single sharing , double , triple , 3+ )
+- beds available
+- rent
+- security deposit in rs
+
+3).. commercial rent or sell :-
+
+sell property types :- office , retail shop , showroom , warehouse , plot , others
+
+rent property types :- office , retail shop , showroom , warehouse , plot , others
+
+1).. office :-
+
+-building/project/society name
+-locality ( map suggestion )
+
+Possesstion Info :-
+
+- possession status ( ready to move ( available from , age of property ) , under constuction ( available from )  )
+
+About the property :-
+
+- zone type ( Industrial , Commercial , Residential , Special economic zone , Open Spaces , Agricultural zone , others
+- location hub ( IT Park , Business Park , Others ( write )
+- property condition ( ready to use , bare shell )
+- built up area - area unit (sq feet , sq yard , sq meter )  
+- ownership ( Freehold , Leasehold , Cooperative society , Power of attorney )
+
+if ready to move
+- show carpet area and area unit below built up area
+
+show facilities below Floors available :-
+- min number of seats 
+- number of cabins
+- number of meeting rooms 
+
+if bare shells 
+- show Construction Status below Ownership ( no walls , brick walls , cemented walls , plastered walls )
+
+- built up area - area unit (sq feet , sq yard , sq meter )  
+- ownership ( Freehold , Leasehold , Cooperative society , Power of attorney )
+
+Floors available :-
+
+- total floors 
+- your floor selection
+
+price details :-
+
+if sell
+
+- price
+
+other details :-
+- is it pre-leased/pre-rented ? ( yes or no )
+- if yes show current rent per month and lease years
+- if no expected return on investment in %
+
+if rent 
+
+- expected rent
+
+2).. retail shop , show room :-
+
+-building/project/society name
+-locality ( map suggestion )
+
+Possesstion Info :-
+
+- possession status ( ready to move ( available from , age of property ) , under constuction ( available from )  )
+
+About the property :-
+
+- location hub ( Mall , Commercial Project , Residential Project , Retail Complex/Building , Market/High Street , Others ( write ) )
+- built up area - area unit (sq feet , sq yard , sq meter )  
+- carpet area - area unit ( Carpet area should be less than Built Up Area )
+- ownership ( Freehold , Leasehold , Cooperative society , Power of attorney )
+
+Floors available :-
+
+- total floors 
+- your floor selection
+
+price details :-
+
+if sell
+
+- price
+
+other details :-
+- is it pre-leased/pre-rented ? ( yes or no )
+- if yes show current rent per month and lease years
+- if no expected return on investment in %
+
+if rent 
+
+- expected rent
+
+3).. ware house :-
+
+-building/project/society name
+-locality ( map suggestion )
+
+Possesstion Info :-
+
+- possession status ( ready to move ( available from , age of property ) , under constuction ( available from )  )
+
+About the property :-
+
+- zone type ( Industrial , Commercial , Residential , Special economic zone , Open Spaces , Agricultural zone , others
+- location hub ( Mall , Commercial Project , Residential Project , Retail Complex/Building , Market/High Street , Others ( write ) )
+- built up area - area unit (sq feet , sq yard , sq meter )  
+- carpet area - area unit ( Carpet area should be less than Built Up Area )
+- ownership ( Freehold , Leasehold , Cooperative society , Power of attorney )
+
+Floors available :-
+
+- total floors 
+- your floor selection
+
+price details :-
+
+if sell
+
+- price
+
+other details :-
+- is it pre-leased/pre-rented ? ( yes or no )
+- if yes show current rent per month and lease years
+- if no expected return on investment in %
+
+if rent 
+
+- expected rent
+
+4)plot :-
+
+-building/project/society name
+-locality ( map suggestion )
+
+Possesstion Info :-
+
+- possession status ( ready to move ( available from , age of property ) , under constuction ( available from )  )
+
+About the property :-
+
+- zone type ( Industrial , Commercial , Residential , Special economic zone , Open Spaces , Agricultural zone , others
+- plot area - area unit (sq feet , sq yard , sq meter )  
+- ownership ( Freehold , Leasehold , Cooperative society , Power of attorney )
+
+price details :-
+
+if sell
+
+- price
+
+other details :-
+- is it pre-leased/pre-rented ? ( yes or no )
+- if yes show current rent per month and lease years
+- if no expected return on investment in %
+
+if rent 
+
+- expected rent
+
+5).. others:-
+
+-building/project/society name
+-locality ( map suggestion )
+-property name 
+
+Possesstion Info :-
+
+- possession status ( ready to move ( available from , age of property ) , under constuction ( available from )  )
+
+About the property :-
+
+- zone type ( Industrial , Commercial , Residential , Special economic zone , Open Spaces , Agricultural zone , others
+- location hub ( Mall , Commercial Project , Residential Project , Retail Complex/Building , Market/High Street , Others ( write ) )
+- built up area - area unit (sq feet , sq yard , sq meter )  
+- carpet area - area unit ( Carpet area should be less than Built Up Area )
+- ownership ( Freehold , Leasehold , Cooperative society , Power of attorney )
+
+Floors available :-
+
+- total floors 
+- your floor selection
+
+price details :-
+
+if sell
+
+- price
+
+other details :-
+- is it pre-leased/pre-rented ? ( yes or no )
+- if yes show current rent per month and lease years
+- if no expected return on investment in %
+
+if rent 
+
+- expected rent
+
+

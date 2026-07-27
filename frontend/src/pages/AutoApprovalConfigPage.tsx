@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
 import { ShieldCheck, User, Handshake, Building2 } from "lucide-react";
+import { autoApprovalConfigService } from "@/services/autoApprovalConfigService";
+import { toast } from "sonner";
 
 type Role = "Owner" | "Agent / Broker" | "Builder / Developer";
 
 interface RoleConfig {
   role: Role;
+  roleId: string;
   icon: React.ElementType;
   iconColor: string;
   iconBg: string;
@@ -16,6 +19,7 @@ interface RoleConfig {
 const INITIAL_CONFIG: RoleConfig[] = [
   {
     role: "Owner",
+    roleId: import.meta.env.VITE_OWNER_ROLE,
     icon: User,
     iconColor: "text-blue-600",
     iconBg: "bg-blue-50",
@@ -24,6 +28,7 @@ const INITIAL_CONFIG: RoleConfig[] = [
   },
   {
     role: "Agent / Broker",
+    roleId: import.meta.env.VITE_BROKER_ROLE,
     icon: Handshake,
     iconColor: "text-purple-600",
     iconBg: "bg-purple-50",
@@ -32,6 +37,7 @@ const INITIAL_CONFIG: RoleConfig[] = [
   },
   {
     role: "Builder / Developer",
+    roleId: import.meta.env.VITE_BUILDER_ROLE,
     icon: Building2,
     iconColor: "text-amber-600",
     iconBg: "bg-amber-50",
@@ -42,9 +48,34 @@ const INITIAL_CONFIG: RoleConfig[] = [
 
 export default function AutoApprovalConfigPage() {
   const [configs, setConfigs] = useState<RoleConfig[]>(INITIAL_CONFIG);
+  const [loadingRole, setLoadingRole] = useState<Role | null>(null);
+  const [fetching, setFetching] = useState(true);
 
-  function toggle(role: Role) {
-    setConfigs((prev) => prev.map((c) => c.role === role ? { ...c, enabled: !c.enabled } : c));
+  useEffect(() => {
+    autoApprovalConfigService.getAll()
+      .then(({ data }) => {
+        setConfigs((prev) => prev.map((c) => ({
+          ...c,
+          enabled: data.data[c.roleId] ?? false,
+        })));
+      })
+      .catch(() => toast.error("Failed to load auto approval config."))
+      .finally(() => setFetching(false));
+  }, []);
+
+  async function toggle(role: Role) {
+    const config = configs.find((c) => c.role === role)!;
+    const newValue = !config.enabled;
+    setLoadingRole(role);
+    try {
+      await autoApprovalConfigService.upsert(config.roleId, newValue);
+      setConfigs((prev) => prev.map((c) => c.role === role ? { ...c, enabled: newValue } : c));
+      toast.success(`Auto approval ${newValue ? "enabled" : "disabled"} for ${role}`);
+    } catch {
+      toast.error("Failed to update config. Please try again.");
+    } finally {
+      setLoadingRole(null);
+    }
   }
 
   const enabledCount = configs.filter((c) => c.enabled).length;
@@ -77,7 +108,7 @@ export default function AutoApprovalConfigPage() {
               <div className={`h-10 w-10 rounded-full ${c.iconBg} flex items-center justify-center`}>
                 <c.icon className={`h-5 w-5 ${c.iconColor}`} />
               </div>
-              <Switch checked={c.enabled} onCheckedChange={() => toggle(c.role)} />
+              <Switch checked={c.enabled} onCheckedChange={() => toggle(c.role)} disabled={fetching || loadingRole === c.role} />
             </div>
             <div>
               <p className="font-semibold text-foreground">{c.role}</p>
