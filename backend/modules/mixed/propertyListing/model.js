@@ -84,25 +84,17 @@ const pgDetailsSchema = new Schema(
 
 // ─── Commercial (Office / Shop / Showroom / Warehouse / Plot / Others) ───────
 
-const possessionSchema = new Schema(
-  {
-    status: { type: String, enum: ["ReadyToMove", "UnderConstruction"] },
-    availableFrom: { type: Date },
-    ageOfProperty: { type: Number },                    // in years, only for ReadyToMove
-  },
-  { _id: false }
-);
-
 const commercialDetailsSchema = new Schema(
   {
     societyName: { type: String, trim: true },
-    propertyName: { type: String, trim: true },  // only for "Others" type
-    possession: possessionSchema,
+    propertyType: { type: String, trim: true },  // only for "Others" type
     zoneType: { type: String, enum: ["Industrial", "Commercial", "Residential", "SEZ", "OpenSpaces", "Agricultural", "Others"] },
     locationHub: { type: String, enum: ["IT Park", "Business Park", "Mall", "Commercial Project", "Residential Project", "Retail Complex/Building", "Market/High Street", "Others"] },
     builtUpArea: areaSchema,
     carpetArea: areaSchema,
     plotArea: areaSchema,                        // plot
+    length: { type: Number },
+    width: { type: Number },
     ownership: { type: String, enum: ["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"] },
     totalFloors: { type: Number },
     yourFloor: { type: String, trim: true },
@@ -118,7 +110,9 @@ const commercialDetailsSchema = new Schema(
 const sellInfoSchema = new Schema(
   {
     price: { type: Number },
-    constructionStatus: { type: String, enum: ["UnderConstruction", "ReadyToMove"] }, // residential only
+    constructionStatus: { type: String, enum: ["UnderConstruction", "ReadyToMove"] },
+    ageOfProperty: { type: Number },        // in years, only when ReadyToMove
+    availableFrom: { type: Date },          // only when UnderConstruction
   },
   { _id: false }
 );

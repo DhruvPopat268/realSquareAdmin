@@ -101,6 +101,12 @@ const createListingValidator = [
 
   // ── commercialDetails (when present) ───────────────────────────────────────
   body("commercialDetails.societyName").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.societyName is required"),
+  body("commercialDetails.propertyType").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const othersIds = process.env.COMMERCIAL_PROPERTY_TYPE_OTHERS_IDS.split(",");
+    if (!othersIds.includes(req.body.propertyTypeId)) return true;
+    if (!_ || !_.toString().trim()) throw new Error("commercialDetails.propertyType is required for Others property type");
+    return true;
+  }),
   body("commercialDetails.zoneType").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.zoneType is required").isIn(["Industrial", "Commercial", "Residential", "SEZ", "OpenSpaces", "Agricultural", "Others"]).withMessage("Invalid zoneType"),
   body("commercialDetails.locationHub").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.locationHub is required").isIn(["IT Park", "Business Park", "Mall", "Commercial Project", "Residential Project", "Retail Complex/Building", "Market/High Street", "Others"]).withMessage("Invalid locationHub"),
 
@@ -150,6 +156,20 @@ const createListingValidator = [
     if (!["sqft", "sqyd", "sqmt"].includes(_)) throw new Error("Must be sqft, sqyd, or sqmt");
     return true;
   }),
+  body("commercialDetails.length").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
+    if (!plotIds.includes(req.body.propertyTypeId)) return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.length is required");
+    if (isNaN(_) || Number(_) < 0) throw new Error("commercialDetails.length must be a positive number");
+    return true;
+  }),
+  body("commercialDetails.width").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
+    if (!plotIds.includes(req.body.propertyTypeId)) return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.width is required");
+    if (isNaN(_) || Number(_) < 0) throw new Error("commercialDetails.width must be a positive number");
+    return true;
+  }),
   body("commercialDetails.totalFloors").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
@@ -164,9 +184,6 @@ const createListingValidator = [
     if (typeof _ !== "string" || !_.trim()) throw new Error("commercialDetails.yourFloor must be a non-empty string");
     return true;
   }),
-  body("commercialDetails.possession.status").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.possession.status is required").isIn(["ReadyToMove", "UnderConstruction"]).withMessage("Invalid possession status"),
-  body("commercialDetails.possession.ageOfProperty").if(body("commercialDetails.possession.status").equals("ReadyToMove")).notEmpty().withMessage("commercialDetails.possession.ageOfProperty is required when status is ReadyToMove").isInt({ min: 0 }).withMessage("Must be a non-negative integer"),
-  body("commercialDetails.possession.availableFrom").if(body("commercialDetails.possession.status").equals("UnderConstruction")).notEmpty().withMessage("commercialDetails.possession.availableFrom is required when status is UnderConstruction").isISO8601().withMessage("Must be a valid date"),
   body("commercialDetails.minSeats").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS.split(",");
     if (!officeIds.includes(req.body.propertyTypeId)) return true;
@@ -202,6 +219,8 @@ const createListingValidator = [
   }),
   body("sellInfo.price").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.price is required").isFloat({ min: 0 }).withMessage("sellInfo.price must be a positive number"),
   body("sellInfo.constructionStatus").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.constructionStatus is required").isIn(["UnderConstruction", "ReadyToMove"]).withMessage("Invalid constructionStatus"),
+  body("sellInfo.ageOfProperty").if(body("sellInfo.constructionStatus").equals("ReadyToMove")).notEmpty().withMessage("sellInfo.ageOfProperty is required when constructionStatus is ReadyToMove").isInt({ min: 0 }).withMessage("Must be a non-negative integer"),
+  body("sellInfo.availableFrom").if(body("sellInfo.constructionStatus").equals("UnderConstruction")).notEmpty().withMessage("sellInfo.availableFrom is required when constructionStatus is UnderConstruction").isISO8601().withMessage("Must be a valid date"),
 
   // ── rentInfo (required for Rent, not allowed otherwise) ──────────────────────
   body("rentInfo").custom((_, { req }) => {

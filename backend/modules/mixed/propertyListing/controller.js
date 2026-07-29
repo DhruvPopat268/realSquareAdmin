@@ -127,6 +127,22 @@ const uploadMedia = async (req, res) => {
   }
 };
 
+// ── GET /property-listings/active-furnishings-amenities ─────────────────────
+const getActiveFurnishingsAndAmenities = async (req, res) => {
+  try {
+    const items = await FurnishingAmenity.find({ isActive: true })
+      .select("name type hasCount icon order")
+      .sort({ order: 1, name: 1 });
+
+    const furnishings = items.filter((i) => i.type === "Furnishing");
+    const amenities   = items.filter((i) => i.type === "Amenity");
+
+    res.json({ success: true, data: { furnishings, amenities } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // ── GET /property-listings/active-categories ─────────────────────────────────
 const getActivePropertyCategories = async (req, res) => {
   try {
@@ -183,4 +199,4 @@ const getActiveCities = async (req, res) => {
   }
 };
 
-module.exports = { create, uploadMedia, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getActiveCities };
+module.exports = { create, uploadMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getActiveCities };
