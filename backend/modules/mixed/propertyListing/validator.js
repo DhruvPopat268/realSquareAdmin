@@ -104,11 +104,8 @@ const createListingValidator = [
   body("commercialDetails.zoneType").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.zoneType is required").isIn(["Industrial", "Commercial", "Residential", "SEZ", "OpenSpaces", "Agricultural", "Others"]).withMessage("Invalid zoneType"),
   body("commercialDetails.locationHub").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.locationHub is required").isIn(["IT Park", "Business Park", "Mall", "Commercial Project", "Residential Project", "Retail Complex/Building", "Market/High Street", "Others"]).withMessage("Invalid locationHub"),
 
-  body("commercialDetails.carpetArea.value").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.carpetArea.value is required").isFloat({ min: 0 }).withMessage("Must be a positive number"),
-  body("commercialDetails.carpetArea.unit").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.carpetArea.unit is required").isIn(["sqft", "sqyd", "sqmt"]).withMessage("Must be sqft, sqyd, or sqmt"),
   body("commercialDetails.ownership").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.ownership is required").isIn(["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"]).withMessage("Invalid ownership"),
-  body("commercialDetails.isPreLeased").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.isPreLeased is required").isBoolean().withMessage("commercialDetails.isPreLeased must be a boolean"),
-  body("commercialDetails.builtUpArea.value").if(body("commercialDetails").exists()).custom((_, { req }) => {
+  body("commercialDetails.possession.status").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
     if (!_.toString().trim()) throw new Error("commercialDetails.builtUpArea.value is required");
@@ -127,6 +124,9 @@ const createListingValidator = [
     if (plotIds.includes(req.body.propertyTypeId)) return true;
     if (!_.toString().trim()) throw new Error("commercialDetails.carpetArea.value is required");
     if (isNaN(_) || _ < 0) throw new Error("Must be a positive number");
+    const builtUpValue = req.body.commercialDetails?.builtUpArea?.value;
+    if (builtUpValue !== undefined && Number(_) > Number(builtUpValue))
+      throw new Error("commercialDetails.carpetArea.value cannot be greater than builtUpArea.value");
     return true;
   }),
   body("commercialDetails.carpetArea.unit").if(body("commercialDetails").exists()).custom((_, { req }) => {
@@ -150,24 +150,65 @@ const createListingValidator = [
     if (!["sqft", "sqyd", "sqmt"].includes(_)) throw new Error("Must be sqft, sqyd, or sqmt");
     return true;
   }),
+  body("commercialDetails.totalFloors").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
+    if (plotIds.includes(req.body.propertyTypeId)) return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.totalFloors is required");
+    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.totalFloors must be a non-negative integer");
+    return true;
+  }),
+  body("commercialDetails.yourFloor").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
+    if (plotIds.includes(req.body.propertyTypeId)) return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.yourFloor is required");
+    if (typeof _ !== "string" || !_.trim()) throw new Error("commercialDetails.yourFloor must be a non-empty string");
+    return true;
+  }),
   body("commercialDetails.possession.status").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.possession.status is required").isIn(["ReadyToMove", "UnderConstruction"]).withMessage("Invalid possession status"),
   body("commercialDetails.possession.ageOfProperty").if(body("commercialDetails.possession.status").equals("ReadyToMove")).notEmpty().withMessage("commercialDetails.possession.ageOfProperty is required when status is ReadyToMove").isInt({ min: 0 }).withMessage("Must be a non-negative integer"),
   body("commercialDetails.possession.availableFrom").if(body("commercialDetails.possession.status").equals("UnderConstruction")).notEmpty().withMessage("commercialDetails.possession.availableFrom is required when status is UnderConstruction").isISO8601().withMessage("Must be a valid date"),
+  body("commercialDetails.minSeats").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS.split(",");
+    if (!officeIds.includes(req.body.propertyTypeId)) return true;
+    if (req.body.commercialDetails?.possession?.status !== "ReadyToMove") return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minSeats is required for office type with ReadyToMove status");
+    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minSeats must be a non-negative integer");
+    return true;
+  }),
+  body("commercialDetails.cabins").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS.split(",");
+    if (!officeIds.includes(req.body.propertyTypeId)) return true;
+    if (req.body.commercialDetails?.possession?.status !== "ReadyToMove") return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.cabins is required for office type with ReadyToMove status");
+    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.cabins must be a non-negative integer");
+    return true;
+  }),
+  body("commercialDetails.meetingRooms").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS.split(",");
+    if (!officeIds.includes(req.body.propertyTypeId)) return true;
+    if (req.body.commercialDetails?.possession?.status !== "ReadyToMove") return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.meetingRooms is required for office type with ReadyToMove status");
+    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.meetingRooms must be a non-negative integer");
+    return true;
+  }),
 
-  // ── sellInfo (when present) ─────────────────────────────────────────────────
-  body("sellInfo").optional().custom((_, { req }) => {
-    if (req.body.listingTypeId !== process.env.LISTING_TYPE_SELL_ID)
-      throw new Error("listingTypeId must be Sell when sending sellInfo");
+  // ── sellInfo (required for Sell, not allowed otherwise) ──────────────────────
+  body("sellInfo").custom((_, { req }) => {
+    if (req.body.listingTypeId === process.env.LISTING_TYPE_SELL_ID && !_)
+      throw new Error("sellInfo is required when listingTypeId is Sell");
+    if (req.body.listingTypeId !== process.env.LISTING_TYPE_SELL_ID && _)
+      throw new Error("sellInfo is only allowed when listingTypeId is Sell");
     return true;
   }),
   body("sellInfo.price").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.price is required").isFloat({ min: 0 }).withMessage("sellInfo.price must be a positive number"),
   body("sellInfo.constructionStatus").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.constructionStatus is required").isIn(["UnderConstruction", "ReadyToMove"]).withMessage("Invalid constructionStatus"),
 
-  // ── rentInfo (when present) ─────────────────────────────────────────────────
-  body("rentInfo").optional().custom((_, { req }) => {
-    const { listingTypeId } = req.body;
-    if (listingTypeId !== process.env.LISTING_TYPE_RENT_ID && listingTypeId !== process.env.LISTING_TYPE_PG_ID)
-      throw new Error("listingTypeId must be Rent or PG when sending rentInfo");
+  // ── rentInfo (required for Rent, not allowed otherwise) ──────────────────────
+  body("rentInfo").custom((_, { req }) => {
+    if (req.body.listingTypeId === process.env.LISTING_TYPE_RENT_ID && !_)
+      throw new Error("rentInfo is required when listingTypeId is Rent");
+    if (_ && req.body.listingTypeId !== process.env.LISTING_TYPE_RENT_ID)
+      throw new Error("rentInfo is only allowed when listingTypeId is Rent");
     return true;
   }),
   body("rentInfo.monthlyRent").if(body("rentInfo").exists()).notEmpty().withMessage("rentInfo.monthlyRent is required").isFloat({ min: 0 }).withMessage("rentInfo.monthlyRent must be a positive number"),

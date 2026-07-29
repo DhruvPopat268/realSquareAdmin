@@ -105,13 +105,10 @@ const commercialDetailsSchema = new Schema(
     plotArea: areaSchema,                        // plot
     ownership: { type: String, enum: ["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"] },
     totalFloors: { type: Number },
-    yourFloor: { type: Number },
+    yourFloor: { type: String, trim: true },
     minSeats: { type: Number },              // office only
     cabins: { type: Number },              // office only
     meetingRooms: { type: Number },              // office only
-    isPreLeased: { type: Boolean },
-    currentRentPerMonth: { type: Number },              // if isPreLeased = true
-    leaseYears: { type: Number },              // if isPreLeased = true
   },
   { _id: false }
 );

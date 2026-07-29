@@ -6,7 +6,6 @@ const PropertyPurpose    = require("../../admin/propertyPurposes/model");
 const PropertyType       = require("../../admin/propertyTypes/model");
 const City               = require("../../admin/cities/model");
 const FurnishingAmenity  = require("../../admin/furnishingsAndAmenities/model");
-const { getKey, setKey } = require("../../../redis/service");
 
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
@@ -129,26 +128,59 @@ const uploadMedia = async (req, res) => {
 };
 
 // ── GET /property-listings/active-categories ─────────────────────────────────
-const CACHE_KEY = "activePropertyCategories";
-const CACHE_TTL = 60 * 60 * 24; // 1 day
-
 const getActivePropertyCategories = async (req, res) => {
   try {
-    const cached = await getKey(CACHE_KEY);
-    if (cached) {
-      return res.json({ success: true, fromCache: true, data: cached });
-    }
-
     const categories = await PropertyCategory.find({ isActive: true })
       .select("name description order")
       .sort({ order: 1, name: 1 });
 
-    await setKey(CACHE_KEY, categories, CACHE_TTL);
-
-    res.json({ success: true, fromCache: false, data: categories });
+    res.json({ success: true, data: categories });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-module.exports = { create, uploadMedia, getActivePropertyCategories };
+// ── GET /property-listings/active-purposes ───────────────────────────────────
+const getActivePropertyPurposes = async (req, res) => {
+  try {
+    const purposes = await PropertyPurpose.find({ isActive: true })
+      .select("name description order")
+      .sort({ order: 1, name: 1 });
+
+    res.json({ success: true, data: purposes });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /property-listings/active-property-types ──────────────────────────────
+const getActivePropertyTypes = async (req, res) => {
+  try {
+    const filter = { isActive: true };
+    if (req.query.categoryId) filter.propertyCategory = req.query.categoryId;
+
+    const types = await PropertyType.find(filter)
+      .select("name description order propertyCategory")
+      .populate("propertyCategory", "name")
+      .sort({ order: 1, name: 1 });
+
+    res.json({ success: true, data: types });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /property-listings/active-cities ─────────────────────────────────────
+const getActiveCities = async (req, res) => {
+  try {
+    const cities = await City.find({ isActive: true })
+      .select("name")
+      .sort({ name: 1 });
+
+    res.json({ success: true, data: cities });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { create, uploadMedia, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getActiveCities };
