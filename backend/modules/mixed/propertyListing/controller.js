@@ -34,13 +34,13 @@ const create = async (req, res) => {
     const [category, listingType, propertyType, city] = await Promise.all([
       PropertyCategory.findById(categoryId).select("name"),
       PropertyPurpose.findById(listingTypeId).select("name"),
-      PropertyType.findById(propertyTypeId).select("name"),
+      propertyTypeId ? PropertyType.findById(propertyTypeId).select("name") : Promise.resolve(null),
       City.findById(cityId).select("name"),
     ]);
 
     if (!category)     return res.status(404).json({ success: false, message: "Category not found" });
     if (!listingType)  return res.status(404).json({ success: false, message: "Listing type not found" });
-    if (!propertyType) return res.status(404).json({ success: false, message: "Property type not found" });
+    if (propertyTypeId && !propertyType) return res.status(404).json({ success: false, message: "Property type not found" });
     if (!city)         return res.status(404).json({ success: false, message: "City not found" });
 
     // resolve furnishings & amenities from IDs
@@ -85,13 +85,18 @@ const create = async (req, res) => {
     const listing = await PropertyListing.create({
       category:    { id: category._id,      name: category.name },
       listingType: { id: listingType._id,   name: listingType.name },
-      propertyType:{ id: propertyType._id,  name: propertyType.name },
+      propertyType: propertyType ? { id: propertyType._id, name: propertyType.name } : undefined,
       city:        { id: city._id,          name: city.name },
       locality,
       listedBy: listedByDoc,
       residentialDetails: resolvedResidential,
       plotDetails,
-      pgDetails,
+      pgDetails: pgDetails ? {
+        ...pgDetails,
+        rooms: (pgDetails.rooms || []).map((r) =>
+          r.roomType === "1 Sharing" ? { ...r, bedsAvailable: 1 } : r
+        ),
+      } : undefined,
       commercialDetails,
       sellInfo,
       rentInfo,
@@ -101,7 +106,7 @@ const create = async (req, res) => {
     res.status(201).json({
       success: true,
       message: status === "Active" ? "Property listed successfully" : "Property is in under review",
-      data: listing,
+      data: { _id: listing._id, status: listing.status, listedBy: listing.listedBy },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

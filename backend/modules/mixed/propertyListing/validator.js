@@ -15,7 +15,7 @@ const createListingValidator = [
   // ── Top-level required IDs ──────────────────────────────────────────────────
   body("categoryId").notEmpty().withMessage("categoryId is required").isMongoId().withMessage("categoryId must be a valid ID").bail().custom(existsAndActive(PropertyCategory, "Category")),
   body("listingTypeId").notEmpty().withMessage("listingTypeId is required").isMongoId().withMessage("listingTypeId must be a valid ID").bail().custom(existsAndActive(PropertyPurpose, "Listing type")),
-  body("propertyTypeId").notEmpty().withMessage("propertyTypeId is required").isMongoId().withMessage("propertyTypeId must be a valid ID").bail().custom(async (id, { req }) => {
+  body("propertyTypeId").if((_, { req }) => req.body.listingTypeId !== process.env.LISTING_TYPE_PG_ID).notEmpty().withMessage("propertyTypeId is required").isMongoId().withMessage("propertyTypeId must be a valid ID").bail().custom(async (id, { req }) => {
     const doc = await PropertyType.findById(id).select("isActive propertyCategory");
     if (!doc)          throw new Error("Property type not found");
     if (!doc.isActive) throw new Error("Property type is inactive");
@@ -94,15 +94,22 @@ const createListingValidator = [
   body("pgDetails.lockInPeriod").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.lockInPeriod is required").isInt({ min: 0 }).withMessage("pgDetails.lockInPeriod must be a non-negative integer"),
   body("pgDetails.commonAreas").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.commonAreas is required").isArray({ min: 1 }).withMessage("pgDetails.commonAreas must have at least one value"),
   body("pgDetails.commonAreas.*").isIn(["Living Room", "Kitchen", "Dining Area", "Bathroom", "Balcony", "Terrace", "Laundry Room", "Study Room", "Gym", "Parking"]).withMessage("Invalid commonAreas value"),
-  body("pgDetails.rooms.*.roomType").notEmpty().withMessage("Each room must have a roomType").isIn(["Single", "Double", "Triple", "3+"]).withMessage("Invalid roomType"),
+  body("pgDetails.rooms.*.roomType").notEmpty().withMessage("Each room must have a roomType").isIn(["1 Sharing", "2 Sharing", "3 Sharing", "4 Sharing", "5 Sharing", "6 Sharing", "7 Sharing"]).withMessage("Invalid roomType"),
   body("pgDetails.rooms.*.rent").notEmpty().withMessage("Each room must have a rent").isFloat({ min: 0 }).withMessage("Rent must be a positive number"),
-  body("pgDetails.rooms.*.bedsAvailable").notEmpty().withMessage("Each room must have bedsAvailable").isInt({ min: 1 }).withMessage("bedsAvailable must be a positive integer"),
+  body("pgDetails.rooms.*.bedsAvailable").custom((_, { req, path }) => {
+    const index = path.match(/\d+/)?.[0];
+    const room = req.body.pgDetails?.rooms?.[index];
+    if (room?.roomType === "1 Sharing") return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("Each room must have bedsAvailable");
+    if (!Number.isInteger(Number(_)) || Number(_) < 1) throw new Error("bedsAvailable must be a positive integer");
+    return true;
+  }),
   body("pgDetails.rooms.*.securityDeposit").notEmpty().withMessage("Each room must have a securityDeposit").isFloat({ min: 0 }).withMessage("securityDeposit must be a non-negative number"),
 
   // ── commercialDetails (when present) ───────────────────────────────────────
   body("commercialDetails.societyName").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.societyName is required"),
   body("commercialDetails.propertyType").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const othersIds = process.env.COMMERCIAL_PROPERTY_TYPE_OTHERS_IDS.split(",");
+    const othersIds = process.env.COMMERCIAL_PROPERTY_TYPE_OTHERS_IDS?.split(",") || [];
     if (!othersIds.includes(req.body.propertyTypeId)) return true;
     if (!_ || !_.toString().trim()) throw new Error("commercialDetails.propertyType is required for Others property type");
     return true;
@@ -111,13 +118,7 @@ const createListingValidator = [
   body("commercialDetails.locationHub").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.locationHub is required").isIn(["IT Park", "Business Park", "Mall", "Commercial Project", "Residential Project", "Retail Complex/Building", "Market/High Street", "Others"]).withMessage("Invalid locationHub"),
 
   body("commercialDetails.ownership").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.ownership is required").isIn(["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"]).withMessage("Invalid ownership"),
-  body("commercialDetails.possession.status").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
-    if (plotIds.includes(req.body.propertyTypeId)) return true;
-    if (!_.toString().trim()) throw new Error("commercialDetails.builtUpArea.value is required");
-    if (isNaN(_) || _ < 0) throw new Error("Must be a positive number");
-    return true;
-  }),
+
   body("commercialDetails.builtUpArea.unit").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
@@ -181,31 +182,28 @@ const createListingValidator = [
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
     if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.yourFloor is required");
-    if (typeof _ !== "string" || !_.trim()) throw new Error("commercialDetails.yourFloor must be a non-empty string");
+    if (!String(_).trim()) throw new Error("commercialDetails.yourFloor must be a non-empty string");
     return true;
   }),
   body("commercialDetails.minSeats").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS.split(",");
+    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS?.split(",") || [];
     if (!officeIds.includes(req.body.propertyTypeId)) return true;
-    if (req.body.commercialDetails?.possession?.status !== "ReadyToMove") return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minSeats is required for office type with ReadyToMove status");
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minSeats is required for office type");
     if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minSeats must be a non-negative integer");
     return true;
   }),
-  body("commercialDetails.cabins").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS.split(",");
+  body("commercialDetails.minCabins").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS?.split(",") || [];
     if (!officeIds.includes(req.body.propertyTypeId)) return true;
-    if (req.body.commercialDetails?.possession?.status !== "ReadyToMove") return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.cabins is required for office type with ReadyToMove status");
-    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.cabins must be a non-negative integer");
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minCabins is required for office type");
+    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minCabins must be a non-negative integer");
     return true;
   }),
-  body("commercialDetails.meetingRooms").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS.split(",");
+  body("commercialDetails.minMeetingRooms").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS?.split(",") || [];
     if (!officeIds.includes(req.body.propertyTypeId)) return true;
-    if (req.body.commercialDetails?.possession?.status !== "ReadyToMove") return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.meetingRooms is required for office type with ReadyToMove status");
-    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.meetingRooms must be a non-negative integer");
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minMeetingRooms is required for office type");
+    if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minMeetingRooms must be a non-negative integer");
     return true;
   }),
 

@@ -126,13 +126,9 @@ const verifyOtp = async (req, res) => {
 
     const token = await issueToken(user._id);
 
-    console.log("[VerifyOtp] Setting user_token cookie:", {
-      userId:  user._id,
-      env:     process.env.NODE_ENV,
-      options: COOKIE_OPTIONS,
-    });
+
     res.cookie("user_token", token, COOKIE_OPTIONS);
-    console.log("[VerifyOtp] Cookie set successfully for userId:", user._id);
+
 
     res.json({ success: true, data: { token, isNew: !user.role } });
   } catch (err) {
@@ -369,16 +365,11 @@ const getMe = async (req, res) => {
     const role = req.user.role;
     const roleId = req.userRole;
 
-    console.log("[GetMe] Accessed by userId:", req.user._id);
-    console.log("[GetMe] Role:", role ? `${role.name} (${roleId})` : "No role assigned");
-
     const allowedRoles = Object.keys(ALLOWED_ROLES);
     if (roleId && !allowedRoles.includes(roleId)) {
-      console.log("[GetMe] Access denied — role not in allowed list:", roleId);
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    console.log("[GetMe] Access granted for userId:", req.user._id);
     const [wallet, purchased] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
       PurchasedPlan.findOne({ user: req.user._id, status: "Active" }),

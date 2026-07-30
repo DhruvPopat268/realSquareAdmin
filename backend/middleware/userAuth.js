@@ -26,7 +26,6 @@ const userProtect = async (req, res, next) => {
 
     req.user = user;
     req.userRole = user.role?._id?.toString() ?? null;
-    console.log(req.user, req.userRole);
 
     next();
   } catch (err) {

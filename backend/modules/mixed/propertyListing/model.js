@@ -58,8 +58,8 @@ const plotDetailsSchema = new Schema(
 
 const pgRoomSchema = new Schema(
   {
-    roomType: { type: String, enum: ["Single", "Double", "Triple", "3+"] },
-    bedsAvailable: { type: Number },
+    roomType: { type: String, enum: ["1 Sharing", "2 Sharing", "3 Sharing", "4 Sharing", "5 Sharing", "6 Sharing", "7 Sharing"] },
+    bedsAvailable: { type: Number, default: 1 },
     rent: { type: Number },
     securityDeposit: { type: Number },
   },
@@ -99,8 +99,8 @@ const commercialDetailsSchema = new Schema(
     totalFloors: { type: Number },
     yourFloor: { type: String, trim: true },
     minSeats: { type: Number },              // office only
-    cabins: { type: Number },              // office only
-    meetingRooms: { type: Number },              // office only
+    minCabins: { type: Number },           // office only
+    minMeetingRooms: { type: Number },     // office only
   },
   { _id: false }
 );
@@ -145,7 +145,7 @@ const propertyListingSchema = new Schema(
       name: { type: String, trim: true },
     }, // Sell / Rent / PG
     propertyType: {
-      id: { type: Schema.Types.ObjectId, ref: "PropertyType", required: true },
+      id: { type: Schema.Types.ObjectId, ref: "PropertyType" },
       name: { type: String, trim: true },
     },
 
