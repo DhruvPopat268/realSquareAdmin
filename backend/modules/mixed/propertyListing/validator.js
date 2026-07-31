@@ -102,6 +102,9 @@ const createListingValidator = [
     if (room?.roomType === "1 Sharing") return true;
     if (_ === undefined || _ === null || _ === "") throw new Error("Each room must have bedsAvailable");
     if (!Number.isInteger(Number(_)) || Number(_) < 1) throw new Error("bedsAvailable must be a positive integer");
+    const sharingMax = parseInt(room?.roomType?.split(" ")?.[0], 10);
+    if (!isNaN(sharingMax) && Number(_) > sharingMax)
+      throw new Error(`bedsAvailable cannot exceed ${sharingMax} for a "${room.roomType}" room`);
     return true;
   }),
   body("pgDetails.rooms.*.securityDeposit").notEmpty().withMessage("Each room must have a securityDeposit").isFloat({ min: 0 }).withMessage("securityDeposit must be a non-negative number"),

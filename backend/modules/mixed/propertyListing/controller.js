@@ -116,7 +116,7 @@ const create = async (req, res) => {
 // ── POST /property-listings/:id/media ─────────────────────────────────────────
 const uploadMedia = async (req, res) => {
   try {
-    const listing = await PropertyListing.findById(req.params.id);
+    const listing = await PropertyListing.findById(req.body.propertyId);
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
 
     if (!req.files?.length)
@@ -126,7 +126,7 @@ const uploadMedia = async (req, res) => {
     listing.media.images.push(...urls);
     await listing.save();
 
-    res.json({ success: true, data: { images: listing.media.images } });
+    res.json({ success: true, message: listing.status === "Active" ? "Property listed successfully" : "Property is in under review", data: { images: listing.media.images } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

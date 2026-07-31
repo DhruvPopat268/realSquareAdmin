@@ -15,6 +15,6 @@ router.get("/active-property-types", getActivePropertyTypes);
 router.get("/active-cities",         getActiveCities);
 
 router.post("/",           createListingValidator, create);
-router.post("/:id/media",  uploadImage.array("images", 20), uploadMedia);
+router.post("/media",  uploadImage.array("images", 20), uploadMedia);
 
 module.exports = router;
