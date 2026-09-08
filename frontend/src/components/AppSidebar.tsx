@@ -92,13 +92,6 @@ const sections = [
     ],
   },
   {
-    title: "Location Management",
-    items: [
-      { type: "link", to: "/states", icon: MapPin, label: "Manage States" },
-      { type: "link", to: "/cities", icon: MapPin, label: "Manage Cities" },
-    ],
-  },
-  {
     title: "Property Management",
     items: [
       { type: "link", to: "/auto-approval-config", icon: ShieldCheck, label: "Auto Approval Config" },

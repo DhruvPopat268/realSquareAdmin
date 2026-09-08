@@ -1,8 +1,6 @@
 const express = require("express");
 
 const authRoutes                = require("./auth/routes");
-const statesRoutes              = require("./states/routes");
-const citiesRoutes              = require("./cities/routes");
 const propertyPurposesRoutes    = require("./propertyPurposes/routes");
 const propertyCategoriesRoutes  = require("./propertyCategories/routes");
 const propertyTypesRoutes       = require("./propertyTypes/routes");
@@ -21,8 +19,6 @@ const autoApprovalConfigRoutes    = require("./autoApprovalConfig/routes");
 const router = express.Router();
 
 router.use("/auth",                authRoutes);
-router.use("/states",              statesRoutes);
-router.use("/cities",              citiesRoutes);
 router.use("/property-purposes",   propertyPurposesRoutes);
 router.use("/property-categories", propertyCategoriesRoutes);
 router.use("/property-types",      propertyTypesRoutes);

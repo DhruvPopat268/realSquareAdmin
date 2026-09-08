@@ -150,10 +150,7 @@ const propertyListingSchema = new Schema(
     },
 
     // ── Location ──────────────────────────────────────────────────────────────
-    city: {
-      id: { type: Schema.Types.ObjectId, ref: "City", required: true },
-      name: { type: String, trim: true },
-    },
+    cityName: { type: String, trim: true },
     locality: localitySchema,
 
     // ── Listed By ─────────────────────────────────────────────────────────────
@@ -196,7 +193,7 @@ const propertyListingSchema = new Schema(
 
 // ─── Indexes ──────────────────────────────────────────────────────────────────
 
-propertyListingSchema.index({ "city.id": 1, "category.id": 1, "listingType.id": 1 });
+propertyListingSchema.index({ cityName: 1, "category.id": 1, "listingType.id": 1 });
 propertyListingSchema.index({ "listedBy.id": 1 });
 propertyListingSchema.index({ status: 1 });
 propertyListingSchema.index({ "locality.latitude": 1, "locality.longitude": 1 });

@@ -18,8 +18,6 @@ import PropertyPurposesPage from "./pages/PropertyPurposesPage";
 import PropertyTypesPage from "./pages/PropertyTypesPage";
 import FurnishingsAmenitiesPage from "./pages/FurnishingsAmenitiesPage";
 import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
-import CitiesPage from "./pages/CitiesPage";
-import StatesPage from "./pages/StatesPage";
 import EnquiriesPage from "./pages/EnquiriesPage";
 import SystemUsersPage from "./pages/SystemUsersPage";
 import SystemUsersRolesPage from "./pages/SystemUsersRolesPage";
@@ -67,8 +65,6 @@ const App = () => (
             <Route path="/projects"            element={<ProjectsPage />} />
             <Route path="/projects/:id"        element={<ProjectDetailPage />} />
             <Route path="/units"               element={<Soon title="Units & Floors" />} />
-            <Route path="/states"             element={<StatesPage />} />
-            <Route path="/cities"             element={<CitiesPage />} />
             <Route path="/property-purposes"   element={<PropertyPurposesPage />} />
             <Route path="/property-categories" element={<PropertyCategoriesPage />} />
             <Route path="/property-types"      element={<PropertyTypesPage />} />

@@ -4,7 +4,6 @@ const AutoApprovalConfig = require("../../admin/autoApprovalConfig/model");
 const PropertyCategory   = require("../../admin/propertyCategories/model");
 const PropertyPurpose    = require("../../admin/propertyPurposes/model");
 const PropertyType       = require("../../admin/propertyTypes/model");
-const City               = require("../../admin/cities/model");
 const FurnishingAmenity  = require("../../admin/furnishingsAndAmenities/model");
 
 const toUrl = (filePath) =>
@@ -25,23 +24,21 @@ const create = async (req, res) => {
     return res.status(400).json({ success: false, errors: errors.array() });
 
   const {
-    categoryId, listingTypeId, propertyTypeId, cityId, locality,
+    categoryId, listingTypeId, propertyTypeId, cityName, locality,
     residentialDetails, plotDetails, pgDetails, commercialDetails,
     sellInfo, rentInfo,
   } = req.body;
 
   try {
-    const [category, listingType, propertyType, city] = await Promise.all([
+    const [category, listingType, propertyType] = await Promise.all([
       PropertyCategory.findById(categoryId).select("name"),
       PropertyPurpose.findById(listingTypeId).select("name"),
       propertyTypeId ? PropertyType.findById(propertyTypeId).select("name") : Promise.resolve(null),
-      City.findById(cityId).select("name"),
     ]);
 
     if (!category)     return res.status(404).json({ success: false, message: "Category not found" });
     if (!listingType)  return res.status(404).json({ success: false, message: "Listing type not found" });
     if (propertyTypeId && !propertyType) return res.status(404).json({ success: false, message: "Property type not found" });
-    if (!city)         return res.status(404).json({ success: false, message: "City not found" });
 
     // resolve furnishings & amenities from IDs
     let resolvedResidential = residentialDetails;
@@ -86,7 +83,7 @@ const create = async (req, res) => {
       category:    { id: category._id,      name: category.name },
       listingType: { id: listingType._id,   name: listingType.name },
       propertyType: propertyType ? { id: propertyType._id, name: propertyType.name } : undefined,
-      city:        { id: city._id,          name: city.name },
+      cityName,
       locality,
       listedBy: listedByDoc,
       residentialDetails: resolvedResidential,
@@ -191,17 +188,4 @@ const getActivePropertyTypes = async (req, res) => {
   }
 };
 
-// ── GET /property-listings/active-cities ─────────────────────────────────────
-const getActiveCities = async (req, res) => {
-  try {
-    const cities = await City.find({ isActive: true })
-      .select("name")
-      .sort({ name: 1 });
-
-    res.json({ success: true, data: cities });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-module.exports = { create, uploadMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getActiveCities };
+module.exports = { create, uploadMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes };
