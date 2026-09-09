@@ -2,7 +2,6 @@ const { body }         = require("express-validator");
 const PropertyCategory = require("../../admin/propertyCategories/model");
 const PropertyPurpose  = require("../../admin/propertyPurposes/model");
 const PropertyType     = require("../../admin/propertyTypes/model");
-const City             = require("../../admin/cities/model");
 const FurnishingAmenity = require("../../admin/furnishingsAndAmenities/model");
 
 const existsAndActive = (Model, label) => async (id) => {
@@ -21,7 +20,9 @@ const createListingValidator = [
     if (!doc.isActive) throw new Error("Property type is inactive");
     if (doc.propertyCategory.toString() !== req.body.categoryId) throw new Error("Property type does not belong to the selected category");
   }),
-  body("cityId").notEmpty().withMessage("cityId is required").isMongoId().withMessage("cityId must be a valid ID").bail().custom(existsAndActive(City, "City")),
+
+  // ── cityName (simple string, no City model validation) ─────────────────────
+  body("cityName").notEmpty().withMessage("cityName is required").isString().withMessage("cityName must be a string"),
 
   // ── category & listingType consistency ───────────────────────────────────
   body("residentialDetails").optional().custom((_, { req }) => {
@@ -50,16 +51,7 @@ const createListingValidator = [
 
   // ── locality ────────────────────────────────────────────────────────────────
   body("locality").notEmpty().withMessage("locality is required"),
-  body("locality.address").notEmpty().withMessage("locality.address is required").bail().custom(async (address, { req }) => {
-    const parts = address.split(",").map((p) => p.trim());
-    if (parts.length < 3) throw new Error("locality.address does not contain enough components to extract city");
-    const cityFromAddress = parts[parts.length - 3];
-    const city = await City.findById(req.body.cityId).select("name");
-    if (!city) throw new Error("City not found");
-    if (city.name.toLowerCase() !== cityFromAddress.toLowerCase())
-      throw new Error(`locality.address city component "${cityFromAddress}" does not match selected city "${city.name}"`);
-    return true;
-  }),
+  body("locality.address").notEmpty().withMessage("locality.address is required"),
   body("locality.latitude").notEmpty().withMessage("locality.latitude is required").isFloat({ min: -90, max: 90 }).withMessage("locality.latitude must be a valid latitude"),
   body("locality.longitude").notEmpty().withMessage("locality.longitude is required").isFloat({ min: -180, max: 180 }).withMessage("locality.longitude must be a valid longitude"),
 
