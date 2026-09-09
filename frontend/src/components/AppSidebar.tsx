@@ -117,6 +117,7 @@ const sections = [
     items: [
       { type: "link", to: "/plans",           icon: Tag,      label: "Plans" },
       { type: "link", to: "/purchased-plans", icon: FileText, label: "Purchased Plans" },
+      { type: "link", to: "/free-listings",   icon: Tag,      label: "Free Listings" },
     ],
   },
   {

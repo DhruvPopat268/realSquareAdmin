@@ -30,6 +30,7 @@ import PurchasedPlansPage from "./pages/PurchasedPlansPage";
 import CoinsOffersPage from "./pages/CoinsOffersPage";
 import CoinsTransactionsPage from "./pages/CoinsTransactionsPage";
 import WalletTransactionsPage from "./pages/WalletTransactionsPage";
+import FreeListingPage from "./pages/FreeListingPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -87,6 +88,7 @@ const App = () => (
             {/* Plans */}
             <Route path="/plans"           element={<PlansPage />} />
             <Route path="/purchased-plans" element={<PurchasedPlansPage />} />
+            <Route path="/free-listings"   element={<FreeListingPage />} />
 
             {/* Coins */}
             <Route path="/coins-offers"       element={<CoinsOffersPage />} />
