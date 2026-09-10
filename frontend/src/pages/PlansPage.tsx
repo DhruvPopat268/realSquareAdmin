@@ -57,7 +57,7 @@ function PlanCard({ plan, onToggle, onEdit, onDelete }: { plan: Plan; onToggle: 
 
       {/* Features */}
       <ul className="space-y-2.5">
-        <FeatureRow icon={Building2} label={`${plan.numberOfPropertiesGiven} Properties`} />
+        <FeatureRow icon={Building2} label={plan.numberOfPropertiesGiven === -1 ? "Unlimited Properties" : `${plan.numberOfPropertiesGiven} Properties`} />
         {plan.expiryInDays != null && (
           <FeatureRow
             icon={Calendar}
@@ -194,7 +194,8 @@ export default function PlansPage() {
     const e: Record<string, string> = {};
     if (!form.name.trim())                 e.name  = "Name is required";
     if (!form.roles?.length)               e.roles = "Select at least one role";
-    if (form.numberOfPropertiesGiven <= 0) e.numberOfPropertiesGiven = "Must be greater than 0";
+    if (form.numberOfPropertiesGiven !== -1 && form.numberOfPropertiesGiven <= 0)
+      e.numberOfPropertiesGiven = "Must be greater than 0, or -1 for unlimited";
 
     // Expiry: only -1 or > 0 allowed
     const expiry = Number(form.expiryInDays);
@@ -334,8 +335,9 @@ export default function PlansPage() {
             {/* Properties */}
             <div className="space-y-1.5">
               <Label>Properties Given <span className="text-destructive">*</span></Label>
-              <Input type="number" min={0} placeholder="0" value={form.numberOfPropertiesGiven || ""} onChange={(e) => set("numberOfPropertiesGiven", Number(e.target.value))} />
+              <Input type="number" min={-1} placeholder="0" value={form.numberOfPropertiesGiven || ""} onChange={(e) => set("numberOfPropertiesGiven", Number(e.target.value))} />
               {errors.numberOfPropertiesGiven && <p className="text-xs text-destructive">{errors.numberOfPropertiesGiven}</p>}
+              <p className="text-xs text-muted-foreground">Use <strong>-1</strong> for unlimited listings, or enter a positive number.</p>
             </div>
 
             {/* Expiry (days) */}

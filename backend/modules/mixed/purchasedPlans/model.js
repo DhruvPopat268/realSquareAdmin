@@ -13,7 +13,7 @@ const purchasedPlanSchema = new mongoose.Schema(
       amount:                  { type: Number },
     },
     propertiesUsed: { type: Number, default: 0 },
-    paymentMethod:    { type: String, enum: ["Coins", "Online"], required: true },
+    paymentMethod:    { type: String, enum: ["Coins", "Online", "Free"], required: true },
     transactionId:    { type: mongoose.Schema.Types.ObjectId, refPath: "transactionModel" },
     transactionModel: { type: String, enum: ["PaymentTransaction", "CoinsTransaction"] },
     amountPaid:    { type: Number, default: 0 },

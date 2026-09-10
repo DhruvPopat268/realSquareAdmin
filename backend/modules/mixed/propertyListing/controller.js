@@ -31,7 +31,8 @@ async function findValidPlan(userId) {
   console.log("[findValidPlan] Current IST:", now.toISOString());
   const plans = await ListingPurchasedPlan.find({ user: userId, status: "Active" });
   return plans.find((p) => {
-    if (p.propertiesUsed >= p.plan.numberOfPropertiesGiven) return false;
+    const isUnlimited = p.plan.numberOfPropertiesGiven === -1;
+    if (!isUnlimited && p.propertiesUsed >= p.plan.numberOfPropertiesGiven) return false;
     if (p.expiryDate === null || p.expiryDate === undefined) {
       console.log(`[findValidPlan] Plan "${p.plan.name}" expiryDate: null (never expires)`);
       console.log(`[findValidPlan] expiry >= now: true`);
@@ -58,11 +59,12 @@ const canList = async (req, res) => {
     // 1. Check active plan credits
     const validPlan = await findValidPlan(req.user._id);
     if (validPlan) {
+      const isUnlimited = validPlan.plan.numberOfPropertiesGiven === -1;
       return res.json({
         success: true,
         canList: true,
         source: "plan",
-        remaining: validPlan.plan.numberOfPropertiesGiven - validPlan.propertiesUsed,
+        remaining: isUnlimited ? -1 : validPlan.plan.numberOfPropertiesGiven - validPlan.propertiesUsed,
       });
     }
 
@@ -205,11 +207,14 @@ const create = async (req, res) => {
 
     // ── Deduct credit ─────────────────────────────────────────────────────────
     if (validPlan) {
-      validPlan.propertiesUsed += 1;
-      if (validPlan.propertiesUsed >= validPlan.plan.numberOfPropertiesGiven) {
-        validPlan.status = "Consumed";
+      const isUnlimited = validPlan.plan.numberOfPropertiesGiven === -1;
+      if (!isUnlimited) {
+        validPlan.propertiesUsed += 1;
+        if (validPlan.propertiesUsed >= validPlan.plan.numberOfPropertiesGiven) {
+          validPlan.status = "Consumed";
+        }
+        await validPlan.save();
       }
-      await validPlan.save();
     } else {
       await SystemUser.findByIdAndUpdate(req.user._id, { $inc: { freeListedProperties: 1 } });
     }

@@ -381,7 +381,7 @@ const getMe = async (req, res) => {
         name:                    purchased.plan.name,
         numberOfPropertiesGiven: purchased.plan.numberOfPropertiesGiven,
         propertiesUsed:          purchased.propertiesUsed,
-        expiryDate:              toIST(purchased.expiryDate),
+        expiryDate:              purchased.expiryDate ? toIST(purchased.expiryDate) : null,
       };
     }
 
