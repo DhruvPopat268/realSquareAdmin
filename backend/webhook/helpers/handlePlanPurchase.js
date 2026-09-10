@@ -15,8 +15,9 @@ const handlePlanPurchase = async (txn, payment, purchaseAmount, signature) => {
 
   const expiryDurationDays = plan.expiryInDays ?? 0;
   const startDate          = new Date();
-  const expiryDate         = new Date(startDate);
-  expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
+  const expiryDate         = expiryDurationDays === -1
+    ? null
+    : new Date(new Date(startDate).setDate(startDate.getDate() + expiryDurationDays));
 
   // ── MongoDB transaction ───────────────────────────────────────────────────
   const session = await mongoose.startSession();

@@ -5,9 +5,44 @@ const PropertyCategory   = require("../../admin/propertyCategories/model");
 const PropertyPurpose    = require("../../admin/propertyPurposes/model");
 const PropertyType       = require("../../admin/propertyTypes/model");
 const FurnishingAmenity  = require("../../admin/furnishingsAndAmenities/model");
+const FreeListingConfig  = require("../../admin/freeListingManagement/model");
+const ListingPurchasedPlan = require("../purchasedPlans/model");
+const SystemUser         = require("../../systemUsers.model");
 
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
+
+// ── IST date helper ───────────────────────────────────────────────────────────
+function nowIST() {
+  // returns current time as a Date object aligned to IST offset
+  const now = new Date();
+  const IST_OFFSET = 5.5 * 60 * 60 * 1000; // +05:30 in ms
+  return new Date(now.getTime() + IST_OFFSET);
+}
+
+function toIST(date) {
+  const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+  return new Date(new Date(date).getTime() + IST_OFFSET);
+}
+
+// ── Find valid active plan for user ──────────────────────────────────────────
+async function findValidPlan(userId) {
+  const now = nowIST();
+  console.log("[findValidPlan] Current IST:", now.toISOString());
+  const plans = await ListingPurchasedPlan.find({ user: userId, status: "Active" });
+  return plans.find((p) => {
+    if (p.propertiesUsed >= p.plan.numberOfPropertiesGiven) return false;
+    if (p.expiryDate === null || p.expiryDate === undefined) {
+      console.log(`[findValidPlan] Plan "${p.plan.name}" expiryDate: null (never expires)`);
+      console.log(`[findValidPlan] expiry >= now: true`);
+      return true; // null = never expires
+    }
+    const expiry = toIST(p.expiryDate);
+    console.log(`[findValidPlan] Plan "${p.plan.name}" expiryDate IST:`, expiry.toISOString());
+    console.log(`[findValidPlan] expiry >= now:`, expiry >= now);
+    return expiry >= now;
+  }) ?? null;
+}
 
 // ── Auto-approval resolution ──────────────────────────────────────────────────
 async function resolveStatus(user) {
@@ -16,6 +51,54 @@ async function resolveStatus(user) {
   if (roleConfig?.isActive) return "Active";
   return "UnderReview";
 }
+
+// ── GET /property-listings/can-list ──────────────────────────────────────────
+const canList = async (req, res) => {
+  try {
+    // 1. Check active plan credits
+    const validPlan = await findValidPlan(req.user._id);
+    if (validPlan) {
+      return res.json({
+        success: true,
+        canList: true,
+        source: "plan",
+        remaining: validPlan.plan.numberOfPropertiesGiven - validPlan.propertiesUsed,
+      });
+    }
+
+    // 2. Check free listing credits
+    const [config, user] = await Promise.all([
+      FreeListingConfig.findOne().sort({ createdAt: -1 }),
+      SystemUser.findById(req.user._id).select("freeListedProperties"),
+    ]);
+
+    const noOfListings      = config?.noOfListings ?? 0;
+    const freeListedSoFar   = user?.freeListedProperties ?? 0;
+
+    if (noOfListings === -1) {
+      // unlimited free listings
+      return res.json({ success: true, canList: true, source: "free", remaining: -1 });
+    }
+
+    if (freeListedSoFar < noOfListings) {
+      return res.json({
+        success: true,
+        canList: true,
+        source: "free",
+        remaining: noOfListings - freeListedSoFar,
+      });
+    }
+
+    // 3. Not eligible
+    return res.json({
+      success: true,
+      canList: false,
+      message: "You have no listing credits remaining. Please purchase a plan to list more properties.",
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 // ── POST /property-listings ───────────────────────────────────────────────────
 const create = async (req, res) => {
@@ -30,6 +113,26 @@ const create = async (req, res) => {
   } = req.body;
 
   try {
+    // ── Credit check & deduction ──────────────────────────────────────────────
+    const validPlan = await findValidPlan(req.user._id);
+
+    if (!validPlan) {
+      // fall back to free listing credits
+      const [config, userDoc] = await Promise.all([
+        FreeListingConfig.findOne().sort({ createdAt: -1 }),
+        SystemUser.findById(req.user._id).select("freeListedProperties"),
+      ]);
+
+      const noOfListings    = config?.noOfListings ?? 0;
+      const freeListedSoFar = userDoc?.freeListedProperties ?? 0;
+
+      const hasFreeCredits  = noOfListings === -1 || freeListedSoFar < noOfListings;
+      if (!hasFreeCredits)
+        return res.status(403).json({
+          success: false,
+          message: "You have no listing credits remaining. Please purchase a plan to list more properties.",
+        });
+    }
     const [category, listingType, propertyType] = await Promise.all([
       PropertyCategory.findById(categoryId).select("name"),
       PropertyPurpose.findById(listingTypeId).select("name"),
@@ -99,6 +202,17 @@ const create = async (req, res) => {
       rentInfo,
       status,
     });
+
+    // ── Deduct credit ─────────────────────────────────────────────────────────
+    if (validPlan) {
+      validPlan.propertiesUsed += 1;
+      if (validPlan.propertiesUsed >= validPlan.plan.numberOfPropertiesGiven) {
+        validPlan.status = "Consumed";
+      }
+      await validPlan.save();
+    } else {
+      await SystemUser.findByIdAndUpdate(req.user._id, { $inc: { freeListedProperties: 1 } });
+    }
 
     res.status(201).json({
       success: true,
@@ -188,4 +302,4 @@ const getActivePropertyTypes = async (req, res) => {
   }
 };
 
-module.exports = { create, uploadMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes };
+module.exports = { canList, create, uploadMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes };

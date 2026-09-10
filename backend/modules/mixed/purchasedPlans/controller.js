@@ -254,12 +254,9 @@ const purchasePlan = async (req, res) => {
 
     const expiryDurationDays = plan.expiryInDays ?? 0;
     const startDate          = new Date();
-    const expiryDate         = new Date(startDate);
-    if (expiryDurationDays === -1) {
-      expiryDate.setFullYear(expiryDate.getFullYear() + 100); // effectively never expires
-    } else {
-      expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
-    }
+    const expiryDate         = expiryDurationDays === -1
+      ? null
+      : new Date(new Date(startDate).setDate(startDate.getDate() + expiryDurationDays));
 
     const planSnapshot = {
       planId:                  plan._id,
@@ -367,17 +364,13 @@ const upgradePlan = async (req, res) => {
     if (!plan.roles.includes(req.userRole))
       return res.status(403).json({ success: false, message: "This plan is not available for your role" });
 
-    if (!plan.coins && !plan.amount)
-      return res.status(400).json({ success: false, message: "Only paid plans can be used for upgrade" });
+    const isFree = plan.coins === 0 && plan.amount === 0;
 
     const expiryDurationDays = plan.expiryInDays ?? 0;
     const startDate          = new Date();
-    const expiryDate         = new Date(startDate);
-    if (expiryDurationDays === -1) {
-      expiryDate.setFullYear(expiryDate.getFullYear() + 100); // effectively never expires
-    } else {
-      expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
-    }
+    const expiryDate         = expiryDurationDays === -1
+      ? null
+      : new Date(new Date(startDate).setDate(startDate.getDate() + expiryDurationDays));
 
     const planSnapshot = {
       planId:                  plan._id,
@@ -387,6 +380,38 @@ const upgradePlan = async (req, res) => {
       coins:                   plan.coins,
       amount:                  plan.amount,
     };
+
+    // ── Free Plan ─────────────────────────────────────────────────────────────
+    if (isFree) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        const newPlan = new ListingPurchasedPlan({
+          user:          req.user._id,
+          userType,
+          plan:          planSnapshot,
+          paymentMethod: "Coins",
+          coinsPaid:     0,
+          startDate,
+          expiryDate,
+          expiryDurationDays,
+          status:        "Active",
+        });
+        await newPlan.save({ session });
+
+        activePlan.status       = "Cancelled";
+        activePlan.changedPlanTo = newPlan._id;
+        await activePlan.save({ session });
+
+        await session.commitTransaction();
+        return res.status(201).json({ success: true, data: newPlan });
+      } catch (err) {
+        await session.abortTransaction();
+        throw err;
+      } finally {
+        session.endSession();
+      }
+    }
 
     // ── Paid Plan (Coins) ─────────────────────────────────────────────────────
     if (!plan.coins)

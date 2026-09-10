@@ -186,57 +186,65 @@ export default function ListingPurchasedPlansPage() {
           <p className="text-base font-medium">No purchased plans found</p>
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-3 text-left">#</th>
-                <th className="px-4 py-3 text-left">User</th>
-                <th className="px-4 py-3 text-left">User Type</th>
-                <th className="px-4 py-3 text-left">Plan</th>
-                <th className="px-4 py-3 text-left">Plan Type</th>
-                <th className="px-4 py-3 text-left">Expiry Type</th>
-                <th className="px-4 py-3 text-left">Payment</th>
-                <th className="px-4 py-3 text-left">Amount</th>
-                <th className="px-4 py-3 text-left">Coins</th>
-                <th className="px-4 py-3 text-left">Properties</th>
-                <th className="px-4 py-3 text-left">Expiry</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Purchased At</th>
+                <th className="px-5 py-3 text-left min-w-[50px]">#</th>
+                <th className="px-5 py-3 text-left min-w-[180px]">User</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">User Type</th>
+                <th className="px-5 py-3 text-left min-w-[160px]">Plan</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Plan Type</th>
+                <th className="px-5 py-3 text-left min-w-[150px]">Expiry Days</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Payment Method</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Paid Amount</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Paid Coins</th>
+                <th className="px-5 py-3 text-left min-w-[150px]">Properties</th>
+                <th className="px-5 py-3 text-left min-w-[160px]">Expiry</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Status</th>
+                <th className="px-5 py-3 text-left min-w-[160px]">Purchased At</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {plans.map((p, index) => (
-                <tr key={p._id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium leading-tight">{userName(p.user)}</p>
-                    <p className="text-xs text-muted-foreground">{p.user.mobile}</p>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.userType}</td>
-                  <td className="px-4 py-3 font-medium">{p.plan.name}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.plan.planType}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.plan.expiryType ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.paymentMethod}</td>
-                  <td className="px-4 py-3">{p.amountPaid > 0 ? `₹${p.amountPaid.toLocaleString()}` : "—"}</td>
-                  <td className="px-4 py-3">{p.coinsPaid > 0 ? p.coinsPaid.toLocaleString() : "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.propertiesUsed} / {p.plan.numberOfPropertiesGiven}</td>
-                  <td className="px-4 py-3 text-xs">
-                    <p>{new Date(p.expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
-                    <p className="text-muted-foreground">{new Date(p.expiryDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      variant={STATUS_COLORS[p.status] ? undefined : (STATUS_VARIANTS[p.status] ?? "secondary")}
-                      className={`text-xs ${STATUS_COLORS[p.status] ?? ""}`}
-                    >{p.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-xs">
-                    <p>{new Date(p.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
-                    <p className="text-muted-foreground">{new Date(p.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
-                  </td>
-                </tr>
-              ))}
+              {plans.map((p, index) => {
+                const isFree      = p.plan.coins === 0 && p.plan.amount === 0;
+                const expiryLabel = p.plan.expiryInDays === -1 ? "Never Expires" : `${p.plan.expiryInDays} Days`;
+                return (
+                  <tr key={p._id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
+                    <td className="px-5 py-3">
+                      <p className="font-medium leading-tight">{userName(p.user)}</p>
+                      <p className="text-xs text-muted-foreground">{p.user.mobile}</p>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{p.userType}</td>
+                    <td className="px-5 py-3 font-medium">{p.plan.name}</td>
+                    <td className="px-5 py-3">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${isFree ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
+                        {isFree ? "Free" : "Paid"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{expiryLabel}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{p.paymentMethod}</td>
+                    <td className="px-5 py-3">{p.amountPaid > 0 ? `₹${p.amountPaid.toLocaleString()}` : "—"}</td>
+                    <td className="px-5 py-3">{p.coinsPaid > 0 ? p.coinsPaid.toLocaleString() : "—"}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{p.propertiesUsed} / {p.plan.numberOfPropertiesGiven}</td>
+                    <td className="px-5 py-3 text-xs">
+                      <p>{new Date(p.expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
+                      <p className="text-muted-foreground">{new Date(p.expiryDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge
+                        variant={STATUS_COLORS[p.status] ? undefined : (STATUS_VARIANTS[p.status] ?? "secondary")}
+                        className={`text-xs ${STATUS_COLORS[p.status] ?? ""}`}
+                      >{p.status}</Badge>
+                    </td>
+                    <td className="px-5 py-3 text-xs">
+                      <p>{new Date(p.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
+                      <p className="text-muted-foreground">{new Date(p.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

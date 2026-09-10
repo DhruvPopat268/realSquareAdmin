@@ -19,7 +19,7 @@ const purchasedPlanSchema = new mongoose.Schema(
     amountPaid:    { type: Number, default: 0 },
     coinsPaid:     { type: Number, default: 0 },
     startDate:     { type: Date, required: true },
-    expiryDate:    { type: Date, required: true },
+    expiryDate:    { type: Date },
     expiryDurationDays: { type: Number },
     status:        { type: String, enum: ["Active", "Expired", "Consumed", "Cancelled"], default: "Active" },
     changedPlanTo: { type: mongoose.Schema.Types.ObjectId, ref: "ListingPurchasedPlan" },

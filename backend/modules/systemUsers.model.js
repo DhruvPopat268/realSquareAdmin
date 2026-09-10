@@ -79,6 +79,7 @@ const systemUserSchema = new mongoose.Schema(
     isSuperAdmin:    { type: Boolean, default: false },
     isActive:        { type: Boolean, default: true },
     autoApprovalProperties: { type: Boolean, default: false },
+    freeListedProperties:   { type: Number, default: 0 },
     lastLogin:       { type: Date },
     lastActivity:    { type: Date },
     profile:         { type: panelUserProfileSchema },   // panel users (admin / staff)
