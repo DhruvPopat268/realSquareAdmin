@@ -2,7 +2,7 @@ const SystemUser        = require("./systemUsers.model");
 const SystemUserSession = require("./systemUsers.session.model");
 const SystemUserOtp     = require("./systemUsers.otp.model");
 const UserCoinsWallet   = require("./mixed/userCoinsWallet/model");
-const PurchasedPlan     = require("./mixed/purchasedPlans/model");
+const ListingPurchasedPlan     = require("./mixed/purchasedPlans/model");
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 
@@ -372,7 +372,7 @@ const getMe = async (req, res) => {
 
     const [wallet, purchased] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
-      PurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
+      ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
     ]);
 
     let activePlan = null;

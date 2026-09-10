@@ -5,7 +5,7 @@ const paymentTransactionSchema = new mongoose.Schema(
     user:              { type: mongoose.Schema.Types.ObjectId, ref: "SystemUser", required: true },
     userType:          { type: String, enum: ["Owner", "Broker", "Builder"], required: true },
     refId:             { type: mongoose.Schema.Types.ObjectId, refPath: "refModel" },
-    refModel:          { type: String, enum: ["Plan"] },
+    refModel:          { type: String, enum: ["ListingPlan"] },
     reason:            { type: String, enum: ["PlanPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit", "PlanUpgrade"], required: true },
     razorpayOrderId:   { type: String, required: true },
     razorpayPaymentId: { type: String },

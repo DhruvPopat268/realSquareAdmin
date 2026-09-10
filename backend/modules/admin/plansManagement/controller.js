@@ -4,49 +4,46 @@ const Plan = require("./model");
 const createPlan = async (req, res) => {
   try {
     const {
-      name, description, planType,
-      numberOfPropertiesGiven, expiryType,
-      leadsPerDay, roles, coins, amount, isActive,
+      name, description,
+      numberOfPropertiesGiven, expiryInDays,
+      roles, coins, amount, isActive,
     } = req.body;
 
-    if (!name || !planType || numberOfPropertiesGiven == null || leadsPerDay == null)
-      return res.status(400).json({ success: false, message: "name, planType, numberOfPropertiesGiven and leadsPerDay are required" });
+    // Required fields
+    if (!name || numberOfPropertiesGiven == null)
+      return res.status(400).json({ success: false, message: "name and numberOfPropertiesGiven are required" });
 
-    if (!["Free", "Paid"].includes(planType))
-      return res.status(400).json({ success: false, message: "planType must be Free or Paid" });
+    // expiryInDays: only -1 (never expires) or > 0 (N days) are valid; 0 is not allowed
+    if (expiryInDays == null || isNaN(expiryInDays))
+      return res.status(400).json({ success: false, message: "expiryInDays is required" });
+    const expiry = Number(expiryInDays);
+    if (expiry === 0 || (expiry < -1))
+      return res.status(400).json({ success: false, message: "expiryInDays must be -1 (no expiry) or a positive number of days" });
 
-    if (planType === "Paid") {
-      if (!expiryType)
-        return res.status(400).json({ success: false, message: "expiryType is required for Paid plans" });
-
-      if (!["Weekly", "Monthly", "Yearly"].includes(expiryType))
-        return res.status(400).json({ success: false, message: "expiryType must be Weekly, Monthly or Yearly" });
-
-      if ((!coins || coins <= 0) && (!amount || amount <= 0))
-        return res.status(400).json({ success: false, message: "Set at least coins or amount (must be greater than 0) for Paid plans" });
-    }
+    // coins and amount: both must be provided; both 0 (free) or both > 0 (paid)
+    if (coins == null || amount == null)
+      return res.status(400).json({ success: false, message: "Both coins and amount are required" });
+    const coinsVal  = Number(coins);
+    const amountVal = Number(amount);
+    if (coinsVal < 0 || amountVal < 0)
+      return res.status(400).json({ success: false, message: "coins and amount cannot be negative" });
+    if ((coinsVal === 0) !== (amountVal === 0))
+      return res.status(400).json({ success: false, message: "coins and amount must both be 0 (free plan) or both greater than 0 (paid plan)" });
 
     const exists = await Plan.findOne({ name: new RegExp(`^${name.trim()}$`, "i") });
     if (exists)
       return res.status(409).json({ success: false, message: "Plan name already exists" });
 
-    const planData = {
+    const plan = await Plan.create({
       name: name.trim(),
       description,
-      planType,
       numberOfPropertiesGiven,
-      leadsPerDay,
-      roles: roles ?? [],
+      expiryInDays: expiry,
+      coins:  coinsVal,
+      amount: amountVal,
+      roles:    roles ?? [],
       isActive: isActive ?? true,
-    };
-
-    if (planType === "Paid") {
-      planData.expiryType = expiryType;
-      if (coins  && coins  > 0) planData.coins  = coins;
-      if (amount && amount > 0) planData.amount = amount;
-    }
-
-    const plan = await Plan.create(planData);
+    });
     res.status(201).json({ success: true, data: plan });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -85,27 +82,31 @@ const getPlanById = async (req, res) => {
 const updatePlan = async (req, res) => {
   try {
     const {
-      name, description, planType,
-      numberOfPropertiesGiven, expiryType,
-      leadsPerDay, roles, coins, amount, isActive,
+      name, description,
+      numberOfPropertiesGiven, expiryInDays,
+      roles, coins, amount, isActive,
     } = req.body;
 
-    if (!name || !planType || numberOfPropertiesGiven == null || leadsPerDay == null)
-      return res.status(400).json({ success: false, message: "name, planType, numberOfPropertiesGiven and leadsPerDay are required" });
+    // Required fields
+    if (!name || numberOfPropertiesGiven == null)
+      return res.status(400).json({ success: false, message: "name and numberOfPropertiesGiven are required" });
 
-    if (!["Free", "Paid"].includes(planType))
-      return res.status(400).json({ success: false, message: "planType must be Free or Paid" });
+    // expiryInDays: only -1 (never expires) or > 0 (N days) are valid; 0 is not allowed
+    if (expiryInDays == null || isNaN(expiryInDays))
+      return res.status(400).json({ success: false, message: "expiryInDays is required" });
+    const expiry = Number(expiryInDays);
+    if (expiry === 0 || (expiry < -1))
+      return res.status(400).json({ success: false, message: "expiryInDays must be -1 (no expiry) or a positive number of days" });
 
-    if (planType === "Paid") {
-      if (!expiryType)
-        return res.status(400).json({ success: false, message: "expiryType is required for Paid plans" });
-
-      if (!["Weekly", "Monthly", "Yearly"].includes(expiryType))
-        return res.status(400).json({ success: false, message: "expiryType must be Weekly, Monthly or Yearly" });
-
-      if ((!coins || coins <= 0) && (!amount || amount <= 0))
-        return res.status(400).json({ success: false, message: "Set at least coins or amount (must be greater than 0) for Paid plans" });
-    }
+    // coins and amount: both must be provided; both 0 (free) or both > 0 (paid)
+    if (coins == null || amount == null)
+      return res.status(400).json({ success: false, message: "Both coins and amount are required" });
+    const coinsVal  = Number(coins);
+    const amountVal = Number(amount);
+    if (coinsVal < 0 || amountVal < 0)
+      return res.status(400).json({ success: false, message: "coins and amount cannot be negative" });
+    if ((coinsVal === 0) !== (amountVal === 0))
+      return res.status(400).json({ success: false, message: "coins and amount must both be 0 (free plan) or both greater than 0 (paid plan)" });
 
     const duplicate = await Plan.findOne({
       name: new RegExp(`^${name.trim()}$`, "i"),
@@ -114,26 +115,20 @@ const updatePlan = async (req, res) => {
     if (duplicate)
       return res.status(409).json({ success: false, message: "Plan name already exists" });
 
-    const $set = {
-      name: name.trim(), description, planType,
-      numberOfPropertiesGiven, leadsPerDay,
-      roles:     roles ?? [],
-      isActive:  isActive ?? true,
-      expiryType: planType === "Paid" ? expiryType : undefined,
-    };
-
-    const $unset = {};
-
-    if (planType === "Paid") {
-      if (coins  && coins  > 0) $set.coins  = coins;  else $unset.coins  = 1;
-      if (amount && amount > 0) $set.amount = amount; else $unset.amount = 1;
-    } else {
-      $unset.coins = 1; $unset.amount = 1; $unset.expiryType = 1;
-    }
-
     const plan = await Plan.findByIdAndUpdate(
       req.params.id,
-      { $set, ...(Object.keys($unset).length && { $unset }) },
+      {
+        $set: {
+          name: name.trim(),
+          description,
+          numberOfPropertiesGiven,
+          expiryInDays: expiry,
+          coins:  coinsVal,
+          amount: amountVal,
+          roles:    roles ?? [],
+          isActive: isActive ?? true,
+        },
+      },
       { new: true, runValidators: true }
     );
     if (!plan)
@@ -160,4 +155,17 @@ const toggleActive = async (req, res) => {
   }
 };
 
-module.exports = { createPlan, getPlans, getPlanById, updatePlan, toggleActive };
+// ── Delete Plan ───────────────────────────────────────────────────────────────
+const deletePlan = async (req, res) => {
+  try {
+    const plan = await Plan.findByIdAndDelete(req.params.id);
+    if (!plan)
+      return res.status(404).json({ success: false, message: "Plan not found" });
+
+    res.json({ success: true, message: "Plan deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { createPlan, getPlans, getPlanById, updatePlan, toggleActive, deletePlan };

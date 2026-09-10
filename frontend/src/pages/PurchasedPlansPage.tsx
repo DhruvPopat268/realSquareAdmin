@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Archive, Ban } from "lucide-react";
-import { purchasedPlansService, type PurchasedPlan } from "@/services/purchasedPlansService";
+import { purchasedPlansService, type ListingListingPurchasedPlan } from "@/services/purchasedPlansService";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
@@ -13,7 +13,7 @@ const LIMITS = [10, 20, 50, 100];
 interface Query { page: number; limit: number; status: string; userType: string; userId: string; }
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", userType: "", userId: "" };
 
-function userName(u: PurchasedPlan["user"]) {
+function userName(u: ListingPurchasedPlan["user"]) {
   return u.ownerProfile?.fullName ?? u.brokerProfile?.fullName ?? u.builderProfile?.name ?? u.mobile;
 }
 
@@ -30,10 +30,10 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelled: "bg-purple-100 text-purple-700",
 };
 
-export default function PurchasedPlansPage() {
+export default function ListingPurchasedPlansPage() {
   const { toast } = useToast();
 
-  const [plans, setPlans]       = useState<PurchasedPlan[]>([]);
+  const [plans, setPlans]       = useState<ListingPurchasedPlan[]>([]);
   const [stats, setStats]       = useState({ active: 0, expired: 0, consumed: 0, cancelled: 0 });
   const [loading, setLoading]   = useState(true);
   const [total, setTotal]       = useState(0);
@@ -87,7 +87,7 @@ export default function PurchasedPlansPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Purchased Plans</h1>
+        <h1 className="text-2xl font-bold text-foreground">Purchased Listing Plans</h1>
         <p className="text-sm text-muted-foreground mt-0.5">All plan purchases by users.</p>
       </div>
 

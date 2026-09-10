@@ -5,7 +5,7 @@ const PaymentTransaction = require("../transactions/model");
 const AdminWallet        = require("../../admin/adminWallet/model");
 const UserCoinsWallet    = require("../userCoinsWallet/model");
 const CoinsTransaction   = require("../coinsTransactions/model");
-const PurchasedPlan      = require("./model");
+const ListingPurchasedPlan = require("./model");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -33,16 +33,13 @@ const createPlanOrder = async (req, res) => {
     if (!plan || !plan.isActive)
       return res.status(404).json({ success: false, message: "Plan not found or inactive" });
 
-    if (plan.planType !== "Paid")
-      return res.status(400).json({ success: false, message: "Only paid plans require an order" });
+    if (!plan.amount || plan.amount <= 0)
+      return res.status(400).json({ success: false, message: "This plan cannot be purchased online" });
 
     if (!plan.roles.includes(req.userRole))
       return res.status(403).json({ success: false, message: "This plan is not available for your role" });
 
-    if (!plan.amount)
-      return res.status(400).json({ success: false, message: "This plan cannot be purchased online" });
-
-    const existingActivePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    const existingActivePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
     if (existingActivePlan)
       return res.status(400).json({ success: false, message: "You already have an active plan" });
 
@@ -86,10 +83,8 @@ const createPlanOrder = async (req, res) => {
         transactionId: transaction._id,
         plan: {
           name:                    plan.name,
-          planType:                plan.planType,
           numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-          expiryType:              plan.expiryType,
-          leadsPerDay:             plan.leadsPerDay,
+          expiryInDays:            plan.expiryInDays,
           amount:                  plan.amount,
         },
       },
@@ -111,16 +106,13 @@ const upgradePlanOrder = async (req, res) => {
     if (!userType)
       return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
 
-    const activePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    const activePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
     if (!activePlan)
       return res.status(400).json({ success: false, message: "No active plan found to upgrade" });
 
     const plan = await Plan.findById(planId);
     if (!plan || !plan.isActive)
       return res.status(404).json({ success: false, message: "Plan not found or inactive" });
-
-    if (plan.planType !== "Paid")
-      return res.status(400).json({ success: false, message: "Only paid plans require an order" });
 
     if (!plan.roles.includes(req.userRole))
       return res.status(403).json({ success: false, message: "This plan is not available for your role" });
@@ -171,10 +163,8 @@ const upgradePlanOrder = async (req, res) => {
         activePlanId:  activePlan._id,
         plan: {
           name:                    plan.name,
-          planType:                plan.planType,
           numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-          expiryType:              plan.expiryType,
-          leadsPerDay:             plan.leadsPerDay,
+          expiryInDays:            plan.expiryInDays,
           amount:                  plan.amount,
         },
       },
@@ -215,7 +205,7 @@ const getActivePlans = async (req, res) => {
     let plans = await Plan.find(filter).select("-__v -roles -createdAt -updatedAt");
 
     if (wantsUpgrade) {
-      const activePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+      const activePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
       if (activePlan) {
         plans = plans.map((p) => ({
           ...p.toObject(),
@@ -224,7 +214,17 @@ const getActivePlans = async (req, res) => {
       }
     }
 
-    res.json({ success: true, data: plans });
+    // distinct expiryInDays values sorted: -1 first, then ascending
+    const allExpiryValues = plans.map((p) => (p.toObject ? p.toObject() : p).expiryInDays ?? p.expiryInDays);
+    const distinctExpiry  = [...new Set(allExpiryValues)]
+      .filter((v) => v != null)
+      .sort((a, b) => {
+        if (a === -1) return -1;
+        if (b === -1) return 1;
+        return a - b;
+      });
+
+    res.json({ success: true, data: plans, expiryTabs: distinctExpiry });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -248,29 +248,31 @@ const purchasePlan = async (req, res) => {
     if (!plan.roles.includes(req.userRole))
       return res.status(403).json({ success: false, message: "This plan is not available for your role" });
 
-    const existingActivePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    const existingActivePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
     if (existingActivePlan)
       return res.status(400).json({ success: false, message: "You already have an active plan" });
 
-    const expiryDurationDays = Number(process.env[`${plan.expiryType?.toUpperCase()}_PLAN_EXPIRY_DAYS`]);
+    const expiryDurationDays = plan.expiryInDays ?? 0;
     const startDate          = new Date();
     const expiryDate         = new Date(startDate);
-    expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
+    if (expiryDurationDays === -1) {
+      expiryDate.setFullYear(expiryDate.getFullYear() + 100); // effectively never expires
+    } else {
+      expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
+    }
 
     const planSnapshot = {
       planId:                  plan._id,
       name:                    plan.name,
-      planType:                plan.planType,
       numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-      expiryType:              plan.expiryType,
-      leadsPerDay:             plan.leadsPerDay,
+      expiryInDays:            plan.expiryInDays,
       coins:                   plan.coins,
       amount:                  plan.amount,
     };
 
-    // ── Free Plan ─────────────────────────────────────────────────────────────
-    if (plan.planType === "Free") {
-      const purchasedPlan = await PurchasedPlan.create({
+    // ── Free Plan (no coins and no amount) ────────────────────────────────────
+    if (!plan.coins && !plan.amount) {
+      const purchasedPlan = await ListingPurchasedPlan.create({
         user:          req.user._id,
         userType,
         plan:          planSnapshot,
@@ -300,7 +302,7 @@ const purchasePlan = async (req, res) => {
       userWallet.totalDebitedCoins += plan.coins;
       await userWallet.save({ session });
 
-      const purchasedPlan = new PurchasedPlan({
+      const purchasedPlan = new ListingPurchasedPlan({
         user:          req.user._id,
         userType,
         plan:          planSnapshot,
@@ -320,7 +322,7 @@ const purchasePlan = async (req, res) => {
         coins:         plan.coins,
         reason:        "PlanPurchase",
         refId:         purchasedPlan._id,
-        refModel:      "PurchasedPlan",
+        refModel:      "ListingPurchasedPlan",
         balanceBefore: userWallet.currentBalance + plan.coins,
         balanceAfter:  userWallet.currentBalance,
       });
@@ -351,7 +353,7 @@ const upgradePlan = async (req, res) => {
     if (!userType)
       return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
 
-    const activePlan = await PurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    const activePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
     if (!activePlan)
       return res.status(400).json({ success: false, message: "No active plan found to upgrade" });
 
@@ -365,21 +367,23 @@ const upgradePlan = async (req, res) => {
     if (!plan.roles.includes(req.userRole))
       return res.status(403).json({ success: false, message: "This plan is not available for your role" });
 
-    if (plan.planType !== "Paid")
+    if (!plan.coins && !plan.amount)
       return res.status(400).json({ success: false, message: "Only paid plans can be used for upgrade" });
 
-    const expiryDurationDays = Number(process.env[`${plan.expiryType?.toUpperCase()}_PLAN_EXPIRY_DAYS`]);
+    const expiryDurationDays = plan.expiryInDays ?? 0;
     const startDate          = new Date();
     const expiryDate         = new Date(startDate);
-    expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
+    if (expiryDurationDays === -1) {
+      expiryDate.setFullYear(expiryDate.getFullYear() + 100); // effectively never expires
+    } else {
+      expiryDate.setDate(expiryDate.getDate() + expiryDurationDays);
+    }
 
     const planSnapshot = {
       planId:                  plan._id,
       name:                    plan.name,
-      planType:                plan.planType,
       numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-      expiryType:              plan.expiryType,
-      leadsPerDay:             plan.leadsPerDay,
+      expiryInDays:            plan.expiryInDays,
       coins:                   plan.coins,
       amount:                  plan.amount,
     };
@@ -400,7 +404,7 @@ const upgradePlan = async (req, res) => {
       userWallet.totalDebitedCoins += plan.coins;
       await userWallet.save({ session });
 
-      const newPlan = new PurchasedPlan({
+      const newPlan = new ListingPurchasedPlan({
         user:          req.user._id,
         userType,
         plan:          planSnapshot,
@@ -424,7 +428,7 @@ const upgradePlan = async (req, res) => {
         coins:         plan.coins,
         reason:        "PlanUpgrade",
         refId:         newPlan._id,
-        refModel:      "PurchasedPlan",
+        refModel:      "ListingPurchasedPlan",
         balanceBefore: userWallet.currentBalance + plan.coins,
         balanceAfter:  userWallet.currentBalance,
       });

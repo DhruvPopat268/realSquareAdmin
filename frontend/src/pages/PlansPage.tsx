@@ -7,14 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Check, Building2, Zap, Calendar, Users, Coins, IndianRupee, Pencil } from "lucide-react";
+import { Plus, Search, Check, Building2, Calendar, Users, Coins, IndianRupee, Pencil, Trash2 } from "lucide-react";
 import { plansService, type Plan, type CreatePlanPayload } from "@/services/plansService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
 import { cn } from "@/lib/utils";
 
-const EXPIRY_OPTIONS = ["Weekly", "Monthly", "Yearly"] as const;
-const TYPE_OPTIONS   = ["Free", "Paid"] as const;
 const ROLE_OPTIONS = [
   { id: import.meta.env.VITE_OWNER_ROLE,   label: "Owner" },
   { id: import.meta.env.VITE_BROKER_ROLE,  label: "Broker" },
@@ -26,20 +24,17 @@ function roleLabel(id: string) {
 }
 
 const defaultForm = (): CreatePlanPayload => ({
-  name: "", description: "", planType: "Free",
-  numberOfPropertiesGiven: 0, leadsPerDay: 0,
+  name: "", description: "",
+  numberOfPropertiesGiven: 0,
   roles: [], isActive: true,
-  expiryType: undefined, coins: undefined, amount: undefined,
+  expiryInDays: -1, coins: 0, amount: 0,
 });
 
-function PlanCard({ plan, onToggle, onEdit }: { plan: Plan; onToggle: (plan: Plan) => void; onEdit: (plan: Plan) => void }) {
-  const isPaid = plan.planType === "Paid";
+function PlanCard({ plan, onToggle, onEdit, onDelete }: { plan: Plan; onToggle: (plan: Plan) => void; onEdit: (plan: Plan) => void; onDelete: (plan: Plan) => void }) {
+  const isPaid = !!(plan.coins || plan.amount);
 
   return (
-    <div className={cn(
-      "relative rounded-2xl border bg-card p-6 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow",
-      isPaid && "border-primary/40 bg-gradient-to-br from-primary/5 to-card"
-    )}>
+    <div className="relative rounded-2xl border bg-card p-6 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -48,16 +43,13 @@ function PlanCard({ plan, onToggle, onEdit }: { plan: Plan; onToggle: (plan: Pla
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{plan.description}</p>
           )}
         </div>
-        {isPaid && (
-          <div className="text-right shrink-0">
-            <p className="text-2xl font-extrabold text-primary">Paid</p>
-          </div>
-        )}
-        {!isPaid && (
-          <div className="text-right shrink-0">
-            <p className="text-2xl font-extrabold text-green-600">Free</p>
-          </div>
-        )}
+        <button
+          onClick={() => onDelete(plan)}
+          className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors shrink-0"
+          title="Delete plan"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Divider */}
@@ -66,17 +58,19 @@ function PlanCard({ plan, onToggle, onEdit }: { plan: Plan; onToggle: (plan: Pla
       {/* Features */}
       <ul className="space-y-2.5">
         <FeatureRow icon={Building2} label={`${plan.numberOfPropertiesGiven} Properties`} />
-        <FeatureRow icon={Zap}       label={`${plan.leadsPerDay} Leads / Day`} />
-        {isPaid && plan.expiryType && (
-          <FeatureRow icon={Calendar} label={`${plan.expiryType} Validity`} />
+        {plan.expiryInDays != null && (
+          <FeatureRow
+            icon={Calendar}
+            label={plan.expiryInDays === -1 ? "Never expires" : `Valid for ${plan.expiryInDays} day${plan.expiryInDays === 1 ? "" : "s"}`}
+          />
         )}
-        {isPaid && (plan.amount != null || plan.coins != null) && (
+        {plan.coins != null && plan.amount != null && (
           <FeatureRow
             icon={IndianRupee}
             label={
-              plan.amount && plan.coins ? `₹${plan.amount} or ${plan.coins} Coins` :
-              plan.amount              ? `₹${plan.amount}` :
-                                         `${plan.coins} Coins`
+              plan.coins === 0 && plan.amount === 0
+                ? "Free"
+                : `₹${plan.amount} or ${plan.coins} Coins`
             }
           />
         )}
@@ -143,6 +137,11 @@ export default function PlansPage() {
   const [errors, setErrors]          = useState<Record<string, string>>({});
   const [submitting, setSubmitting]  = useState(false);
 
+  // delete
+  const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null);
+  const [deleteOpen, setDeleteOpen]     = useState(false);
+  const [deleting, setDeleting]         = useState(false);
+
   function buildParams(q = search) {
     const p: Record<string, string> = {};
     if (q.trim()) p.search = q.trim();
@@ -168,14 +167,12 @@ export default function PlansPage() {
     setForm({
       name:                    plan.name,
       description:             plan.description ?? "",
-      planType:                plan.planType,
       numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-      leadsPerDay:             plan.leadsPerDay,
       roles:                   plan.roles,
       isActive:                plan.isActive,
-      expiryType:              plan.expiryType,
-      coins:                   plan.coins,
-      amount:                  plan.amount,
+      expiryInDays:            plan.expiryInDays ?? -1,
+      coins:                   plan.coins  ?? 0,
+      amount:                  plan.amount ?? 0,
     });
     setErrors({});
     setOpen(true);
@@ -195,15 +192,23 @@ export default function PlansPage() {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!form.name.trim())                        e.name  = "Name is required";
-    if (!form.roles?.length)                       e.roles = "Select at least one role";
-    if (form.numberOfPropertiesGiven <= 0)         e.numberOfPropertiesGiven = "Must be greater than 0";
-    if (form.leadsPerDay <= 0)                     e.leadsPerDay = "Must be greater than 0";
-    if (form.planType === "Paid") {
-      if (!form.expiryType)                         e.expiryType = "Required for Paid plans";
-      if ((!form.coins  || form.coins  <= 0) &&
-          (!form.amount || form.amount <= 0))        e.coins = "Set at least coins or amount (must be > 0)";
-    }
+    if (!form.name.trim())                 e.name  = "Name is required";
+    if (!form.roles?.length)               e.roles = "Select at least one role";
+    if (form.numberOfPropertiesGiven <= 0) e.numberOfPropertiesGiven = "Must be greater than 0";
+
+    // Expiry: only -1 or > 0 allowed
+    const expiry = Number(form.expiryInDays);
+    if (form.expiryInDays == null || isNaN(expiry) || expiry === 0 || expiry < -1)
+      e.expiryInDays = "Expiry must be -1 (no expiry) or a positive number of days";
+
+    // Coins & amount: both must be 0 or both must be > 0
+    const coinsVal  = Number(form.coins);
+    const amountVal = Number(form.amount);
+    if (isNaN(coinsVal) || coinsVal < 0)   e.coins  = "Coins cannot be negative";
+    if (isNaN(amountVal) || amountVal < 0) e.amount = "Amount cannot be negative";
+    if (!e.coins && !e.amount && (coinsVal === 0) !== (amountVal === 0))
+      e.coins = "Both coins and amount must be 0 (free) or both greater than 0 (paid)";
+
     return e;
   }
 
@@ -245,17 +250,30 @@ export default function PlansPage() {
     }
   }
 
-  const isPaid = form.planType === "Paid";
+  function openDelete(plan: Plan) { setDeleteTarget(plan); setDeleteOpen(true); }
 
-  const freePlans = plans.filter((p) => p.planType === "Free");
-  const paidPlans = plans.filter((p) => p.planType === "Paid");
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await plansService.delete(deleteTarget._id);
+      setPlans((prev) => prev.filter((p) => p._id !== deleteTarget._id));
+      toast({ title: "Plan deleted successfully" });
+      setDeleteOpen(false);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to delete plan" });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Plans Management</h1>
+          <h1 className="text-2xl font-bold text-foreground">Listing Plans Management</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage subscription plans for your users.</p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={openCreate}>
@@ -287,23 +305,8 @@ export default function PlansPage() {
           <p className="text-sm">Create your first plan to get started.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {paidPlans.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Paid Plans</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {paidPlans.map((p) => <PlanCard key={p._id} plan={p} onToggle={toggleActive} onEdit={openEdit} />)}
-              </div>
-            </div>
-          )}
-          {freePlans.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Free Plans</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {freePlans.map((p) => <PlanCard key={p._id} plan={p} onToggle={toggleActive} onEdit={openEdit} />)}
-              </div>
-            </div>
-          )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {plans.map((p) => <PlanCard key={p._id} plan={p} onToggle={toggleActive} onEdit={openEdit} onDelete={openDelete} />)}
         </div>
       )}
 
@@ -315,17 +318,6 @@ export default function PlansPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Plan Type */}
-            <div className="space-y-1.5">
-              <Label>Plan Type <span className="text-destructive">*</span></Label>
-              <Select value={form.planType} onValueChange={(v) => set("planType", v as "Free" | "Paid")}>
-                <SelectTrigger><SelectValue placeholder="Select plan type" /></SelectTrigger>
-                <SelectContent>
-                  {TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Name */}
             <div className="space-y-1.5">
               <Label>Name <span className="text-destructive">*</span></Label>
@@ -339,48 +331,44 @@ export default function PlansPage() {
               <Textarea placeholder="Brief description of the plan..." value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} className="resize-none" />
             </div>
 
-            {/* Properties & Leads */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Properties Given <span className="text-destructive">*</span></Label>
-                <Input type="number" min={0} placeholder="0" value={form.numberOfPropertiesGiven || ""} onChange={(e) => set("numberOfPropertiesGiven", Number(e.target.value))} />
-                {errors.numberOfPropertiesGiven && <p className="text-xs text-destructive">{errors.numberOfPropertiesGiven}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label>Leads / Day <span className="text-destructive">*</span></Label>
-                <Input type="number" min={0} placeholder="0" value={form.leadsPerDay || ""} onChange={(e) => set("leadsPerDay", Number(e.target.value))} />
-                {errors.leadsPerDay && <p className="text-xs text-destructive">{errors.leadsPerDay}</p>}
-              </div>
+            {/* Properties */}
+            <div className="space-y-1.5">
+              <Label>Properties Given <span className="text-destructive">*</span></Label>
+              <Input type="number" min={0} placeholder="0" value={form.numberOfPropertiesGiven || ""} onChange={(e) => set("numberOfPropertiesGiven", Number(e.target.value))} />
+              {errors.numberOfPropertiesGiven && <p className="text-xs text-destructive">{errors.numberOfPropertiesGiven}</p>}
             </div>
 
-            {/* Paid-only fields */}
-            {isPaid && (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Expiry Type <span className="text-destructive">*</span></Label>
-                  <Select value={form.expiryType ?? ""} onValueChange={(v) => set("expiryType", v as any)}>
-                    <SelectTrigger><SelectValue placeholder="Select expiry" /></SelectTrigger>
-                    <SelectContent>
-                      {EXPIRY_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {errors.expiryType && <p className="text-xs text-destructive">{errors.expiryType}</p>}
-                </div>
+            {/* Expiry (days) */}
+            <div className="space-y-1.5">
+              <Label>Expiry (days) <span className="text-destructive">*</span> <span className="text-muted-foreground text-xs">(-1 = no expiry, or enter days &gt; 0)</span></Label>
+              <Input
+                type="number"
+                placeholder="-1"
+                value={form.expiryInDays ?? ""}
+                onChange={(e) => set("expiryInDays", e.target.value === "" ? undefined : Number(e.target.value))}
+                onBlur={(e) => {
+                  const v = Number(e.target.value);
+                  if (!isNaN(v) && v !== -1 && v <= 0) set("expiryInDays", -1);
+                }}
+              />
+              {errors.expiryInDays && <p className="text-xs text-destructive">{errors.expiryInDays}</p>}
+              <p className="text-xs text-muted-foreground">Use <strong>-1</strong> for plans that never expire, or enter a positive number for expiry days.</p>
+            </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Coins</Label>
-                    <Input type="number" min={1} placeholder="Not set" value={form.coins ?? ""} onChange={(e) => set("coins", e.target.value === "" ? undefined : Number(e.target.value))} />
-                    {errors.coins && <p className="text-xs text-destructive">{errors.coins}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Amount (₹)</Label>
-                    <Input type="number" min={1} placeholder="Not set" value={form.amount ?? ""} onChange={(e) => set("amount", e.target.value === "" ? undefined : Number(e.target.value))} />
-                    {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
-                  </div>
-                </div>
-              </>
-            )}
+            {/* Coins & Amount — always visible */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Coins <span className="text-destructive">*</span></Label>
+                <Input type="number" min={0} placeholder="0" value={form.coins ?? ""} onChange={(e) => set("coins", e.target.value === "" ? 0 : Number(e.target.value))} />
+                {errors.coins && <p className="text-xs text-destructive">{errors.coins}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Amount (₹) <span className="text-destructive">*</span></Label>
+                <Input type="number" min={0} placeholder="0" value={form.amount ?? ""} onChange={(e) => set("amount", e.target.value === "" ? 0 : Number(e.target.value))} />
+                {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">Set both to <strong>0</strong> for a free plan, or both to a value greater than 0 for a paid plan.</p>
 
             {/* Roles */}
             <div className="space-y-1.5">
@@ -421,6 +409,24 @@ export default function PlansPage() {
             <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={submitting}>
               {submitting ? (editTarget ? "Updating..." : "Creating...") : editTarget ? "Update Plan" : "Create Plan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Plan</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">
+            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name}</span>? This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

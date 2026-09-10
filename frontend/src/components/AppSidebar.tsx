@@ -115,9 +115,9 @@ const sections = [
   {
     title: "Plans Management",
     items: [
-      { type: "link", to: "/plans",           icon: Tag,      label: "Plans" },
-      { type: "link", to: "/purchased-plans", icon: FileText, label: "Purchased Plans" },
       { type: "link", to: "/free-listings",   icon: Tag,      label: "Free Listings" },
+      { type: "link", to: "/plans",           icon: Tag,      label: "Listing Plans" },
+      { type: "link", to: "/purchased-plans", icon: FileText, label: "Listing Purchased Plans" },
     ],
   },
   {

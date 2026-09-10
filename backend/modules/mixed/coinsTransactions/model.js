@@ -13,7 +13,7 @@ const coinsTransactionSchema = new mongoose.Schema(
     },
     // reference to the related document (purchasedPlan or transaction)
     refId:       { type: mongoose.Schema.Types.ObjectId, refPath: "refModel" },
-    refModel:    { type: String, enum: ["PurchasedPlan", "PaymentTransaction"] },
+    refModel:    { type: String, enum: ["ListingPurchasedPlan", "PaymentTransaction"] },
     // snapshot of the coins offer used at purchase time (if any)
     coinsOffer:  {
       offerId:     { type: mongoose.Schema.Types.ObjectId, ref: "CoinsOffer" },

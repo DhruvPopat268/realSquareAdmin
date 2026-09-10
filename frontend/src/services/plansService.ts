@@ -4,10 +4,8 @@ export interface Plan {
   _id: string;
   name: string;
   description?: string;
-  planType: "Free" | "Paid";
   numberOfPropertiesGiven: number;
-  expiryType?: "Weekly" | "Monthly" | "Yearly";
-  leadsPerDay: number;
+  expiryInDays?: number;
   roles: string[];
   coins?: number;
   amount?: number;
@@ -19,14 +17,12 @@ export interface Plan {
 export type CreatePlanPayload = {
   name: string;
   description?: string;
-  planType: "Free" | "Paid";
   numberOfPropertiesGiven: number;
-  leadsPerDay: number;
   roles?: string[];
   isActive?: boolean;
-  expiryType?: "Weekly" | "Monthly" | "Yearly";
-  coins?: number;
-  amount?: number;
+  expiryInDays: number;
+  coins: number;
+  amount: number;
 };
 
 export const plansService = {
@@ -40,4 +36,6 @@ export const plansService = {
     api.put<{ success: boolean; data: Plan }>(`/admin/plans/${id}`, payload),
   toggleActive: (id: string) =>
     api.patch<{ success: boolean; data: Plan }>(`/admin/plans/${id}/toggle`),
+  delete: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/admin/plans/${id}`),
 };

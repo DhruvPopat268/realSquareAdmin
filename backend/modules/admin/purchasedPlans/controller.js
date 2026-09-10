@@ -1,7 +1,7 @@
-const PurchasedPlan = require("../../mixed/purchasedPlans/model");
+const ListingPurchasedPlan = require("../../mixed/purchasedPlans/model");
 
 // ── Get All Purchased Plans ───────────────────────────────────────────────────
-const getPurchasedPlans = async (req, res) => {
+const getListingPurchasedPlans = async (req, res) => {
   try {
     const filter = {};
     if (req.query.status)   filter.status   = req.query.status;
@@ -13,13 +13,13 @@ const getPurchasedPlans = async (req, res) => {
     const skip  = (page - 1) * limit;
 
     const [records, total, statsRaw] = await Promise.all([
-      PurchasedPlan.find(filter)
+      ListingPurchasedPlan.find(filter)
         .populate("user", "mobile ownerProfile.fullName brokerProfile.fullName builderProfile.name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      PurchasedPlan.countDocuments(filter),
-      PurchasedPlan.aggregate([
+      ListingPurchasedPlan.countDocuments(filter),
+      ListingPurchasedPlan.aggregate([
         { $match: filter },
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
@@ -43,4 +43,4 @@ const getPurchasedPlans = async (req, res) => {
   }
 };
 
-module.exports = { getPurchasedPlans };
+module.exports = { getListingPurchasedPlans };

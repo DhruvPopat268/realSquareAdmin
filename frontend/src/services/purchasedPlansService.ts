@@ -1,6 +1,6 @@
 import api from "@/lib/axiosInterceptor";
 
-export interface PurchasedPlan {
+export interface ListingPurchasedPlan {
   _id: string;
   user: { _id: string; mobile: string; ownerProfile?: { fullName: string }; brokerProfile?: { fullName: string }; builderProfile?: { name: string } };
   userType: "Owner" | "Broker" | "Builder";
@@ -23,14 +23,14 @@ export interface PurchasedPlan {
   createdAt: string;
 }
 
-export interface PurchasedPlansResponse {
+export interface ListingPurchasedPlansResponse {
   success: boolean;
-  data: PurchasedPlan[];
+  data: ListingPurchasedPlan[];
   stats: { active: number; expired: number; consumed: number; cancelled: number };
   pagination: { total: number; page: number; limit: number; totalPages: number };
 }
 
 export const purchasedPlansService = {
   getAll: (params?: Record<string, string | number>) =>
-    api.get<PurchasedPlansResponse>("/admin/purchased-plans", { params }),
+    api.get<ListingPurchasedPlansResponse>("/admin/purchased-plans", { params }),
 };
