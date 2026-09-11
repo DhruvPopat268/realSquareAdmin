@@ -31,6 +31,8 @@ import CoinsOffersPage from "./pages/CoinsOffersPage";
 import CoinsTransactionsPage from "./pages/CoinsTransactionsPage";
 import WalletTransactionsPage from "./pages/WalletTransactionsPage";
 import FreeListingPage from "./pages/FreeListingPage";
+import EnquiryPlansPage from "./pages/EnquiryPlansPage";
+import LeadEnquiryCoinsConfigPage from "./pages/LeadEnquiryCoinsConfigPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -72,8 +74,10 @@ const App = () => (
             <Route path="/furnishings-amenities" element={<FurnishingsAmenitiesPage />} />
 
             {/* Leads & Enquiries */}
-            <Route path="/leads"      element={<LeadsPage />} />
-            <Route path="/enquiries" element={<EnquiriesPage />} />
+            <Route path="/leads"                     element={<LeadsPage />} />
+            <Route path="/enquiries"                 element={<EnquiriesPage />} />
+            <Route path="/enquiry-plans"             element={<EnquiryPlansPage />} />
+            <Route path="/lead-enquiry-coins-config" element={<LeadEnquiryCoinsConfigPage />} />
 
             {/* System Users */}
             <Route path="/system-users-roles" element={<SystemUsersRolesPage />} />
