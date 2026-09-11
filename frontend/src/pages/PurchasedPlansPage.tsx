@@ -227,7 +227,7 @@ export default function ListingPurchasedPlansPage() {
                     <td className="px-5 py-3 text-muted-foreground">{p.paymentMethod}</td>
                     <td className="px-5 py-3">{p.amountPaid > 0 ? `₹${p.amountPaid.toLocaleString()}` : "—"}</td>
                     <td className="px-5 py-3">{p.coinsPaid > 0 ? p.coinsPaid.toLocaleString() : "—"}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{p.propertiesUsed} / {p.plan.numberOfPropertiesGiven}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{p.propertiesUsed} / {p.plan.numberOfPropertiesGiven === -1 ? "Unlimited" : p.plan.numberOfPropertiesGiven}</td>
                     <td className="px-5 py-3 text-xs">
                       <p>{new Date(p.expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
                       <p className="text-muted-foreground">{new Date(p.expiryDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
