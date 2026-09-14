@@ -3,6 +3,7 @@ const SystemUserSession = require("./systemUsers.session.model");
 const SystemUserOtp     = require("./systemUsers.otp.model");
 const UserCoinsWallet   = require("./mixed/userCoinsWallet/model");
 const ListingPurchasedPlan     = require("./mixed/purchasedPlans/model");
+const PropertyListing   = require("./mixed/propertyListing/model");
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 
@@ -370,9 +371,10 @@ const getMe = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const [wallet, purchased] = await Promise.all([
+    const [wallet, purchased, hasListings] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
       ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
+      PropertyListing.exists({ "listedBy.id": req.user._id }),
     ]);
 
     let activePlan = null;
@@ -385,7 +387,15 @@ const getMe = async (req, res) => {
       };
     }
 
-    res.json({ success: true, data: { ...req.user.toObject(), coinsBalance: wallet?.currentBalance ?? 0, activePlan } });
+    res.json({ 
+      success: true, 
+      data: { 
+        ...req.user.toObject(), 
+        coinsBalance: wallet?.currentBalance ?? 0, 
+        activePlan,
+        myPropertyListingAllowed: !!hasListings,
+      } 
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
