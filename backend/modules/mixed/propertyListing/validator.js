@@ -21,7 +21,7 @@ const createListingValidator = [
     if (doc.propertyCategory.toString() !== req.body.categoryId) throw new Error("Property type does not belong to the selected category");
   }),
 
-  // ── cityName (simple string, no City model validation) ─────────────────────
+  // ── cityName ────────────────────────────────────────────────────────────────
   body("cityName").notEmpty().withMessage("cityName is required").isString().withMessage("cityName must be a string"),
 
   // ── category & listingType consistency ───────────────────────────────────
@@ -61,14 +61,20 @@ const createListingValidator = [
   body("residentialDetails.amenities.*.amenityId").if(body("residentialDetails.amenities").exists()).isMongoId().withMessage("amenityId must be a valid ID").bail().custom(existsAndActive(FurnishingAmenity, "Amenity")),
 
   // ── residentialDetails (when present) ──────────────────────────────────────
-  body("residentialDetails.societyName").if(body("residentialDetails").exists()).notEmpty().withMessage("residentialDetails.societyName is required"),
-  body("residentialDetails.bhk").if(body("residentialDetails").exists()).notEmpty().withMessage("residentialDetails.bhk is required").isInt({ min: 1 }).withMessage("residentialDetails.bhk must be a positive integer"),
-  body("residentialDetails.builtUpArea.value").if(body("residentialDetails").exists()).notEmpty().withMessage("residentialDetails.builtUpArea.value is required").isFloat({ min: 0 }).withMessage("Must be a positive number"),
-  body("residentialDetails.builtUpArea.unit").if(body("residentialDetails").exists()).notEmpty().withMessage("residentialDetails.builtUpArea.unit is required").isIn(["sqft", "sqyd", "sqmt"]).withMessage("Must be sqft, sqyd, or sqmt"),
-  body("residentialDetails.furnishType").if(body("residentialDetails").exists()).notEmpty().withMessage("residentialDetails.furnishType is required").isIn(["Unfurnished", "Semi-Furnished", "Fully-Furnished"]).withMessage("Invalid furnishType"),
+  // societyName — optional (can be filled in later via edit)
+  body("residentialDetails.societyName").if(body("residentialDetails").exists()).optional(),
+  // bhk — required when residentialDetails is sent
+  body("residentialDetails.bhk").if(body("residentialDetails").exists()).notEmpty().withMessage("residentialDetails.bhk is required").isInt({ min: 0 }).withMessage("residentialDetails.bhk must be a non-negative integer"),
+  // builtUpArea — optional (can be filled in later via edit)
+  body("residentialDetails.builtUpArea.value").if(body("residentialDetails.builtUpArea").exists()).isFloat({ min: 0 }).withMessage("Must be a positive number"),
+  body("residentialDetails.builtUpArea.unit").if(body("residentialDetails.builtUpArea").exists()).isIn(["sqft", "sqyd", "sqmt"]).withMessage("Must be sqft, sqyd, or sqmt"),
+  // furnishType — optional (can be filled in later via edit)
+  body("residentialDetails.furnishType").if(body("residentialDetails.furnishType").exists()).isIn(["Unfurnished", "Semi-Furnished", "Fully-Furnished"]).withMessage("Invalid furnishType"),
 
   // ── plotDetails (when present) ──────────────────────────────────────────────
-  body("plotDetails.societyName").if(body("plotDetails").exists()).notEmpty().withMessage("plotDetails.societyName is required"),
+  // societyName — optional (can be filled in later via edit)
+  body("plotDetails.societyName").if(body("plotDetails").exists()).optional(),
+  // plotArea, length, width — required when plotDetails is sent
   body("plotDetails.plotArea.value").if(body("plotDetails").exists()).notEmpty().withMessage("plotDetails.plotArea.value is required").isFloat({ min: 0 }).withMessage("Must be a positive number"),
   body("plotDetails.plotArea.unit").if(body("plotDetails").exists()).notEmpty().withMessage("plotDetails.plotArea.unit is required").isIn(["sqft", "sqyd", "sqmt"]).withMessage("Must be sqft, sqyd, or sqmt"),
   body("plotDetails.length").if(body("plotDetails").exists()).notEmpty().withMessage("plotDetails.length is required").isFloat({ min: 0 }).withMessage("plotDetails.length must be a positive number"),
@@ -76,16 +82,21 @@ const createListingValidator = [
 
   // ── pgDetails (when present) ────────────────────────────────────────────────
   body("pgDetails.pgName").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.pgName is required"),
-  body("pgDetails.pgFor").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.pgFor is required").isIn(["Girls", "Boys", "Both"]).withMessage("pgDetails.pgFor must be Girls, Boys, or Both"),
   body("pgDetails.totalBedsAvailable").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.totalBedsAvailable is required").isInt({ min: 1 }).withMessage("Must be a positive integer"),
   body("pgDetails.rooms").if(body("pgDetails").exists()).isArray({ min: 1 }).withMessage("pgDetails.rooms must have at least one room"),
-  body("pgDetails.bestSuitedFor").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.bestSuitedFor is required").isArray({ min: 1 }).withMessage("pgDetails.bestSuitedFor must have at least one value"),
-  body("pgDetails.bestSuitedFor.*").isIn(["Students", "Professionals"]).withMessage("bestSuitedFor must be Students or Professionals"),
-  body("pgDetails.mealsAvailable").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.mealsAvailable is required").isBoolean().withMessage("pgDetails.mealsAvailable must be a boolean"),
-  body("pgDetails.noticePeriod").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.noticePeriod is required").isInt({ min: 0 }).withMessage("pgDetails.noticePeriod must be a non-negative integer"),
-  body("pgDetails.lockInPeriod").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.lockInPeriod is required").isInt({ min: 0 }).withMessage("pgDetails.lockInPeriod must be a non-negative integer"),
-  body("pgDetails.commonAreas").if(body("pgDetails").exists()).notEmpty().withMessage("pgDetails.commonAreas is required").isArray({ min: 1 }).withMessage("pgDetails.commonAreas must have at least one value"),
-  body("pgDetails.commonAreas.*").isIn(["Living Room", "Kitchen", "Dining Area", "Bathroom", "Balcony", "Terrace", "Laundry Room", "Study Room", "Gym", "Parking"]).withMessage("Invalid commonAreas value"),
+  // pgFor — optional (can be filled in later via edit)
+  body("pgDetails.pgFor").if(body("pgDetails.pgFor").exists()).isIn(["Girls", "Boys", "Both"]).withMessage("pgDetails.pgFor must be Girls, Boys, or Both"),
+  // bestSuitedFor — optional (can be filled in later via edit)
+  body("pgDetails.bestSuitedFor.*").if(body("pgDetails.bestSuitedFor").exists()).isIn(["Students", "Professionals"]).withMessage("bestSuitedFor must be Students or Professionals"),
+  // mealsAvailable — optional (can be filled in later via edit)
+  body("pgDetails.mealsAvailable").if(body("pgDetails.mealsAvailable").exists()).isBoolean().withMessage("pgDetails.mealsAvailable must be a boolean"),
+  // noticePeriod — optional (can be filled in later via edit)
+  body("pgDetails.noticePeriod").if(body("pgDetails.noticePeriod").exists()).isInt({ min: 0 }).withMessage("pgDetails.noticePeriod must be a non-negative integer"),
+  // lockInPeriod — optional (can be filled in later via edit)
+  body("pgDetails.lockInPeriod").if(body("pgDetails.lockInPeriod").exists()).isInt({ min: 0 }).withMessage("pgDetails.lockInPeriod must be a non-negative integer"),
+  // commonAreas — optional (can be filled in later via edit)
+  body("pgDetails.commonAreas.*").if(body("pgDetails.commonAreas").exists()).isIn(["Living Room", "Kitchen", "Dining Area", "Bathroom", "Balcony", "Terrace", "Laundry Room", "Study Room", "Gym", "Parking"]).withMessage("Invalid commonAreas value"),
+  // room fields — still required within each room entry
   body("pgDetails.rooms.*.roomType").notEmpty().withMessage("Each room must have a roomType").isIn(["1 Sharing", "2 Sharing", "3 Sharing", "4 Sharing", "5 Sharing", "6 Sharing", "7 Sharing"]).withMessage("Invalid roomType"),
   body("pgDetails.rooms.*.rent").notEmpty().withMessage("Each room must have a rent").isFloat({ min: 0 }).withMessage("Rent must be a positive number"),
   body("pgDetails.rooms.*.bedsAvailable").custom((_, { req, path }) => {
@@ -102,29 +113,40 @@ const createListingValidator = [
   body("pgDetails.rooms.*.securityDeposit").notEmpty().withMessage("Each room must have a securityDeposit").isFloat({ min: 0 }).withMessage("securityDeposit must be a non-negative number"),
 
   // ── commercialDetails (when present) ───────────────────────────────────────
-  body("commercialDetails.societyName").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.societyName is required"),
+  // societyName — optional (can be filled in later via edit)
+  body("commercialDetails.societyName").if(body("commercialDetails").exists()).optional(),
   body("commercialDetails.propertyType").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const othersIds = process.env.COMMERCIAL_PROPERTY_TYPE_OTHERS_IDS?.split(",") || [];
     if (!othersIds.includes(req.body.propertyTypeId)) return true;
     if (!_ || !_.toString().trim()) throw new Error("commercialDetails.propertyType is required for Others property type");
     return true;
   }),
-  body("commercialDetails.zoneType").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.zoneType is required").isIn(["Industrial", "Commercial", "Residential", "SEZ", "OpenSpaces", "Agricultural", "Others"]).withMessage("Invalid zoneType"),
-  body("commercialDetails.locationHub").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.locationHub is required").isIn(["IT Park", "Business Park", "Mall", "Commercial Project", "Residential Project", "Retail Complex/Building", "Market/High Street", "Others"]).withMessage("Invalid locationHub"),
+  // zoneType — optional (can be filled in later via edit)
+  body("commercialDetails.zoneType").if(body("commercialDetails.zoneType").exists()).isIn(["Industrial", "Commercial", "Residential", "SEZ", "OpenSpaces", "Agricultural", "Others"]).withMessage("Invalid zoneType"),
+  // locationHub — optional (can be filled in later via edit)
+  body("commercialDetails.locationHub").if(body("commercialDetails.locationHub").exists()).isIn(["IT Park", "Business Park", "Mall", "Commercial Project", "Residential Project", "Retail Complex/Building", "Market/High Street", "Others"]).withMessage("Invalid locationHub"),
+  // ownership — optional (can be filled in later via edit)
+  body("commercialDetails.ownership").if(body("commercialDetails.ownership").exists()).isIn(["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"]).withMessage("Invalid ownership"),
 
-  body("commercialDetails.ownership").if(body("commercialDetails").exists()).notEmpty().withMessage("commercialDetails.ownership is required").isIn(["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"]).withMessage("Invalid ownership"),
-
+  // builtUpArea — required for non-plot commercial when commercialDetails is sent
   body("commercialDetails.builtUpArea.unit").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
-    if (plotIds.includes(req.body.propertyTypeId)) return true;
-    if (!_) throw new Error("commercialDetails.builtUpArea.unit is required");
+    if (plotIds.includes(req.body.propertyTypeId)) return true;     // plot → skip
+    if (!_) return true;                                              // optional — skip if absent
     if (!["sqft", "sqyd", "sqmt"].includes(_)) throw new Error("Must be sqft, sqyd, or sqmt");
+    return true;
+  }),
+  body("commercialDetails.builtUpArea.value").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
+    if (plotIds.includes(req.body.propertyTypeId)) return true;
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.builtUpArea.value is required");
+    if (isNaN(_) || _ < 0) throw new Error("Must be a positive number");
     return true;
   }),
   body("commercialDetails.carpetArea.value").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
-    if (!_.toString().trim()) throw new Error("commercialDetails.carpetArea.value is required");
+    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.carpetArea.value is required");
     if (isNaN(_) || _ < 0) throw new Error("Must be a positive number");
     const builtUpValue = req.body.commercialDetails?.builtUpArea?.value;
     if (builtUpValue !== undefined && Number(_) > Number(builtUpValue))
@@ -138,6 +160,8 @@ const createListingValidator = [
     if (!["sqft", "sqyd", "sqmt"].includes(_)) throw new Error("Must be sqft, sqyd, or sqmt");
     return true;
   }),
+
+  // plotArea, length, width — required for commercial plot when commercialDetails is sent
   body("commercialDetails.plotArea.value").if(body("commercialDetails").exists()).custom((_, { req }) => {
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (!plotIds.includes(req.body.propertyTypeId)) return true;
@@ -166,38 +190,27 @@ const createListingValidator = [
     if (isNaN(_) || Number(_) < 0) throw new Error("commercialDetails.width must be a positive number");
     return true;
   }),
-  body("commercialDetails.totalFloors").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
-    if (plotIds.includes(req.body.propertyTypeId)) return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.totalFloors is required");
+
+  // totalFloors, yourFloor — optional (can be filled in later via edit)
+  body("commercialDetails.totalFloors").if(body("commercialDetails.totalFloors").exists()).custom((_, { req }) => {
     if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.totalFloors must be a non-negative integer");
     return true;
   }),
-  body("commercialDetails.yourFloor").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
-    if (plotIds.includes(req.body.propertyTypeId)) return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.yourFloor is required");
+  body("commercialDetails.yourFloor").if(body("commercialDetails.yourFloor").exists()).custom((_, { req }) => {
     if (!String(_).trim()) throw new Error("commercialDetails.yourFloor must be a non-empty string");
     return true;
   }),
-  body("commercialDetails.minSeats").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS?.split(",") || [];
-    if (!officeIds.includes(req.body.propertyTypeId)) return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minSeats is required for office type");
+
+  // minSeats, minCabins, minMeetingRooms — optional (can be filled in later via edit)
+  body("commercialDetails.minSeats").if(body("commercialDetails.minSeats").exists()).custom((_, { req }) => {
     if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minSeats must be a non-negative integer");
     return true;
   }),
-  body("commercialDetails.minCabins").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS?.split(",") || [];
-    if (!officeIds.includes(req.body.propertyTypeId)) return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minCabins is required for office type");
+  body("commercialDetails.minCabins").if(body("commercialDetails.minCabins").exists()).custom((_, { req }) => {
     if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minCabins must be a non-negative integer");
     return true;
   }),
-  body("commercialDetails.minMeetingRooms").if(body("commercialDetails").exists()).custom((_, { req }) => {
-    const officeIds = process.env.COMMERCIAL_PROPERTY_TYPE_OFFICE_IDS?.split(",") || [];
-    if (!officeIds.includes(req.body.propertyTypeId)) return true;
-    if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.minMeetingRooms is required for office type");
+  body("commercialDetails.minMeetingRooms").if(body("commercialDetails.minMeetingRooms").exists()).custom((_, { req }) => {
     if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minMeetingRooms must be a non-negative integer");
     return true;
   }),
@@ -211,9 +224,12 @@ const createListingValidator = [
     return true;
   }),
   body("sellInfo.price").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.price is required").isFloat({ min: 0 }).withMessage("sellInfo.price must be a positive number"),
-  body("sellInfo.constructionStatus").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.constructionStatus is required").isIn(["UnderConstruction", "ReadyToMove"]).withMessage("Invalid constructionStatus"),
-  body("sellInfo.ageOfProperty").if(body("sellInfo.constructionStatus").equals("ReadyToMove")).notEmpty().withMessage("sellInfo.ageOfProperty is required when constructionStatus is ReadyToMove").isInt({ min: 0 }).withMessage("Must be a non-negative integer"),
-  body("sellInfo.availableFrom").if(body("sellInfo.constructionStatus").equals("UnderConstruction")).notEmpty().withMessage("sellInfo.availableFrom is required when constructionStatus is UnderConstruction").isISO8601().withMessage("Must be a valid date"),
+  // constructionStatus — optional (can be filled in later via edit)
+  body("sellInfo.constructionStatus").if(body("sellInfo.constructionStatus").exists()).isIn(["UnderConstruction", "ReadyToMove"]).withMessage("Invalid constructionStatus"),
+  // ageOfProperty — optional (can be filled in later via edit)
+  body("sellInfo.ageOfProperty").if(body("sellInfo.ageOfProperty").exists()).isInt({ min: 0 }).withMessage("Must be a non-negative integer"),
+  // availableFrom — optional (can be filled in later via edit)
+  body("sellInfo.availableFrom").if(body("sellInfo.availableFrom").exists()).isISO8601().withMessage("Must be a valid date"),
 
   // ── rentInfo (required for Rent, not allowed otherwise) ──────────────────────
   body("rentInfo").custom((_, { req }) => {
@@ -224,8 +240,10 @@ const createListingValidator = [
     return true;
   }),
   body("rentInfo.monthlyRent").if(body("rentInfo").exists()).notEmpty().withMessage("rentInfo.monthlyRent is required").isFloat({ min: 0 }).withMessage("rentInfo.monthlyRent must be a positive number"),
-  body("rentInfo.availableFrom").if(body("rentInfo").exists()).notEmpty().withMessage("rentInfo.availableFrom is required").isISO8601().withMessage("rentInfo.availableFrom must be a valid date"),
-  body("rentInfo.securityDeposit.type").if(body("rentInfo").exists()).notEmpty().withMessage("rentInfo.securityDeposit.type is required").isIn(["None", "1Month", "2Month", "Custom"]).withMessage("Invalid securityDeposit type"),
+  // availableFrom — optional (can be filled in later via edit)
+  body("rentInfo.availableFrom").if(body("rentInfo.availableFrom").exists()).isISO8601().withMessage("rentInfo.availableFrom must be a valid date"),
+  // securityDeposit — optional (can be filled in later via edit)
+  body("rentInfo.securityDeposit.type").if(body("rentInfo.securityDeposit.type").exists()).isIn(["None", "1Month", "2Month", "Custom"]).withMessage("Invalid securityDeposit type"),
   body("rentInfo.securityDeposit.amount").if(body("rentInfo.securityDeposit.type").equals("Custom")).notEmpty().withMessage("rentInfo.securityDeposit.amount is required when type is Custom").isFloat({ min: 0 }).withMessage("Must be a positive number"),
 ];
 
