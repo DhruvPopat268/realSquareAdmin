@@ -437,7 +437,7 @@ const getMyListings = async (req, res) => {
           .sort({ createdAt: -1 })
           .limit(limit)
           .lean();
-        return res.json({ success: true, data: listings.map(normalizeListingCard) });
+        return res.json({ success: true, data: { properties: listings.map(normalizeListingCard) } });
       }
     }
 
@@ -455,8 +455,10 @@ const getMyListings = async (req, res) => {
     if (req.query.categoryId) filter["category.id"]     = new mongoose.Types.ObjectId(req.query.categoryId);
     if (req.query.typeId)     filter["propertyType.id"] = new mongoose.Types.ObjectId(req.query.typeId);
 
-    // Run paginated fetch + total count in parallel.
-    const [listings, totalCount] = await Promise.all([
+    // On page 1 run status aggregation (always on base user filter, ignoring
+    // active status/purpose/category/type filters so counts reflect totals).
+    const baseFilter = { "listedBy.id": req.user._id };
+    const parallelTasks = [
       PropertyListing.find(filter)
         .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo createdAt listedBy")
         .sort({ createdAt: -1 })
@@ -464,16 +466,44 @@ const getMyListings = async (req, res) => {
         .limit(PAGE_LIMIT)
         .lean(),
       PropertyListing.countDocuments(filter),
-    ]);
+    ];
 
-    const data    = listings.map(normalizeListingCard);
-    const hasMore = skip + listings.length < totalCount;
+    if (page === 1) {
+      parallelTasks.push(
+        PropertyListing.aggregate([
+          { $match: baseFilter },
+          { $group: { _id: "$status", count: { $sum: 1 } } },
+        ])
+      );
+    }
 
-    res.json({
+    const results    = await Promise.all(parallelTasks);
+    const listings   = results[0];
+    const totalCount = results[1];
+
+    const properties = listings.map(normalizeListingCard);
+    const hasMore    = skip + listings.length < totalCount;
+
+    const response = {
       success: true,
-      data,
-      pagination: { page, limit: PAGE_LIMIT, totalCount, hasMore },
-    });
+      data: {
+        properties,
+        pagination: { page, limit: PAGE_LIMIT, totalCount, hasMore },
+      },
+    };
+
+    // stats only on page 1 — always reflects ALL listings regardless of filters
+    if (page === 1) {
+      const aggRows = results[2];
+      const stats = { total: 0 };
+      for (const row of aggRows) {
+        stats[row._id] = row.count;
+        stats.total   += row.count;
+      }
+      response.data.stats = stats;
+    }
+
+    res.json(response);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
