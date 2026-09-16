@@ -15,6 +15,7 @@ const walletManagementRoutes     = require("./walletManagement/routes");
 const furnishingsAmenitiesRoutes  = require("./furnishingsAndAmenities/routes");
 const autoApprovalConfigRoutes    = require("./autoApprovalConfig/routes");
 const freeListingRoutes           = require("./freeListingManagement/routes");
+const propertyListingRoutes       = require("./propertyListing/routes");
 // add more admin feature routes here as you build them
 // const propertyRoutes = require("./property/routes");
 // const leadRoutes     = require("./lead/routes");
@@ -36,6 +37,7 @@ router.use("/wallet",              walletManagementRoutes);
 router.use("/furnishings-amenities",  furnishingsAmenitiesRoutes);
 router.use("/auto-approval-config",   autoApprovalConfigRoutes);
 router.use("/free-listing-config",    freeListingRoutes);
+router.use("/property-listings",      propertyListingRoutes);
 // router.use("/properties", propertyRoutes);
 // router.use("/leads",      leadRoutes);
 
