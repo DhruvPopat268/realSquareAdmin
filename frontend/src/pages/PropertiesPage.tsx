@@ -1,31 +1,36 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Input } from "@/components/ui/input";
+import api from "@/lib/axiosInterceptor";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Search, Plus, ChevronDown, LayoutGrid, List, Map,
-  Bed, Bath, Maximize2, MapPin, Layers, Pencil, Trash2, Eye, MoreHorizontal, Copy, Mail, ChevronLeft, ChevronRight,
+  ChevronDown, LayoutGrid, List, Map,
+  Bed, Bath, Maximize2, Layers, Pencil, Trash2, Eye, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { PROPERTIES, type Property, type ListingStatus, LISTING_STATUS_LABEL } from "@/data/propertiesData";
-import { PROPERTY_PURPOSES } from "@/data/propertyPurposesData";
-import { PROPERTY_TYPES } from "@/data/propertyTypesData";
-import { PROPERTY_CATEGORIES } from "@/data/propertyCategoriesData";
-import { CITIES } from "@/data/citiesData";
+import { type ListingStatus, LISTING_STATUS_LABEL } from "@/data/propertiesData";
 import PropertyMapView from "@/components/PropertyMapView";
+import Spinner from "@/components/Spinner";
+
+// Statuses defined in the PropertyListing model
+const LISTING_STATUSES = ["UnderReview", "Active", "Inactive", "Sold", "Rented", "Rejected"] as const;
+
+interface FilterOption {
+  _id: string;
+  name: string;
+}
+
+const PAGE_SIZES = [10, 25, 50, 100];
 
 const statusStyle: Record<string, string> = {
-  PENDING_APPROVAL: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  ACTIVE:           "bg-green-50 text-green-700 border border-green-200",
-  RESERVED:         "bg-blue-50 text-blue-700 border border-blue-200",
-  SOLD:             "bg-gray-100 text-gray-600 border border-gray-200",
-  RENTED:           "bg-teal-50 text-teal-700 border border-teal-200",
-  EXPIRED:          "bg-orange-50 text-orange-700 border border-orange-200",
-  INACTIVE:         "bg-slate-100 text-slate-500 border border-slate-200",
-  ARCHIVED:         "bg-stone-100 text-stone-500 border border-stone-200",
-  REJECTED:         "bg-red-50 text-red-600 border border-red-200",
+  UnderReview: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+  Active:      "bg-green-50 text-green-700 border border-green-200",
+  Inactive:    "bg-slate-100 text-slate-600 border border-slate-200",
+  Sold:        "bg-gray-100 text-gray-600 border border-gray-200",
+  Rented:      "bg-teal-50 text-teal-700 border border-teal-200",
+  Rejected:    "bg-red-50 text-red-600 border border-red-200",
 };
 
 const purposeStyle: Record<string, string> = {
@@ -99,59 +104,102 @@ function PropertyCard({ p, onClick }: { p: Property; onClick: () => void }) {
   );
 }
 
-function PropertyRow({ p, onClick }: { p: Property; onClick: () => void }) {
+function PropertyRow({ p, index }: { p: any; index: number }) {
+  // Format date and time in IST
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return { date: dateStr, time: timeStr };
+  };
+
+  const createdAt = formatDateTime(p.createdAt);
+  const updatedAt = formatDateTime(p.updatedAt);
+
+  // Format price
+  const formatPrice = (price: number | string) => {
+    if (typeof price === 'string') return price; // Already formatted range like "3000 - 8000"
+    if (!price) return '-';
+    return `₹${price.toLocaleString('en-IN')}`;
+  };
+
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+      {/* Actions */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
-          <button onClick={onClick} className="p-1.5 rounded-md bg-green-50 hover:bg-green-100 text-green-600 transition-colors">
+          <button disabled className="p-1.5 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
             <Eye className="h-3.5 w-3.5" />
           </button>
-          <button className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors">
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
         </div>
       </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <img src={p.images[0]} alt={p.title} className="h-12 w-16 rounded-lg object-cover shrink-0" />
-          <div>
-            <p className="font-semibold text-sm text-foreground">{p.title}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{p.city}</p>
-          </div>
-        </div>
+      
+      {/* # (Index) */}
+      <td className="px-4 py-3 text-sm font-medium text-foreground">
+        {index + 1}
       </td>
+      
+      {/* Image */}
       <td className="px-4 py-3">
-        <span className={`px-2 py-0.5 rounded text-xs font-medium ${purposeStyle[p.purpose] ?? "bg-muted text-muted-foreground"}`}>{p.purpose}</span>
+        <img 
+          src={p.media?.images?.[0] || '/placeholder.png'} 
+          alt="Property" 
+          className="h-12 w-16 rounded-lg object-cover shrink-0" 
+        />
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{p.category}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{p.type}</td>
-      <td className="px-4 py-3 text-sm font-semibold text-foreground">{fmt(p.price)}</td>
-      <td className="px-4 py-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-2 flex-wrap">
-          {p.beds   !== undefined && <span className="flex items-center gap-1"><Bed className="h-3.5 w-3.5" />{p.beds}</span>}
-          {p.baths  !== undefined && <span className="flex items-center gap-1"><Bath className="h-3.5 w-3.5" />{p.baths}</span>}
-          {p.sqft !== undefined && <span className="flex items-center gap-1"><Maximize2 className="h-3.5 w-3.5" />{p.sqft.toLocaleString()}</span>}
-          {p.floor  !== undefined && <span className="flex items-center gap-1"><Layers className="h-3.5 w-3.5" />Fl.{p.floor}</span>}
+      
+      {/* Listing Type */}
+      <td className="px-4 py-3">
+        <span className="text-sm text-foreground">{p.listingType?.name || '-'}</span>
+      </td>
+      
+      {/* Category */}
+      <td className="px-4 py-3 text-sm text-muted-foreground">{p.category?.name || '-'}</td>
+      
+      {/* Property Type */}
+      <td className="px-4 py-3 text-sm text-muted-foreground">{p.propertyType?.name || '-'}</td>
+      
+      {/* City */}
+      <td className="px-4 py-3 text-sm text-foreground">{p.cityName || '-'}</td>
+      
+      {/* Locality */}
+      <td className="px-4 py-3 text-sm text-muted-foreground">{p.locality?.address || '-'}</td>
+      
+      {/* Sales Price */}
+      <td className="px-4 py-3 text-sm font-semibold text-foreground">
+        {p.sellInfo?.price ? formatPrice(p.sellInfo.price) : '-'}
+      </td>
+      
+      {/* Rent Price */}
+      <td className="px-4 py-3 text-sm font-semibold text-foreground">
+        {p.rentInfo?.monthlyRent ? formatPrice(p.rentInfo.monthlyRent) : (p.price && typeof p.price === 'string' ? p.price : p.price ? formatPrice(p.price) : '-')}
+      </td>
+      
+      {/* Status */}
+      <td className="px-4 py-3">
+        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-600'}`}>
+          {p.status}
         </span>
       </td>
-      <td className="px-4 py-3">
-        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status]}`}>{LISTING_STATUS_LABEL[p.status]}</span>
-      </td>
+      
+      {/* Listed By */}
       <td className="px-4 py-3 text-xs">
-        <span className="inline-block px-1.5 py-0.5 rounded bg-muted text-muted-foreground mb-1">{p.listedByType}</span>
+        <p className="font-medium text-foreground">{p.listedBy?.name || '-'}</p>
+        <p className="text-muted-foreground mt-0.5">{p.listedBy?.mobile || '-'}</p>
+        <p className="text-muted-foreground">({p.listedBy?.role?.name || 'N/A'})</p>
       </td>
+      
+      {/* Created At */}
       <td className="px-4 py-3 text-xs">
-        <p className="font-medium text-foreground">{p.listedByInfo.name}</p>
-        <p className="text-muted-foreground">{p.listedByInfo.mobile}</p>
-        <p className="text-muted-foreground">{p.listedByInfo.email}</p>
+        <p className="font-medium text-foreground">{createdAt.date}</p>
+        <p className="text-muted-foreground">{createdAt.time}</p>
       </td>
-      <td className="px-4 py-3 text-center text-sm font-medium text-foreground">{p.leads}</td>
-      <td className="px-4 py-3 text-center text-sm font-medium text-foreground">{p.views}</td>
-      <td className="px-4 py-3 text-center text-sm font-medium text-foreground">{p.wishlist}</td>
+      
+      {/* Updated At */}
+      <td className="px-4 py-3 text-xs">
+        <p className="font-medium text-foreground">{updatedAt.date}</p>
+        <p className="text-muted-foreground">{updatedAt.time}</p>
+      </td>
     </tr>
   );
 }
@@ -161,57 +209,169 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const { state } = useLocation();
   const resolvedListedByType = lockedListedByType ?? state?.listedByType;
   const resolvedListedByName = listedByName ?? state?.listedByName;
-  const [search, setSearch]               = useState(resolvedListedByName ?? "");
-  const [view, setView] = useState<"grid" | "list" | "map">("list");
-  const [purposeFilter, setPurposeFilter] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [typeFilter, setTypeFilter]       = useState("All");
-  const [cityFilter, setCityFilter]       = useState("All");
-  const [listedByFilter, setListedByFilter] = useState(resolvedListedByType ?? "All");
-  const [statusFilter, setStatusFilter]     = useState("All");
 
-  const hasFilters = purposeFilter !== "All" || categoryFilter !== "All" || typeFilter !== "All" || cityFilter !== "All" || listedByFilter !== "All" || statusFilter !== "All" || search !== "";
+  const [search, setSearch] = useState(resolvedListedByName ?? "");
+  const [view, setView] = useState<"grid" | "list" | "map">("list");
+
+  // ── Filter option lists from API ────────────────────────────────────────────
+  const [purposes, setPurposes]         = useState<FilterOption[]>([]);
+  const [categories, setCategories]     = useState<FilterOption[]>([]);
+  const [propertyTypes, setPropertyTypes] = useState<FilterOption[]>([]);
+
+  // ── Applied filters (sent to API on every fetch) ────────────────────────────
+  const [purposeFilter, setPurposeFilter]   = useState("");  // _id
+  const [categoryFilter, setCategoryFilter] = useState("");  // _id
+  const [typeFilter, setTypeFilter]         = useState("");  // _id
+  const [statusFilter, setStatusFilter]     = useState("");  // enum string
+  const [listedByFilter, setListedByFilter] = useState(resolvedListedByType ?? "All");
+
+  // ── Pending filters (staged until Apply is clicked) ─────────────────────────
+  const [pendingPurpose,   setPendingPurpose]   = useState("");
+  const [pendingCategory,  setPendingCategory]  = useState("");
+  const [pendingType,      setPendingType]      = useState("");
+  const [pendingStatus,    setPendingStatus]    = useState("");
+
+  // ── Listings API state ──────────────────────────────────────────────────────
+  const [properties, setProperties] = useState<any[]>([]);
+  const [stats, setStats] = useState({ total: 0, Active: 0, Inactive: 0, Sold: 0, Rented: 0, UnderReview: 0, Rejected: 0 });
+  const [loading, setLoading]       = useState(true);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+
+  // ── 1. Fetch purposes + categories on mount ─────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [purRes, catRes] = await Promise.all([
+          api.get('/admin/property-purposes'),
+          api.get('/admin/property-categories'),
+        ]);
+        if (purRes.data.success) setPurposes(purRes.data.data);
+        if (catRes.data.success) setCategories(catRes.data.data);
+      } catch (err) {
+        console.error('Failed to fetch filter options:', err);
+      }
+    };
+    load();
+  }, []);
+
+  // ── 2. Fetch property types whenever applied category changes ───────────────
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const params = categoryFilter ? `?propertyCategory=${categoryFilter}` : '';
+        const res = await api.get(`/admin/property-types${params}`);
+        if (res.data.success) setPropertyTypes(res.data.data);
+      } catch (err) {
+        console.error('Failed to fetch property types:', err);
+      }
+    };
+    load();
+    // When category changes, clear any pending/applied type that may no longer belong
+    setPendingType("");
+    setTypeFilter("");
+  }, [categoryFilter]);
+
+  // ── 3. Fetch listings whenever applied filters or pagination change ──────────
+  useEffect(() => {
+    const fetchProperties = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page:  pagination.page.toString(),
+          limit: pagination.limit.toString(),
+        });
+
+        if (search)         params.append('search',     search);
+        if (statusFilter)   params.append('status',     statusFilter);
+        if (categoryFilter) params.append('categoryId', categoryFilter);
+        if (typeFilter)     params.append('typeId',     typeFilter);
+        // purposeFilter selects the route rather than being a query param
+        // (backend already filters by listingType.id via the route)
+
+        let route = '/admin/property-listings';
+        if (purposeFilter) {
+          const match = purposes.find(p => p._id === purposeFilter);
+          if (match) {
+            const n = match.name.toLowerCase();
+            if      (n.includes('sell'))                          route = '/admin/property-listings/for-sell';
+            else if (n.includes('rent'))                          route = '/admin/property-listings/for-rent';
+            else if (n.includes('pg') || n.includes('co-living')) route = '/admin/property-listings/for-pg';
+          }
+        }
+
+        const response = await api.get(`${route}?${params.toString()}`);
+        if (response.data.success) {
+          setProperties(response.data.data.properties);
+          setStats(response.data.data.stats);
+          setPagination(prev => ({ ...prev, ...response.data.pagination }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch properties:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperties();
+  }, [pagination.page, pagination.limit, search, purposeFilter, categoryFilter, typeFilter, statusFilter, purposes]);
+
+  const hasFilters = purposeFilter !== "" || categoryFilter !== "" || typeFilter !== "" || statusFilter !== "" || listedByFilter !== "All" || search !== "";
+
+  function applyFilters() {
+    setPurposeFilter(pendingPurpose);
+    setCategoryFilter(pendingCategory);
+    setTypeFilter(pendingType);
+    setStatusFilter(pendingStatus);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }
 
   function clearAll() {
-    setSearch(""); setPurposeFilter("All"); setCategoryFilter("All");
-    setTypeFilter("All"); setCityFilter("All"); setListedByFilter("All"); setStatusFilter("All");
+    setPendingPurpose(""); setPendingCategory(""); setPendingType(""); setPendingStatus("");
+    setPurposeFilter(""); setCategoryFilter(""); setTypeFilter(""); setStatusFilter("");
+    setListedByFilter("All"); setSearch("");
+    setPagination(prev => ({ ...prev, page: 1 }));
   }
-
-  // when filterType is provided it acts as a locked purpose filter
-  const activePurpose = filterType ?? purposeFilter;
-
-  const filteredTypes = useMemo(() =>
-    ["All", ...PROPERTY_TYPES
-      .filter((t) => categoryFilter === "All" || t.category === categoryFilter)
-      .map((t) => t.name)
-    ], [categoryFilter]);
 
   const tableRef = useRef<HTMLDivElement>(null);
+  const scrollingRef = useRef(false);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "ArrowLeft")  tableRef.current?.scrollBy({ left: -200, behavior: "smooth" });
-    if (e.key === "ArrowRight") tableRef.current?.scrollBy({ left:  200, behavior: "smooth" });
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      
+      if (scrollingRef.current) return; // Prevent multiple simultaneous scrolls
+      
+      const scrollAmount = e.key === "ArrowLeft" ? -200 : 200;
+      const element = tableRef.current;
+      if (!element) return;
+      
+      scrollingRef.current = true;
+      const start = element.scrollLeft;
+      const target = start + scrollAmount;
+      const duration = 300; // milliseconds
+      const startTime = performance.now();
+      
+      function animate(currentTime: number) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function for smooth animation
+        const easeProgress = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        
+        element.scrollLeft = start + (target - start) * easeProgress;
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          scrollingRef.current = false;
+        }
+      }
+      
+      requestAnimationFrame(animate);
+    }
   }
-
-  const filtered = useMemo(() => {
-    return PROPERTIES.filter((p) => {
-      const q = search.toLowerCase();
-      const matchSearch =
-        p.title.toLowerCase().includes(q) ||
-        p.address.toLowerCase().includes(q) ||
-        p.city.toLowerCase().includes(q) ||
-        p.type.toLowerCase().includes(q) ||
-        p.purpose.toLowerCase().includes(q) ||
-        p.listedByInfo.name.toLowerCase().includes(q);
-      const matchPurpose  = activePurpose  === "All" || p.purpose      === activePurpose;
-      const matchCategory = categoryFilter === "All" || p.category     === categoryFilter;
-      const matchType     = typeFilter     === "All" || p.type         === typeFilter;
-      const matchCity     = cityFilter     === "All" || p.city         === cityFilter;
-      const matchListedBy = listedByFilter === "All" || p.listedByType === listedByFilter;
-      const matchStatus   = statusFilter   === "All" || p.status       === statusFilter;
-      return matchSearch && matchPurpose && matchCategory && matchType && matchCity && matchListedBy && matchStatus;
-    });
-  }, [search, activePurpose, categoryFilter, typeFilter, cityFilter, listedByFilter, statusFilter]);
 
   return (
     <div className="space-y-4">
@@ -220,68 +380,57 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
         <h1 className="text-2xl font-bold text-foreground">
           {filterType ? `${filterType} Properties` : "Properties"}
         </h1>
-        <Button size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" /> Add Property
-        </Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-5 gap-3">
         <div className="rounded-xl border bg-card p-4 col-span-1">
-          <p className="text-xs text-muted-foreground">Total</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{PROPERTIES.length}</p>
+          <p className="text-xs text-muted-foreground">Total Properties</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{stats.total}</p>
         </div>
         <div className="rounded-xl border bg-yellow-50 p-4">
-          <p className="text-xs text-yellow-600">Pending Approval</p>
-          <p className="text-2xl font-bold text-yellow-700 mt-1">{PROPERTIES.filter((p) => p.status === "PENDING_APPROVAL").length}</p>
+          <p className="text-xs text-yellow-600">Under Review</p>
+          <p className="text-2xl font-bold text-yellow-700 mt-1">{stats.UnderReview}</p>
         </div>
         <div className="rounded-xl border bg-green-50 p-4">
           <p className="text-xs text-green-600">Active</p>
-          <p className="text-2xl font-bold text-green-700 mt-1">{PROPERTIES.filter((p) => p.status === "ACTIVE").length}</p>
-        </div>
-        <div className="rounded-xl border bg-blue-50 p-4">
-          <p className="text-xs text-blue-600">Reserved</p>
-          <p className="text-2xl font-bold text-blue-700 mt-1">{PROPERTIES.filter((p) => p.status === "RESERVED").length}</p>
+          <p className="text-2xl font-bold text-green-700 mt-1">{stats.Active}</p>
         </div>
         <div className="rounded-xl border bg-gray-50 p-4">
           <p className="text-xs text-gray-500">Sold</p>
-          <p className="text-2xl font-bold text-gray-600 mt-1">{PROPERTIES.filter((p) => p.status === "SOLD").length}</p>
+          <p className="text-2xl font-bold text-gray-600 mt-1">{stats.Sold}</p>
+        </div>
+        <div className="rounded-xl border bg-teal-50 p-4">
+          <p className="text-xs text-teal-600">Rented</p>
+          <p className="text-2xl font-bold text-teal-700 mt-1">{stats.Rented}</p>
         </div>
       </div>
       <div className="grid grid-cols-5 gap-3">
-        <div className="rounded-xl border bg-teal-50 p-4">
-          <p className="text-xs text-teal-600">Rented</p>
-          <p className="text-2xl font-bold text-teal-700 mt-1">{PROPERTIES.filter((p) => p.status === "RENTED").length}</p>
-        </div>
-        <div className="rounded-xl border bg-orange-50 p-4">
-          <p className="text-xs text-orange-600">Expired</p>
-          <p className="text-2xl font-bold text-orange-700 mt-1">{PROPERTIES.filter((p) => p.status === "EXPIRED").length}</p>
-        </div>
         <div className="rounded-xl border bg-slate-100 p-4">
           <p className="text-xs text-slate-500">Inactive</p>
-          <p className="text-2xl font-bold text-slate-600 mt-1">{PROPERTIES.filter((p) => p.status === "INACTIVE").length}</p>
-        </div>
-        <div className="rounded-xl border bg-stone-100 p-4">
-          <p className="text-xs text-stone-500">Archived</p>
-          <p className="text-2xl font-bold text-stone-600 mt-1">{PROPERTIES.filter((p) => p.status === "ARCHIVED").length}</p>
+          <p className="text-2xl font-bold text-slate-600 mt-1">{stats.Inactive}</p>
         </div>
         <div className="rounded-xl border bg-red-50 p-4">
           <p className="text-xs text-red-500">Rejected</p>
-          <p className="text-2xl font-bold text-red-600 mt-1">{PROPERTIES.filter((p) => p.status === "REJECTED").length}</p>
+          <p className="text-2xl font-bold text-red-600 mt-1">{stats.Rejected}</p>
         </div>
       </div>
 
       {/* Toolbar - Row 1 */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search properties..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9 w-56 text-sm"
-          />
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Rows per page</span>
+          <Select
+            value={String(pagination.limit)}
+            onValueChange={(v) => setPagination(prev => ({ ...prev, limit: Number(v), page: 1 }))}
+          >
+            <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
+        <p className="text-sm text-muted-foreground">{pagination.total} propert{pagination.total !== 1 ? 'ies' : 'y'}</p>
 
         <div className="flex-1" />
 
@@ -289,15 +438,16 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
         {!filterType && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-                {purposeFilter === "All" ? "All Purposes" : purposeFilter}
+              <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+                {pendingPurpose ? (purposes.find(p => p._id === pendingPurpose)?.name ?? "All Purposes") : "All Purposes"}
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {["All", ...PROPERTY_PURPOSES.map((p) => p.name)].map((t) => (
-                <DropdownMenuItem key={t} onClick={() => { setPurposeFilter(t); setTypeFilter("All"); }}>
-                  {t === "All" ? "All Purposes" : t}
+              <DropdownMenuItem onClick={() => setPendingPurpose("")}>All Purposes</DropdownMenuItem>
+              {purposes.map((p) => (
+                <DropdownMenuItem key={p._id} onClick={() => setPendingPurpose(p._id)}>
+                  {p.name}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -307,31 +457,34 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
         {/* Category filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-              {categoryFilter === "All" ? "All Categories" : categoryFilter}
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pendingCategory ? (categories.find(c => c._id === pendingCategory)?.name ?? "All Categories") : "All Categories"}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => { setCategoryFilter("All"); setTypeFilter("All"); }}>All Categories</DropdownMenuItem>
-            {PROPERTY_CATEGORIES.map((c) => (
-              <DropdownMenuItem key={c.id} onClick={() => { setCategoryFilter(c.name); setTypeFilter("All"); }}>{c.name}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setPendingCategory(""); setPendingType(""); }}>All Categories</DropdownMenuItem>
+            {categories.map((c) => (
+              <DropdownMenuItem key={c._id} onClick={() => { setPendingCategory(c._id); setPendingType(""); }}>
+                {c.name}
+              </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Type filter */}
+        {/* Type filter — options are fetched from API based on applied categoryFilter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-              {typeFilter === "All" ? "All Types" : typeFilter}
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pendingType ? (propertyTypes.find(t => t._id === pendingType)?.name ?? "All Types") : "All Types"}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {filteredTypes.map((t) => (
-              <DropdownMenuItem key={t} onClick={() => setTypeFilter(t)}>
-                {t === "All" ? "All Types" : t}
+            <DropdownMenuItem onClick={() => setPendingType("")}>All Types</DropdownMenuItem>
+            {propertyTypes.map((t) => (
+              <DropdownMenuItem key={t._id} onClick={() => setPendingType(t._id)}>
+                {t.name}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -356,26 +509,11 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
       {/* Toolbar - Row 2 */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex-1" />
-        {/* City filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-              {cityFilter === "All" ? "All Cities" : cityFilter}
-              <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setCityFilter("All")}>All Cities</DropdownMenuItem>
-            {CITIES.filter((c) => c.isActive).map((c) => (
-              <DropdownMenuItem key={c.id} onClick={() => setCityFilter(c.name)}>{c.name}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
 
         {/* Listed By filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
               {listedByFilter === "All" ? "All Listed By" : listedByFilter}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
@@ -389,78 +527,114 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Status filter */}
+        {/* Status filter — values from model enum */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-              {statusFilter === "All" ? "All Statuses" : LISTING_STATUS_LABEL[statusFilter as ListingStatus]}
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pendingStatus || "All Statuses"}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {["All", "PENDING_APPROVAL", "ACTIVE", "RESERVED", "SOLD", "RENTED", "EXPIRED", "INACTIVE", "ARCHIVED", "REJECTED"].map((s) => (
-              <DropdownMenuItem key={s} onClick={() => setStatusFilter(s)}>
-                {s === "All" ? "All Statuses" : LISTING_STATUS_LABEL[s as ListingStatus]}
-              </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPendingStatus("")}>All Statuses</DropdownMenuItem>
+            {LISTING_STATUSES.map((s) => (
+              <DropdownMenuItem key={s} onClick={() => setPendingStatus(s)}>{s}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
 
         {hasFilters && (
           <button onClick={clearAll} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors ml-1 underline underline-offset-2">Clear all</button>
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground">{filtered.length} propert{filtered.length !== 1 ? "ies" : "y"} found</p>
-
-      {/* Map view */}
-      {view === "map" && (
-        <PropertyMapView properties={filtered} onViewProperty={(id) => navigate(`/properties/${id}`)} />
-      )}
-
-      {/* Grid view */}
-      {view === "grid" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-          {filtered.length === 0
-            ? <p className="col-span-3 text-center text-muted-foreground py-16">No properties found</p>
-            : filtered.map((p) => (
-              <PropertyCard key={p.id} p={p} onClick={() => navigate(`/properties/${p.id}`)} />
-            ))
-          }
-        </div>
-      )}
-
       {/* List view */}
-      {view === "list" && (
+      {!loading && view === "list" && (
         <div className="rounded-lg border bg-card overflow-x-auto" ref={tableRef} tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
           <table className="min-w-max w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Property</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Purpose</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">#</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Image</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Listing Type</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Price</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Details</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[160px]">Listing Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Property Type</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">City</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Locality</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sales Price</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rent Price</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Listed By</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Listed By Info</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Leads</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Views</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Saved</th>
-                <th className="w-10" />
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created At</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Updated At</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0
-                ? <tr><td colSpan={8} className="text-center text-muted-foreground py-16">No properties found</td></tr>
-                : filtered.map((p) => (
-                  <PropertyRow key={p.id} p={p} onClick={() => navigate(`/properties/${p.id}`)} />
+              {properties.length === 0
+                ? <tr><td colSpan={14} className="text-center text-muted-foreground py-16">No properties found</td></tr>
+                : properties.map((p, index) => (
+                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} />
                 ))
               }
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Loading view */}
+      {loading && view === "list" && (
+        <div className="rounded-lg border bg-card overflow-x-auto">
+          <table className="min-w-max w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40">
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">#</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Image</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Listing Type</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Property Type</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">City</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Locality</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sales Price</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rent Price</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Listed By</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created At</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Updated At</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colSpan={14} className="py-16"><Spinner fullPage={false} size="md" label="Loading properties..." /></td></tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && (
+        <div className="flex items-center justify-end gap-2">
+          <span className="text-sm text-muted-foreground">
+            Page {pagination.page} of {pagination.totalPages}
+          </span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            disabled={pagination.page === 1} 
+            onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            disabled={pagination.page === pagination.totalPages || pagination.totalPages === 0} 
+            onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       )}
     </div>
