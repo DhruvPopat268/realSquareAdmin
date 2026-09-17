@@ -4,6 +4,7 @@ const SystemUserOtp     = require("./systemUsers.otp.model");
 const UserCoinsWallet   = require("./mixed/userCoinsWallet/model");
 const ListingPurchasedPlan     = require("./mixed/purchasedPlans/model");
 const PropertyListing   = require("./mixed/propertyListing/model");
+const FreeListingConfig = require("./admin/freeListingManagement/model");
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 
@@ -29,10 +30,10 @@ const MOBILE_REGEX = /^[0-9]{10}$/;
 const OTP_REGEX    = /^[0-9]{6}$/;
 
 const REQUIRED_FIELDS = {
-  [process.env.CUSTOMER_ROLE_ID]: ["fullName", "email", "location.name", "location.latitude", "location.longitude", "bio"],
-  [process.env.OWNER_ROLE_ID]:    ["fullName", "email", "businessDetails.name", "businessDetails.type", "businessDetails.gstNumber", "businessDetails.email", "businessDetails.mobile", "businessDetails.website"],
-  [process.env.BROKER_ROLE_ID]:   ["fullName", "email", "yearsOfExperience", "agencyName", "bio"],
-  [process.env.BUILDER_ROLE_ID]:  ["name", "email", "gstNumber", "cinNumber", "foundedYear", "totalProjectsDelivered", "location.name", "location.latitude", "location.longitude"],
+  [process.env.CUSTOMER_ROLE_ID]: ["fullName"],
+  [process.env.OWNER_ROLE_ID]:    ["fullName"],
+  [process.env.BROKER_ROLE_ID]:   ["fullName"],
+  [process.env.BUILDER_ROLE_ID]:  ["name"],
 };
 
 const getNestedValue = (obj, path) => {
@@ -64,6 +65,80 @@ const issueToken = async (userId) => {
   await SystemUser.findByIdAndUpdate(userId, { lastLogin: new Date() });
   return token;
 };
+
+// ── Helper: Find valid active plan for user ──────────────────────────────────
+function nowIST() {
+  const now = new Date();
+  const IST_OFFSET = 5.5 * 60 * 60 * 1000; // +05:30 in ms
+  return new Date(now.getTime() + IST_OFFSET);
+}
+
+async function findValidPlan(userId) {
+  const now = nowIST();
+  const plans = await ListingPurchasedPlan.find({ user: userId, status: "Active" });
+  return plans.find((p) => {
+    const isUnlimited = p.plan.numberOfPropertiesGiven === -1;
+    if (!isUnlimited && p.propertiesUsed >= p.plan.numberOfPropertiesGiven) return false;
+    if (p.expiryDate === null || p.expiryDate === undefined) return true; // null = never expires
+    const expiry = toIST(p.expiryDate);
+    return expiry >= now;
+  }) ?? null;
+}
+
+// ── Helper: Check if user can list property ─────────────────────────────────
+async function checkCanListProperty(userId) {
+  try {
+    // 1. Check active plan credits
+    const validPlan = await findValidPlan(userId);
+    if (validPlan) {
+      const isUnlimited = validPlan.plan.numberOfPropertiesGiven === -1;
+      return {
+        canList: true,
+        source: "plan",
+        remaining: isUnlimited ? -1 : validPlan.plan.numberOfPropertiesGiven - validPlan.propertiesUsed,
+        message: null,
+      };
+    }
+
+    // 2. Check free listing credits
+    const [config, user] = await Promise.all([
+      FreeListingConfig.findOne().sort({ createdAt: -1 }),
+      SystemUser.findById(userId).select("freeListedProperties"),
+    ]);
+
+    const noOfListings = config?.noOfListings ?? 0;
+    const freeListedSoFar = user?.freeListedProperties ?? 0;
+
+    if (noOfListings === -1) {
+      // unlimited free listings
+      return { canList: true, source: "free", remaining: -1, message: null };
+    }
+
+    if (freeListedSoFar < noOfListings) {
+      return {
+        canList: true,
+        source: "free",
+        remaining: noOfListings - freeListedSoFar,
+        message: null,
+      };
+    }
+
+    // 3. Not eligible
+    return {
+      canList: false,
+      source: null,
+      remaining: 0,
+      message: "You have no listing credits remaining. Please purchase a plan to list more properties.",
+    };
+  } catch (err) {
+    return {
+      canList: false,
+      source: null,
+      remaining: 0,
+      message: "Error checking listing eligibility",
+    };
+  }
+}
 
 // ── Send OTP ──────────────────────────────────────────────────────────────────
 // POST /api/system-users/send-otp  { mobile }
@@ -172,11 +247,12 @@ const completeProfile = async (req, res) => {
     if (missingFields.length > 0)
       return res.status(400).json({ success: false, message: `Missing required fields: ${missingFields.join(", ")}` });
 
-    if (!profileData.profilePhoto)
-      return res.status(400).json({ success: false, message: "profilePhoto image is required" });
-
+    // Validate email format and uniqueness (if provided)
     if (profileData.email) {
-      const exists = await SystemUser.findOne({ [`${profileField}.email`]: profileData.email, _id: { $ne: req.user._id } });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileData.email))
+        return res.status(400).json({ success: false, message: "Invalid email format" });
+      
+      const exists = await SystemUser.findOne({ email: profileData.email, _id: { $ne: req.user._id } });
       if (exists)
         return res.status(409).json({ success: false, message: "Email already registered" });
     }
@@ -192,9 +268,40 @@ const completeProfile = async (req, res) => {
 
     profileData.mobile = req.user.mobile;
 
+    // Extract root-level fields
+    const rootLevelData = {
+      role,
+      isActive: true,
+      isSuperAdmin: false,
+    };
+
+    // Store name at root level
+    if (profileField === "builderProfile" && profileData.name) {
+      rootLevelData.name = profileData.name;
+      delete profileData.name; // Remove from nested profile
+    } else if (profileData.fullName) {
+      rootLevelData.name = profileData.fullName;
+      delete profileData.fullName; // Remove from nested profile
+    }
+
+    // Store email at root level (if provided)
+    if (profileData.email) {
+      rootLevelData.email = profileData.email;
+      delete profileData.email; // Remove from nested profile
+    }
+
+    // Store profilePhoto at root level (if provided)
+    if (profileData.profilePhoto) {
+      rootLevelData.profilePhoto = profileData.profilePhoto;
+      delete profileData.profilePhoto; // Remove from nested profile
+    }
+
+    // Store remaining fields in nested profile
+    rootLevelData[profileField] = profileData;
+
     const user = await SystemUser.findByIdAndUpdate(
       req.user._id,
-      { role, isActive: true, isSuperAdmin: false, [profileField]: profileData },
+      rootLevelData,
       { new: true, runValidators: true }
     ).populate("role", "name permissions isActive");
 
@@ -292,13 +399,44 @@ const updateProfile = async (req, res) => {
     delete req.body.mobile;
 
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
-    if (profilePhotoFile)
-      req.body.profilePhoto = toUrl(profilePhotoFile.path);
+    const businessLogoFile = fileByField(req.files, "businessLogo");
 
     const updateData = {};
     if (!req.userRole) updateData.role = roleId;
+
+    // Root-level fields (name, email, profilePhoto)
+    const rootFields = ["name", "email", "profilePhoto"];
+    
+    // Handle profilePhoto upload
+    if (profilePhotoFile) {
+      updateData.profilePhoto = toUrl(profilePhotoFile.path);
+    }
+    
+    // Handle business logo for owners (goes into nested businessDetails)
+    if (businessLogoFile && profileField === "ownerProfile") {
+      updateData[`${profileField}.businessDetails.logo`] = toUrl(businessLogoFile.path);
+    }
+
+    // Separate root-level fields from profile-specific fields
     Object.keys(req.body).forEach((key) => {
-      updateData[`${profileField}.${key}`] = req.body[key];
+      const value = req.body[key];
+      
+      // Special handling for fullName -> name at root level
+      if (key === "fullName" && profileField !== "builderProfile") {
+        updateData.name = value;
+      }
+      // For builder, "name" goes to root
+      else if (key === "name" && profileField === "builderProfile") {
+        updateData.name = value;
+      }
+      // email and profilePhoto go to root
+      else if (key === "email") {
+        updateData.email = value;
+      }
+      // All other fields go into the nested profile
+      else {
+        updateData[`${profileField}.${key}`] = value;
+      }
     });
 
     const user = await SystemUser.findByIdAndUpdate(
@@ -387,13 +525,58 @@ const getMe = async (req, res) => {
       };
     }
 
+    // Check if profile is completed: mobile, name, and role must all be present
+    const profile = req.user.customerProfile || req.user.ownerProfile || req.user.brokerProfile || req.user.builderProfile;
+    const displayName = req.user.name || profile?.fullName || profile?.name || "";
+    const isProfileCompleted = !!(req.user.mobile && displayName && req.user.role);
+
+    // Check if user can list property (includes profile completion, role check, and credits check)
+    const LISTING_ALLOWED_ROLES = [
+      process.env.OWNER_ROLE_ID,
+      process.env.BROKER_ROLE_ID,
+      process.env.BUILDER_ROLE_ID,
+    ];
+    
+    let canListProperty = { canList: false, message: null };
+    
+    if (!isProfileCompleted) {
+      canListProperty = {
+        canList: false,
+        message: "Please complete your profile to list properties.",
+      };
+    } else if (!LISTING_ALLOWED_ROLES.includes(req.user.role?._id?.toString())) {
+      canListProperty = {
+        canList: false,
+        message: "Only Owners, Brokers, and Builders can list properties.",
+      };
+    } else if (!req.user.myPropertyListingAllowed && !hasListings) {
+      canListProperty = {
+        canList: false,
+        message: "You don't have permission to list properties.",
+      };
+    } else {
+      // Check credits (plan or free listing)
+      canListProperty = await checkCanListProperty(req.user._id);
+    }
+
     res.json({ 
       success: true, 
       data: { 
-        ...req.user.toObject(), 
+        _id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        mobile: req.user.mobile,
+        profilePhoto: req.user.profilePhoto,
+        role: req.user.role,
+        customerProfile: req.user.customerProfile,
+        ownerProfile: req.user.ownerProfile,
+        brokerProfile: req.user.brokerProfile,
+        builderProfile: req.user.builderProfile,
         coinsBalance: wallet?.currentBalance ?? 0, 
         activePlan,
         myPropertyListingAllowed: !!hasListings,
+        isProfileCompleted,
+        canListProperty,
       } 
     });
   } catch (err) {

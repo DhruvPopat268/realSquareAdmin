@@ -20,12 +20,76 @@ const formatIST = (iso: string) => {
   });
 };
 
+interface SystemUserRole {
+  _id: string;
+  name: string;
+  permissions: string[];
+  isActive: boolean;
+}
+
+interface ActivePlan {
+  name: string;
+  numberOfPropertiesGiven: number;
+  propertiesUsed: number;
+  expiryDate: string | null;
+}
+
 interface SystemUser {
-  _id: string; name: string; email: string; mobile: string;
-  role: { _id: string; name: string; permissions: string[]; isActive: boolean } | string;
-  status: string; engineerId?: string; profilePhoto?: string;
-  lastLoginAt: string | null;
-  lastActivityAt: string | null;
+  _id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  role: SystemUserRole | null;
+  isSuperAdmin: boolean;
+  isActive: boolean;
+  profilePhoto?: string;
+  autoApprovalProperties?: boolean;
+  freeListedProperties?: number;
+  lastLogin: string | null;
+  lastActivity: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // User-specific profiles
+  ownerProfile?: {
+    businessDetails?: {
+      name?: string;
+      type?: string;
+      gstNumber?: string;
+      email?: string;
+      mobile?: string;
+      website?: string;
+      logo?: string;
+    };
+  };
+  brokerProfile?: {
+    yearsOfExperience?: number;
+    agencyName?: string;
+    bio?: string;
+  };
+  builderProfile?: {
+    gstNumber?: string;
+    cinNumber?: string;
+    foundedYear?: number;
+    totalProjectsDelivered?: number;
+    location?: {
+      name?: string;
+      latitude?: number;
+      longitude?: number;
+    };
+  };
+  customerProfile?: {
+    location?: {
+      name?: string;
+      latitude?: number;
+      longitude?: number;
+    };
+    bio?: string;
+    verified?: boolean;
+  };
+  // Additional fields from /me endpoint
+  coinsBalance?: number;
+  activePlan?: ActivePlan | null;
+  myPropertyListingAllowed?: boolean;
 }
 
 type Section = "profile" | "security";
@@ -172,25 +236,62 @@ const ProfilePage = () => {
             <div>
               <p className="font-semibold text-sm">{user.name}</p>
               <p className="text-xs text-muted-foreground">
-                {typeof user.role === "object" 
-                  ? (user.role?.name === "Admin" ? "Administrator" : user.role?.name) 
-                  : (user.role === "Admin" ? "Administrator" : user.role)}
+                {user.role?.name || "No Role"}
               </p>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap justify-center">
-              <StatusBadge status={typeof user.role === "object" ? user.role?.name : user.role} />
-              <StatusBadge status={user.status} />
+              <StatusBadge status={user.isActive ? "Active" : "Inactive"} />
+              {user.isSuperAdmin && <StatusBadge status="Super Admin" />}
             </div>
-            {user.engineerId && <p className="text-xs text-muted-foreground">ID: {user.engineerId}</p>}
             <Separator className="my-1" />
             <div className="w-full space-y-1 text-left">
+              {user.coinsBalance !== undefined && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Coins Balance</span>
+                  <span className="font-medium">{user.coinsBalance.toLocaleString()}</span>
+                </div>
+              )}
+              {user.freeListedProperties !== undefined && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Free Listings</span>
+                  <span className="font-medium">{user.freeListedProperties}</span>
+                </div>
+              )}
+              {user.autoApprovalProperties !== undefined && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Auto Approval</span>
+                  <span className="font-medium">{user.autoApprovalProperties ? "Yes" : "No"}</span>
+                </div>
+              )}
+              {user.activePlan && (
+                <>
+                  <Separator className="my-1" />
+                  <div className="text-xs">
+                    <p className="text-muted-foreground mb-1">Active Plan</p>
+                    <p className="font-medium">{user.activePlan.name}</p>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-muted-foreground">Properties Used</span>
+                      <span className="font-medium">
+                        {user.activePlan.propertiesUsed} / {user.activePlan.numberOfPropertiesGiven === -1 ? "∞" : user.activePlan.numberOfPropertiesGiven}
+                      </span>
+                    </div>
+                    {user.activePlan.expiryDate && (
+                      <div className="flex justify-between mt-1">
+                        <span className="text-muted-foreground">Expires</span>
+                        <span className="font-medium">{formatIST(user.activePlan.expiryDate)}</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              <Separator className="my-1" />
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Last Login</span>
-                <span className="font-medium">{user.lastLoginAt ? formatIST(user.lastLoginAt) : "Never"}</span>
+                <span className="font-medium">{user.lastLogin ? formatIST(user.lastLogin) : "Never"}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Last Activity</span>
-                <span className="font-medium">{user.lastActivityAt ? formatIST(user.lastActivityAt) : "Never"}</span>
+                <span className="font-medium">{user.lastActivity ? formatIST(user.lastActivity) : "Never"}</span>
               </div>
             </div>
           </CardContent>

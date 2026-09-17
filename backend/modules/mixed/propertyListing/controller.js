@@ -116,6 +116,18 @@ const create = async (req, res) => {
   } = req.body;
 
   try {
+    // ── Profile completion check ──────────────────────────────────────────────
+    const userProfile = req.user.customerProfile || req.user.ownerProfile || req.user.brokerProfile || req.user.builderProfile;
+    const displayName = req.user.name || userProfile?.fullName || userProfile?.name || "";
+    const isProfileCompleted = !!(req.user.mobile && displayName && req.user.role);
+
+    if (!isProfileCompleted) {
+      return res.status(403).json({
+        success: false,
+        message: "Please complete your profile before listing properties. You need to fill in your name and other required details.",
+      });
+    }
+
     // ── Credit check & deduction ──────────────────────────────────────────────
     const validPlan = await findValidPlan(req.user._id);
 
