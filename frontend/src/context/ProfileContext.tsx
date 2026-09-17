@@ -4,6 +4,7 @@ import api from "@/lib/axiosInterceptor";
 export interface ProfileData {
   name: string;
   email: string;
+  mobile: string;
   role: string;
   profilePhoto?: string;
   permissions: string[];
@@ -32,10 +33,11 @@ export const ProfileProvider = ({ children }: { children: React.ReactNode }) => 
         const data = res.data.data;
         const roleObj = typeof data.role === "object" && data.role !== null ? data.role : null;
         setProfile({
-          name:         data.profile?.name  ?? "",
-          email:        data.profile?.email ?? "",
+          name:         data.name  ?? "",
+          email:        data.email ?? "",
+          mobile:       data.mobile ?? "",
           role:         roleObj?.name ?? "",
-          profilePhoto: data.profile?.profilePhoto,
+          profilePhoto: data.profilePhoto,
           permissions:  roleObj?.permissions ?? [],
           isSuperAdmin: data.isSuperAdmin ?? false,
           lastLogin:    data.lastLogin ?? null,

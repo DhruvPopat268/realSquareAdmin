@@ -2,7 +2,8 @@ const express = require("express");
 const {
   register, login, logout, getMe, sendOtp, forgotPassword, changePassword,
   getUsers, getUserById, updateUser, deleteUser,
-  getMyProfile, updateMyProfile, changeMyPassword,
+  getMyProfile, updateMyProfile, changeMyPassword, getRolesForSystemUsers,
+  getIncompleteProfiles, deleteIncompleteProfile,
 } = require("./controller");
 const {
   registerValidator, loginValidator, forgotPasswordValidator,
@@ -22,14 +23,19 @@ router.post("/forgot-password", forgotPasswordValidator, forgotPassword);
 router.post("/change-password", changePasswordValidator, protect, changePassword);
 
 // ── Own profile ───────────────────────────────────────────────────────────────
-router.get("/system-users/me",              protect, getMyProfile);
-router.patch("/system-users/me",            protect, updateMyProfile);
-router.patch("/system-users/me/change-password", protect, changeMyPassword);
+router.get("/me",                      protect, getMyProfile);
+router.patch("/me",                    protect, updateMyProfile);
+router.patch("/me/change-password",    protect, changeMyPassword);
 
 // ── System users CRUD (admin) ─────────────────────────────────────────────────
+router.get("/system-users/roles", protect, getRolesForSystemUsers);
 router.get("/system-users",      protect, getUsers);
 router.get("/system-users/:id",  protect, getUserById);
 router.put("/system-users/:id",  protect, updateUserValidator, updateUser);
 router.delete("/system-users/:id", protect, deleteUser);
+
+// ── Incomplete Profiles ────────────────────────────────────────────────────────
+router.get("/incomplete-profiles",        protect, getIncompleteProfiles);
+router.delete("/incomplete-profiles/:id", protect, deleteIncompleteProfile);
 
 module.exports = router;

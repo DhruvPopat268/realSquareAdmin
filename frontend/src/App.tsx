@@ -21,6 +21,7 @@ import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
 import EnquiriesPage from "./pages/EnquiriesPage";
 import SystemUsersPage from "./pages/SystemUsersPage";
 import SystemUsersRolesPage from "./pages/SystemUsersRolesPage";
+import IncompleteProfilesPage from "./pages/IncompleteProfilesPage";
 import CustomersPage from "./pages/CustomersPage";
 import OwnersPage from "./pages/OwnersPage";
 import AgentsBrokersPage from "./pages/AgentsBrokersPage";
@@ -80,8 +81,9 @@ const App = () => (
             <Route path="/lead-enquiry-coins-config" element={<LeadEnquiryCoinsConfigPage />} />
 
             {/* System Users */}
-            <Route path="/system-users-roles" element={<SystemUsersRolesPage />} />
-            <Route path="/system-users" element={<SystemUsersPage />} />
+            <Route path="/system-users-roles"  element={<SystemUsersRolesPage />} />
+            <Route path="/system-users"        element={<SystemUsersPage />} />
+            <Route path="/incomplete-profiles" element={<IncompleteProfilesPage />} />
 
             {/* People Management */}
             <Route path="/customers"          element={<CustomersPage />} />

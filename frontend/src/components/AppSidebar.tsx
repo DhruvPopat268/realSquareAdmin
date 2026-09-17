@@ -143,72 +143,17 @@ const sections = [
     ],
   },
   {
-    title: "Customers Management",
+    title: "Users Management",
     items: [
-      { type: "link", to: "/customers", icon: Users, label: "Customers" },
+      { type: "link", to: "/incomplete-profiles", icon: Users, label: "Incomplete Profiles" },
+      { type: "link", to: "/customers",           icon: Users,      label: "Customers" },
+      { type: "link", to: "/owners",              icon: UserCheck,  label: "Owners" },
+      { type: "link", to: "/agents-brokers",      icon: BookUser,   label: "Agents / Brokers" },
+      { type: "link", to: "/builders-developers", icon: Building2,  label: "Builders / Developers" },
+      { type: "link", to: "/system-users-roles",  icon: ShieldCheck, label: "System User Roles" },
+      { type: "link", to: "/system-users",        icon: UserCog,    label: "System Users" },
     ],
   },
-  {
-    title: "Owners Management",
-    items: [
-      { type: "link", to: "/owners", icon: UserCheck, label: "Owners" },
-    ],
-  },
-  {
-    title: "Agent / Broker Management",
-    items: [
-      { type: "link", to: "/agents-brokers", icon: BookUser, label: "Agents / Brokers" },
-    ],
-  },
-  {
-    title: "Builder / Developer Management",
-    items: [
-      { type: "link", to: "/builders-developers", icon: Building2, label: "Builders / Developers" },
-    ],
-  },
-  {
-    title: "User Management",
-    items: [
-      { type: "link", to: "/system-users-roles", icon: ShieldCheck, label: "System User Roles" },
-      { type: "link", to: "/system-users",       icon: UserCog,    label: "System Users" },
-    ],
-  },
-  // {
-  //   title: "People",
-  //   items: [
-  //     { type: "link", to: "/contacts",   icon: BookUser,     label: "Contacts & Orgs" },
-  //     { type: "link", to: "/brokers",    icon: UserCheck,    label: "Brokers & Agents" },
-  //     { type: "link", to: "/owners",     icon: ShieldCheck,  label: "Property Owners" },
-  //   ],
-  // },
-  // {
-  //   title: "Marketing",
-  //   items: [
-  //     { type: "link", to: "/campaigns",  icon: Megaphone,    label: "Campaigns" },
-  //     { type: "link", to: "/calendar",   icon: Calendar,     label: "Calendar" },
-  //   ],
-  // },
-  // {
-  //   title: "Reports",
-  //   items: [
-  //     { type: "link", to: "/reports/sales",      icon: BarChart2,   label: "Sales Reports" },
-  //     { type: "link", to: "/reports/performance",icon: TrendingUp,  label: "Agent Performance" },
-  //   ],
-  // },
-  // {
-  //   title: "Documents",
-  //   items: [
-  //     { type: "link", to: "/documents",  icon: File,         label: "Documents" },
-  //     { type: "link", to: "/contracts",  icon: FileText,     label: "Contracts" },
-  //   ],
-  // },
-];
-
-const bottomLinks = [
-  // { to: "/notifications", icon: Bell,     label: "Notifications" },
-  // { to: "/maintenance",   icon: Wrench,   label: "Maintenance" },
-  // { to: "/settings",      icon: Settings, label: "Settings" },
-  // { to: "/help",          icon: HelpCircle, label: "Help" },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -256,18 +201,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </div>
         ))}
-
-        {/* Bottom */}
-        <div className="mt-auto">
-          {!collapsed && <p className={label}>System</p>}
-          <SidebarMenu className="px-2 pb-4 space-y-0.5">
-            {bottomLinks.map((l) => (
-              <SLink key={l.to} to={l.to} icon={l.icon} collapsed={collapsed}>
-                {l.label}
-              </SLink>
-            ))}
-          </SidebarMenu>
-        </div>
       </SidebarContent>
     </Sidebar>
   );

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, Plus, Pencil, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { systemUsersService, type SystemUser } from "@/services/systemUsersService";
-import { systemUsersRolesService, type SystemUserRole } from "@/services/systemUsersRolesService";
+import { type SystemUserRole } from "@/services/systemUsersRolesService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
 
@@ -41,7 +41,7 @@ function fmtDate(dateStr: string) {
 }
 
 const INIT_FORM = {
-  name: "", email: "", password: "", phone: "",
+  name: "", email: "", password: "", mobile: "",
   roleId: "", isActive: true, isSuperAdmin: false,
 };
 
@@ -82,18 +82,11 @@ export default function SystemUsersPage() {
     return p;
   }
 
-  const APP_ROLE_IDS = new Set([
-    import.meta.env.VITE_OWNER_ROLE,
-    import.meta.env.VITE_BROKER_ROLE,
-    import.meta.env.VITE_BUILDER_ROLE,
-    import.meta.env.VITE_CUSTOMER_ROLE,
-  ].filter(Boolean));
-
   async function fetchUsers(sf = statusFilter, rid = roleFilter?.id, q = search) {
     setLoading(true);
     try {
       const res = await systemUsersService.getAll(buildParams(sf, rid, q));
-      setData(res.data.data.filter((u) => !u.role || !APP_ROLE_IDS.has(u.role._id)));
+      setData(res.data.data);
     } catch (err: any) {
       toast({ variant: "destructive", title: extractMsg(err, "Failed to load users") });
     } finally {
@@ -102,7 +95,7 @@ export default function SystemUsersPage() {
   }
 
   useEffect(() => {
-    systemUsersRolesService.getAll({ isActive: "true" })
+    systemUsersService.getRolesForSystemUsers()
       .then((r) => setRoles(r.data.data))
       .catch(() => {});
     fetchUsers("All", undefined, "");
@@ -137,9 +130,9 @@ export default function SystemUsersPage() {
   function openEdit(u: SystemUser) {
     setEditTarget(u);
     setForm({
-      name:         u.profile?.name || u.profile?.fullName || "",
-      email:        u.profile?.email || "",
-      phone:        u.profile?.phone || "",
+      name:         u.name || "",
+      email:        u.email || "",
+      mobile:       u.mobile || "",
       password:     "",
       roleId:       u.role?._id || "",
       isActive:     u.isActive,
@@ -165,11 +158,9 @@ export default function SystemUsersPage() {
     try {
       if (editTarget) {
         const payload: any = {
-          profile: {
-            name:  form.name.trim(),
-            email: form.email.trim(),
-            ...(form.phone.trim() && { phone: form.phone.trim() }),
-          },
+          name:  form.name.trim(),
+          email: form.email.trim(),
+          mobile: form.mobile.trim(),
           role:         form.roleId || null,
           isActive:     form.isActive,
           isSuperAdmin: form.isSuperAdmin,
@@ -179,12 +170,10 @@ export default function SystemUsersPage() {
         toast({ title: "User updated successfully" });
       } else {
         const payload: any = {
-          profile: {
-            name:     form.name.trim(),
-            email:    form.email.trim(),
-            password: form.password,
-            ...(form.phone.trim() && { phone: form.phone.trim() }),
-          },
+          name:     form.name.trim(),
+          email:    form.email.trim(),
+          mobile:   form.mobile.trim(),
+          profile:  { password: form.password },
           role:         form.roleId || undefined,
           isActive:     form.isActive,
           isSuperAdmin: form.isSuperAdmin,
@@ -197,7 +186,7 @@ export default function SystemUsersPage() {
     } catch (err: any) {
       const msg = extractMsg(err, "Something went wrong");
       if (msg.toLowerCase().includes("email already")) {
-        setErrors((e) => ({ ...e, email: "Email already in use" }));  // keep same key for form field
+        setErrors((e) => ({ ...e, email: "Email already in use" }));
       } else {
         toast({ variant: "destructive", title: msg });
       }
@@ -334,9 +323,9 @@ export default function SystemUsersPage() {
                 </td>
                 <td className="px-4 py-3 w-12 text-muted-foreground text-xs">{(page - 1) * pageSize + i + 1}</td>
                 <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">
-                  {u.customerProfile?.fullName || u.ownerProfile?.fullName || u.brokerProfile?.fullName || u.builderProfile?.name || u.profile?.name || "—"}
+                  {u.name || "—"}
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{u.profile?.email || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{u.email || "—"}</td>
                 <td className="px-4 py-3">
                   {u.role
                     ? <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{u.role.name}</span>
@@ -445,10 +434,10 @@ export default function SystemUsersPage() {
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
             </div>
 
-            {/* Phone */}
+            {/* Mobile */}
             <div className="space-y-1.5">
-              <Label>Phone</Label>
-              <Input placeholder="+91 XXXXX XXXXX" value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+              <Label>Mobile</Label>
+              <Input placeholder="+91 XXXXX XXXXX" value={form.mobile} onChange={(e) => setField("mobile", e.target.value)} />
             </div>
             {/* Password — only on create */}
             {!editTarget && (
@@ -521,7 +510,7 @@ export default function SystemUsersPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete User</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground py-2">
-            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.profile?.name || deleteTarget?.profile?.fullName}</span>? This action cannot be undone.
+            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name}</span>? This action cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>

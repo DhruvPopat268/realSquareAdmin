@@ -5,6 +5,7 @@ const { validationResult } = require("express-validator");
 const SystemUser        = require("../../../modules/systemUsers.model");
 const SystemUserSession = require("./session.model");
 const SystemUserOtp     = require("./otp.model");
+const SystemUserRole    = require("../systemUsersRoles/model");
 const { sendEmail }     = require("../../../utils/emailService");
 
 const POPULATE_ROLE    = "name permissions isActive";
@@ -55,15 +56,23 @@ const register = async (req, res) => {
     return res.status(400).json({ success: false, message });
   }
 
-  const { name, email, password, role, isSuperAdmin } = req.body;
+  const { name, email, mobile, profile, role, isSuperAdmin } = req.body;
+  const password = profile?.password;
 
   try {
-    const exists = await SystemUser.findOne({ "profile.email": email });
+    if (!name || !email || !password || !mobile) {
+      return res.status(400).json({ success: false, message: "name, email, mobile, and password are required" });
+    }
+
+    const exists = await SystemUser.findOne({ email });
     if (exists)
       return res.status(409).json({ success: false, message: "Email already registered" });
 
     const admin = await SystemUser.create({
-      profile:      { name, email, password },
+      name,
+      email,
+      mobile,
+      profile:      { password },
       role:         role || undefined,
       isSuperAdmin: isSuperAdmin ?? false,
     });
@@ -73,8 +82,9 @@ const register = async (req, res) => {
       success: true,
       data: {
         userId:       admin._id,
-        name:         admin.profile.name,
-        email:        admin.profile.email,
+        name:         admin.name,
+        email:        admin.email,
+        mobile:       admin.mobile,
         role:         admin.role,
         isSuperAdmin: admin.isSuperAdmin,
       },
@@ -99,7 +109,7 @@ const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const admin = await SystemUser.findOne({ "profile.email": email }).populate("role", "name permissions isActive");
+    const admin = await SystemUser.findOne({ email }).populate("role", "name permissions isActive");
     if (!admin || !(await admin.matchPassword(password)))
       return res.status(401).json({ success: false, message: "Invalid email or password" });
 
@@ -126,8 +136,9 @@ const login = async (req, res) => {
       success: true,
       data: {
         userId:       admin._id,
-        name:         admin.profile.name,
-        email:        admin.profile.email,
+        name:         admin.name,
+        email:        admin.email,
+        mobile:       admin.mobile,
         role:         admin.role,
         isSuperAdmin: admin.isSuperAdmin,
       },
@@ -162,7 +173,7 @@ const sendOtp = async (req, res) => {
     return res.status(400).json({ success: false, message: "Email is required" });
 
   try {
-    const admin = await SystemUser.findOne({ "profile.email": email });
+    const admin = await SystemUser.findOne({ email });
     if (!admin)
       return res.status(404).json({ success: false, message: "No account found with this email" });
 
@@ -175,7 +186,7 @@ const sendOtp = async (req, res) => {
     await SystemUserOtp.create({ userId: admin._id, otp });
 
     await sendEmail({
-      to:           admin.profile.email,
+      to:           admin.email,
       subject:      "Your RealSquare Password Reset Code",
       templatePath: TEMPLATES.forgotPassword,
       variables:    { OTP: otp },
@@ -218,12 +229,12 @@ const forgotPassword = async (req, res) => {
     await SystemUserSession.deleteMany({ userId: admin._id });
 
     await sendEmail({
-      to:           admin.profile.email,
+      to:           admin.email,
       subject:      "Your RealSquare Password Has Been Changed",
       templatePath: TEMPLATES.passwordChanged,
       variables: {
-        NAME:       admin.profile.name,
-        EMAIL:      admin.profile.email,
+        NAME:       admin.name,
+        EMAIL:      admin.email,
         CHANGED_AT: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
         LOGIN_URL:  process.env.CLIENT_URL || "http://localhost:8080/login",
       },
@@ -269,12 +280,12 @@ const changePassword = async (req, res) => {
     await SystemUserSession.deleteMany({ userId: admin._id, token: { $ne: currentToken } });
 
     await sendEmail({
-      to:           admin.profile.email,
+      to:           admin.email,
       subject:      "Your RealSquare Password Has Been Changed",
       templatePath: TEMPLATES.passwordChanged,
       variables: {
-        NAME:       admin.profile.name,
-        EMAIL:      admin.profile.email,
+        NAME:       admin.name,
+        EMAIL:      admin.email,
         CHANGED_AT: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
         LOGIN_URL:  process.env.CLIENT_URL || "http://localhost:8080/login",
       },
@@ -289,16 +300,34 @@ const changePassword = async (req, res) => {
 // ── Get All System Users ──────────────────────────────────────────────────────
 const getUsers = async (req, res) => {
   try {
-    const filter = {};
-    if (req.query.isActive === "true")  filter.isActive = true;
-    if (req.query.isActive === "false") filter.isActive = false;
-    if (req.query.role)                filter.role = req.query.role;
+    // Excluded role IDs for app users (not panel/admin users)
+    const excludedRoleIds = [
+      process.env.VITE_OWNER_ROLE || process.env.OWNER_ROLE_ID,
+      process.env.VITE_BROKER_ROLE || process.env.BROKER_ROLE_ID,
+      process.env.VITE_BUILDER_ROLE || process.env.BUILDER_ROLE_ID,
+      process.env.VITE_CUSTOMER_ROLE || process.env.CUSTOMER_ROLE_ID,
+    ].filter(Boolean);
+
+    const filter = {
+      $and: [
+        {
+          role: { $nin: excludedRoleIds, $ne: null }  // Only users with panel/admin roles (not null, not app roles)
+        }
+      ]
+    };
+
+    if (req.query.isActive === "true")  filter.$and.push({ isActive: true });
+    if (req.query.isActive === "false") filter.$and.push({ isActive: false });
+    if (req.query.role)                 filter.$and.push({ role: req.query.role });
+    
     if (req.query.search) {
-      filter.$or = [
-        { "profile.name":  new RegExp(req.query.search.trim(), "i") },
-        { "profile.email": new RegExp(req.query.search.trim(), "i") },
-        { "profile.phone": new RegExp(req.query.search.trim(), "i") },
-      ];
+      filter.$and.push({
+        $or: [
+          { name:   new RegExp(req.query.search.trim(), "i") },
+          { email:  new RegExp(req.query.search.trim(), "i") },
+          { mobile: new RegExp(req.query.search.trim(), "i") },
+        ]
+      });
     }
 
     const users = await SystemUser.find(filter)
@@ -306,7 +335,7 @@ const getUsers = async (req, res) => {
       .populate("role", POPULATE_ROLE)
       .sort({ createdAt: -1 });
 
-    res.json({ success: true, data: users.map(normalizeProfile) });
+    res.json({ success: true, data: users });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -322,7 +351,7 @@ const getUserById = async (req, res) => {
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    res.json({ success: true, data: normalizeProfile(user) });
+    res.json({ success: true, data: user });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -341,8 +370,8 @@ const updateUser = async (req, res) => {
   }
 
   try {
-    if (req.body.profile?.email) {
-      const exists = await SystemUser.findOne({ "profile.email": req.body.profile.email, _id: { $ne: req.params.id } });
+    if (req.body.email) {
+      const exists = await SystemUser.findOne({ email: req.body.email, _id: { $ne: req.params.id } });
       if (exists)
         return res.status(409).json({ success: false, message: "Email already in use" });
     }
@@ -400,8 +429,8 @@ const updateMyProfile = async (req, res) => {
     delete req.body.isSuperAdmin;
     if (req.body.profile) delete req.body.profile.password;
 
-    if (req.body.profile?.email) {
-      const exists = await SystemUser.findOne({ "profile.email": req.body.profile.email, _id: { $ne: req.user._id } });
+    if (req.body.email) {
+      const exists = await SystemUser.findOne({ email: req.body.email, _id: { $ne: req.user._id } });
       if (exists)
         return res.status(409).json({ success: false, message: "Email already in use" });
     }
@@ -449,8 +478,60 @@ const changeMyPassword = async (req, res) => {
   }
 };
 
+// ── Get Roles for System Users (excluding app roles) ──────────────────────────
+const getRolesForSystemUsers = async (req, res) => {
+  try {
+    const excludedRoleIds = [
+      process.env.VITE_OWNER_ROLE || process.env.OWNER_ROLE_ID,
+      process.env.VITE_BROKER_ROLE || process.env.BROKER_ROLE_ID,
+      process.env.VITE_BUILDER_ROLE || process.env.BUILDER_ROLE_ID,
+      process.env.VITE_CUSTOMER_ROLE || process.env.CUSTOMER_ROLE_ID,
+    ].filter(Boolean);
+
+    const roles = await SystemUserRole.find({
+      isActive: true,
+      _id: { $nin: excludedRoleIds }
+    }).select("_id name permissions isActive");
+
+    res.json({ success: true, data: roles });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Get Incomplete Profiles (users without roles) ─────────────────────────────
+const getIncompleteProfiles = async (req, res) => {
+  try {
+    const users = await SystemUser.find({
+      role: { $eq: null }  // Users with no role assigned
+    })
+      .select("_id name mobile createdAt updatedAt")
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Delete Incomplete Profile ──────────────────────────────────────────────────
+const deleteIncompleteProfile = async (req, res) => {
+  try {
+    const user = await SystemUser.findByIdAndDelete(req.params.id);
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+
+    await SystemUserSession.deleteMany({ userId: req.params.id });
+
+    res.json({ success: true, message: "Profile deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   register, login, logout, getMe, sendOtp, forgotPassword, changePassword,
   getUsers, getUserById, updateUser, deleteUser,
-  getMyProfile, updateMyProfile, changeMyPassword,
+  getMyProfile, updateMyProfile, changeMyPassword, getRolesForSystemUsers,
+  getIncompleteProfiles, deleteIncompleteProfile,
 };
