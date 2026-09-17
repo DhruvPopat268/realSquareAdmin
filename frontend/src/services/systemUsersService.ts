@@ -28,8 +28,8 @@ export interface ActiveUser {
 }
 
 export const systemUsersService = {
-  getAll:  (params?: Record<string, string>) =>
-    api.get<{ success: boolean; data: SystemUser[] }>("/admin/auth/system-users", { params }),
+  getAll:  (params?: Record<string, string | number>) =>
+    api.get<{ success: boolean; data: SystemUser[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/auth/system-users", { params }),
   getById: (id: string) =>
     api.get<{ success: boolean; data: SystemUser }>(`/admin/auth/system-users/${id}`),
   create:  (payload: { name: string; email: string; mobile: string; profile: { password: string }; role?: string; isSuperAdmin?: boolean; isActive?: boolean }) =>
@@ -40,8 +40,8 @@ export const systemUsersService = {
     api.delete(`/admin/auth/system-users/${id}`),
   getRolesForSystemUsers: () =>
     api.get<{ success: boolean; data: SystemUserRole[] }>("/admin/auth/system-users/roles"),
-  getIncompleteProfiles: () =>
-    api.get<{ success: boolean; data: Array<{ _id: string; name?: string; mobile: string; createdAt: string; updatedAt: string }> }>("/admin/auth/incomplete-profiles"),
+  getIncompleteProfiles: (params?: Record<string, string | number>) =>
+    api.get<{ success: boolean; data: Array<{ _id: string; name?: string; mobile: string; createdAt: string; updatedAt: string }>; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/auth/incomplete-profiles", { params }),
   deleteIncompleteProfile: (id: string) =>
     api.delete(`/admin/auth/incomplete-profiles/${id}`),
   getActiveUsers: () =>

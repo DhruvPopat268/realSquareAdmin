@@ -64,9 +64,18 @@ const register = async (req, res) => {
       return res.status(400).json({ success: false, message: "name, email, mobile, and password are required" });
     }
 
-    const exists = await SystemUser.findOne({ email });
-    if (exists)
+    // Validate mobile format (10 digits)
+    if (!/^[0-9]{10}$/.test(mobile)) {
+      return res.status(400).json({ success: false, message: "Mobile must be exactly 10 digits" });
+    }
+
+    const emailExists = await SystemUser.findOne({ email });
+    if (emailExists)
       return res.status(409).json({ success: false, message: "Email already registered" });
+
+    const mobileExists = await SystemUser.findOne({ mobile });
+    if (mobileExists)
+      return res.status(409).json({ success: false, message: "Mobile already registered" });
 
     const admin = await SystemUser.create({
       name,
@@ -330,12 +339,31 @@ const getUsers = async (req, res) => {
       });
     }
 
-    const users = await SystemUser.find(filter)
-      .select(EXCLUDE_PASSWORD)
-      .populate("role", POPULATE_ROLE)
-      .sort({ createdAt: -1 });
+    // Pagination
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 10));
+    const skip  = (page - 1) * limit;
 
-    res.json({ success: true, data: users });
+    const [users, total] = await Promise.all([
+      SystemUser.find(filter)
+        .select(EXCLUDE_PASSWORD)
+        .populate("role", POPULATE_ROLE)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SystemUser.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -370,22 +398,42 @@ const updateUser = async (req, res) => {
   }
 
   try {
+    const adminRoleId = process.env.ADMIN_ROLE_ID;
+    const user = await SystemUser.findById(req.params.id);
+    
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+
+    // Don't allow isActive or role update for admin role
+    if (user.role && user.role.toString() === adminRoleId) {
+      delete req.body.isActive;
+      delete req.body.role;
+    }
+
+    // Validate mobile format if provided (10 digits)
+    if (req.body.mobile && !/^[0-9]{10}$/.test(req.body.mobile)) {
+      return res.status(400).json({ success: false, message: "Mobile must be exactly 10 digits" });
+    }
+
     if (req.body.email) {
       const exists = await SystemUser.findOne({ email: req.body.email, _id: { $ne: req.params.id } });
       if (exists)
         return res.status(409).json({ success: false, message: "Email already in use" });
     }
 
-    const user = await SystemUser.findByIdAndUpdate(
+    if (req.body.mobile) {
+      const exists = await SystemUser.findOne({ mobile: req.body.mobile, _id: { $ne: req.params.id } });
+      if (exists)
+        return res.status(409).json({ success: false, message: "Mobile already in use" });
+    }
+
+    const updatedUser = await SystemUser.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
     ).select(EXCLUDE_PASSWORD).populate("role", POPULATE_ROLE);
 
-    if (!user)
-      return res.status(404).json({ success: false, message: "User not found" });
-
-    res.json({ success: true, data: user });
+    res.json({ success: true, data: updatedUser });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -502,13 +550,32 @@ const getRolesForSystemUsers = async (req, res) => {
 // ── Get Incomplete Profiles (users without roles) ─────────────────────────────
 const getIncompleteProfiles = async (req, res) => {
   try {
-    const users = await SystemUser.find({
-      role: { $eq: null }  // Users with no role assigned
-    })
-      .select("_id name mobile createdAt updatedAt")
-      .sort({ createdAt: -1 });
+    const filter = { role: { $eq: null } };  // Users with no role assigned
 
-    res.json({ success: true, data: users });
+    // Pagination
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 10));
+    const skip  = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      SystemUser.find(filter)
+        .select("_id name mobile createdAt updatedAt")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SystemUser.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

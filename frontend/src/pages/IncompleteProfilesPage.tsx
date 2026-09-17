@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { systemUsersService } from "@/services/systemUsersService";
@@ -30,6 +31,8 @@ export default function IncompleteProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // delete dialog
   const [deleteTarget, setDeleteTarget] = useState<IncompleteProfile | null>(null);
@@ -39,8 +42,11 @@ export default function IncompleteProfilesPage() {
   async function fetchProfiles() {
     setLoading(true);
     try {
-      const res = await systemUsersService.getIncompleteProfiles();
+      const params = { page, limit: pageSize };
+      const res = await systemUsersService.getIncompleteProfiles(params);
       setData(res.data.data);
+      setTotal(res.data.pagination.total);
+      setTotalPages(res.data.pagination.totalPages);
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -53,10 +59,13 @@ export default function IncompleteProfilesPage() {
 
   useEffect(() => {
     fetchProfiles();
-  }, []);
+  }, [page, pageSize]);
 
-  const totalPages = Math.ceil(data.length / pageSize);
-  const paged = data.slice((page - 1) * pageSize, page * pageSize);
+  function goToPage(p: number) {
+    setPage(p);
+  }
+
+  const paged = data; // Already paginated from backend
 
   function openDelete(profile: IncompleteProfile) {
     setDeleteTarget(profile);
@@ -87,6 +96,20 @@ export default function IncompleteProfilesPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Incomplete Profiles</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Manage users with incomplete registration.</p>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Rows per page</span>
+          <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+            <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground">{total} record{total !== 1 ? "s" : ""}</p>
       </div>
 
       {/* Table */}
@@ -136,66 +159,16 @@ export default function IncompleteProfilesPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>
-            Showing {data.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, data.length)} of {data.length} entries
-          </span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-          >
-            {PAGE_SIZES.map((s) => (
-              <option key={s} value={s}>
-                {s} / page
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-            className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-            .reduce<(number | "...")[]>((acc, p, i, arr) => {
-              if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
-              acc.push(p);
-              return acc;
-            }, [])
-            .map((p, i) =>
-              p === "..." ? (
-                <span key={`e-${i}`} className="px-1">
-                  ···
-                </span>
-              ) : (
-                <button
-                  key={p}
-                  onClick={() => setPage(p as number)}
-                  className={`h-8 w-8 rounded-md border text-sm font-medium transition-colors ${
-                    page === p ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"
-                  }`}
-                >
-                  {p}
-                </button>
-              )
-            )}
-          <button
-            disabled={page === totalPages || totalPages === 0}
-            onClick={() => setPage((p) => p + 1)}
-            className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
+        <Button variant="outline" size="sm" disabled={page === 1} onClick={() => goToPage(page - 1)}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" disabled={page === totalPages || totalPages === 0} onClick={() => goToPage(page + 1)}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Delete Confirm Dialog */}

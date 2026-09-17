@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Pencil, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, X } from "lucide-react";
 import { systemUsersService, type SystemUser } from "@/services/systemUsersService";
 import { type SystemUserRole } from "@/services/systemUsersRolesService";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +60,13 @@ export default function SystemUsersPage() {
   const [statusFilter, setStatusFilter]   = useState<"All" | "Yes" | "No">("All");
   const [page, setPage]                   = useState(1);
   const [pageSize, setPageSize]           = useState(10);
+  const [total, setTotal]                 = useState(0);
+  const [totalPages, setTotalPages]       = useState(1);
+
+  // Pending filters (before Apply is clicked)
+  const [pendingSearch, setPendingSearch]               = useState("");
+  const [pendingRoleFilter, setPendingRoleFilter]       = useState<{ id: string; name: string } | null>(null);
+  const [pendingStatusFilter, setPendingStatusFilter]   = useState<"All" | "Yes" | "No">("All");
 
   // dialog
   const [open, setOpen]             = useState(false);
@@ -74,7 +82,10 @@ export default function SystemUsersPage() {
   const [deleting, setDeleting]         = useState(false);
 
   function buildParams(sf: "All" | "Yes" | "No", rid?: string, q?: string) {
-    const p: Record<string, string> = {};
+    const p: Record<string, string | number> = {
+      page: page,
+      limit: pageSize
+    };
     if (sf === "Yes") p.isActive = "true";
     if (sf === "No")  p.isActive = "false";
     if (rid)          p.role     = rid;
@@ -82,11 +93,13 @@ export default function SystemUsersPage() {
     return p;
   }
 
-  async function fetchUsers(sf = statusFilter, rid = roleFilter?.id, q = search) {
+  async function fetchUsers(sf: "All" | "Yes" | "No", rid?: string, q?: string) {
     setLoading(true);
     try {
       const res = await systemUsersService.getAll(buildParams(sf, rid, q));
       setData(res.data.data);
+      setTotal(res.data.pagination.total);
+      setTotalPages(res.data.pagination.totalPages);
     } catch (err: any) {
       toast({ variant: "destructive", title: extractMsg(err, "Failed to load users") });
     } finally {
@@ -99,19 +112,54 @@ export default function SystemUsersPage() {
       .then((r) => setRoles(r.data.data))
       .catch(() => {});
     fetchUsers("All", undefined, "");
+    // Initialize pending filters to match applied filters on mount
+    setPendingSearch("");
+    setPendingRoleFilter(null);
+    setPendingStatusFilter("All");
   }, []);
 
   // ── Filtered + paginated ───────────────────────────────────────────────────
-  const filtered = useMemo(() => data, [data]);
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const filtered = data; // Data already filtered and paginated from backend
+  const paged = data; // Already paginated from backend
 
   const hasFilters = search !== "" || statusFilter !== "All" || roleFilter !== null;
 
-  function clearFilters() {
-    setSearch(""); setStatusFilter("All"); setRoleFilter(null); setPage(1);
-    fetchUsers("All", undefined, "");
+  function applyFilters() {
+    setSearch(pendingSearch);
+    setRoleFilter(pendingRoleFilter);
+    setStatusFilter(pendingStatusFilter);
+    setPage(1);
+    fetchUsers(pendingStatusFilter, pendingRoleFilter?.id, pendingSearch);
   }
+
+  async function clearFilters() {
+    // Reset all states
+    const resetSearch = "";
+    const resetRole = null;
+    const resetStatus: "All" | "Yes" | "No" = "All";
+    
+    setPendingSearch(resetSearch);
+    setPendingRoleFilter(resetRole);
+    setPendingStatusFilter(resetStatus);
+    setSearch(resetSearch);
+    setRoleFilter(resetRole);
+    setStatusFilter(resetStatus);
+    setPage(1);
+    
+    // Fetch with explicit reset values
+    await fetchUsers(resetStatus, undefined, resetSearch);
+  }
+
+  function goToPage(p: number) {
+    setPage(p);
+  }
+
+  // Refetch when page or pageSize changes
+  useEffect(() => {
+    if (roles.length > 0) { // Only fetch if roles are loaded (not initial render)
+      fetchUsers(statusFilter, roleFilter?.id, search);
+    }
+  }, [page, pageSize]);
 
   // ── Dialog helpers ─────────────────────────────────────────────────────────
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -148,6 +196,9 @@ export default function SystemUsersPage() {
     if (!form.name.trim())  errs.name  = "Name is required";
     if (!form.email.trim()) errs.email = "Email is required";
     if (!editTarget && !form.password.trim()) errs.password = "Password is required";
+    if (form.mobile.trim() && !/^[0-9]{10}$/.test(form.mobile.trim())) {
+      errs.mobile = "Mobile must be exactly 10 digits";
+    }
     return errs;
   }
 
@@ -187,6 +238,10 @@ export default function SystemUsersPage() {
       const msg = extractMsg(err, "Something went wrong");
       if (msg.toLowerCase().includes("email already")) {
         setErrors((e) => ({ ...e, email: "Email already in use" }));
+      } else if (msg.toLowerCase().includes("mobile already")) {
+        setErrors((e) => ({ ...e, mobile: "Mobile already in use" }));
+      } else if (msg.toLowerCase().includes("mobile must be")) {
+        setErrors((e) => ({ ...e, mobile: msg }));
       } else {
         toast({ variant: "destructive", title: msg });
       }
@@ -238,33 +293,37 @@ export default function SystemUsersPage() {
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Rows per page</span>
+          <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+            <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground">{total} record{total !== 1 ? "s" : ""}</p>
+        <div className="flex-1" />
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search name, email, phone..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); fetchUsers(statusFilter, roleFilter?.id, e.target.value); }}
+            value={pendingSearch}
+            onChange={(e) => setPendingSearch(e.target.value)}
             className="pl-8 h-9 w-64 text-sm"
           />
         </div>
-        <div className="flex-1" />
-        <p className="text-sm text-muted-foreground">{filtered.length} user{filtered.length !== 1 ? "s" : ""}</p>
-        {hasFilters && (
-          <button onClick={clearFilters} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors underline underline-offset-2">
-            Clear all
-          </button>
-        )}
         {/* Role filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Role: {roleFilter ? roleFilter.name : "All"} <ChevronDown className="h-3.5 w-3.5" />
+              Role: {pendingRoleFilter ? pendingRoleFilter.name : "All"} <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-60 overflow-y-auto">
-            <DropdownMenuItem onClick={() => { setRoleFilter(null); setPage(1); fetchUsers(statusFilter, undefined, search); }}>All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPendingRoleFilter(null)}>All</DropdownMenuItem>
             {roles.map((r) => (
-              <DropdownMenuItem key={r._id} onClick={() => { setRoleFilter({ id: r._id, name: r.name }); setPage(1); fetchUsers(statusFilter, r._id, search); }}>
+              <DropdownMenuItem key={r._id} onClick={() => setPendingRoleFilter({ id: r._id, name: r.name })}>
                 {r.name}
               </DropdownMenuItem>
             ))}
@@ -274,15 +333,21 @@ export default function SystemUsersPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Is Active: {statusFilter} <ChevronDown className="h-3.5 w-3.5" />
+              Is Active: {pendingStatusFilter} <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => { setStatusFilter("All"); setPage(1); fetchUsers("All", roleFilter?.id, search); }}>All</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setStatusFilter("Yes"); setPage(1); fetchUsers("Yes", roleFilter?.id, search); }}>Yes</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setStatusFilter("No");  setPage(1); fetchUsers("No",  roleFilter?.id, search); }}>No</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPendingStatusFilter("All")}>All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPendingStatusFilter("Yes")}>Yes</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPendingStatusFilter("No")}>No</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
+        {hasFilters && (
+          <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={clearFilters}>
+            <X className="h-3.5 w-3.5" /> Clear
+          </Button>
+        )}
       </div>
 
       {/* Table */}
@@ -293,6 +358,7 @@ export default function SystemUsersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-20">Actions</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-12">#</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mobile</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Email</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
@@ -304,9 +370,9 @@ export default function SystemUsersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="py-16"><Spinner fullPage={false} size="md" label="Loading users..." /></td></tr>
+              <tr><td colSpan={10} className="py-16"><Spinner fullPage={false} size="md" label="Loading users..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={9} className="text-center text-muted-foreground py-16">No users found</td></tr>
+              <tr><td colSpan={10} className="text-center text-muted-foreground py-16">No users found</td></tr>
             ) : paged.map((u, i) => (
               <tr key={u._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-20">
@@ -325,6 +391,7 @@ export default function SystemUsersPage() {
                 <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">
                   {u.name || "—"}
                 </td>
+                <td className="px-4 py-3 text-foreground">{u.mobile || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{u.email || "—"}</td>
                 <td className="px-4 py-3">
                   {u.role
@@ -371,45 +438,16 @@ export default function SystemUsersPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>
-            Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} entries
-          </span>
-          <select
-            value={pageSize}
-            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-          >
-            {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
-          </select>
-        </div>
-        <div className="flex items-center gap-1">
-          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-            .reduce<(number | "...")[]>((acc, p, i, arr) => {
-              if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
-              acc.push(p);
-              return acc;
-            }, [])
-            .map((p, i) => p === "..." ? (
-              <span key={`e-${i}`} className="px-1">···</span>
-            ) : (
-              <button
-                key={p}
-                onClick={() => setPage(p as number)}
-                className={`h-8 w-8 rounded-md border text-sm font-medium transition-colors ${page === p ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}
-              >
-                {p}
-              </button>
-            ))}
-          <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage((p) => p + 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted">
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
+        <Button variant="outline" size="sm" disabled={page === 1} onClick={() => goToPage(page - 1)}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" disabled={page === totalPages || totalPages === 0} onClick={() => goToPage(page + 1)}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Create / Edit Dialog */}
@@ -438,6 +476,7 @@ export default function SystemUsersPage() {
             <div className="space-y-1.5">
               <Label>Mobile</Label>
               <Input placeholder="+91 XXXXX XXXXX" value={form.mobile} onChange={(e) => setField("mobile", e.target.value)} />
+              {errors.mobile && <p className="text-xs text-destructive">{errors.mobile}</p>}
             </div>
             {/* Password — only on create */}
             {!editTarget && (
@@ -463,12 +502,16 @@ export default function SystemUsersPage() {
               </div>
             )}
 
-            {/* Role */}
+            {/* Role — disabled for admin role in edit mode */}
             <div className="space-y-1.5">
               <Label>Role</Label>
-              <DropdownMenu>
+              <DropdownMenu disabled={editTarget && editTarget.role?._id === ADMIN_ROLE_ID}>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between font-normal">
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-between font-normal"
+                    disabled={editTarget && editTarget.role?._id === ADMIN_ROLE_ID}
+                  >
                     <span className={form.roleId ? "text-foreground" : "text-muted-foreground"}>
                       {form.roleId ? roles.find((r) => r._id === form.roleId)?.name : "Select a role"}
                     </span>
@@ -484,16 +527,18 @@ export default function SystemUsersPage() {
               </DropdownMenu>
             </div>
 
-            {/* Is Active */}
-            <div className="flex items-center justify-between">
-              <Label>Is Active</Label>
-              <div className="flex items-center gap-2">
-                <Switch checked={form.isActive} onCheckedChange={(v) => setField("isActive", v)} />
-                <span className={`text-xs font-medium ${form.isActive ? "text-green-600" : "text-muted-foreground"}`}>
-                  {form.isActive ? "Yes" : "No"}
-                </span>
+            {/* Is Active — not shown for admin role in edit mode */}
+            {!(editTarget && editTarget.role?._id === ADMIN_ROLE_ID) && (
+              <div className="flex items-center justify-between">
+                <Label>Is Active</Label>
+                <div className="flex items-center gap-2">
+                  <Switch checked={form.isActive} onCheckedChange={(v) => setField("isActive", v)} />
+                  <span className={`text-xs font-medium ${form.isActive ? "text-green-600" : "text-muted-foreground"}`}>
+                    {form.isActive ? "Yes" : "No"}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
           <DialogFooter>
