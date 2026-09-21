@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const PropertyListing = require("../../mixed/propertyListing/model");
+const SystemUserRole  = require("../systemUsersRoles/model");
 
 const LISTING_TYPE_SELL_ID = process.env.LISTING_TYPE_SELL_ID;
 const LISTING_TYPE_RENT_ID = process.env.LISTING_TYPE_RENT_ID;
@@ -10,12 +11,13 @@ const LISTING_TYPE_PG_ID   = process.env.LISTING_TYPE_PG_ID;
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const buildQuery = (reqQuery, listingTypeId = null) => {
-  const { search, status, categoryId, typeId, fromDate, toDate } = reqQuery;
+  const { search, status, categoryId, typeId, purposeId, roleId, userId, city, fromDate, toDate } = reqQuery;
   const query = {};
 
-  // Filter by listing type if provided
-  if (listingTypeId) {
-    query["listingType.id"] = new mongoose.Types.ObjectId(listingTypeId);
+  // Filter by listing type — prefer explicit listingTypeId arg, fallback to purposeId query param
+  const resolvedListingTypeId = listingTypeId || (purposeId && mongoose.isValidObjectId(purposeId) ? purposeId : null);
+  if (resolvedListingTypeId) {
+    query["listingType.id"] = new mongoose.Types.ObjectId(resolvedListingTypeId);
   }
 
   // Search by city, locality address, listedBy name, listedBy mobile
@@ -48,6 +50,22 @@ const buildQuery = (reqQuery, listingTypeId = null) => {
     query["propertyType.id"] = new mongoose.Types.ObjectId(typeId);
   }
 
+  // Filter by lister's role
+  if (roleId && mongoose.isValidObjectId(roleId)) {
+    query["listedBy.role.id"] = new mongoose.Types.ObjectId(roleId);
+  }
+
+  // Filter by lister (user)
+  if (userId && mongoose.isValidObjectId(userId)) {
+    query["listedBy.id"] = new mongoose.Types.ObjectId(userId);
+  }
+
+  // Filter by city
+  if (typeof city === "string") {
+    const c = city.trim().slice(0, 100);
+    if (c) query.cityName = { $regex: escapeRegex(c), $options: "i" };
+  }
+
   // Date range filter on createdAt
   if (fromDate || toDate) {
     query.createdAt = {};
@@ -77,11 +95,10 @@ const getPaginatedListings = async (req, res, listingTypeId = null) => {
 
     const query = buildQuery(req.query, listingTypeId);
 
-    // Base query for stats (without pagination filters from buildQuery)
-    const statsQuery = {};
-    if (listingTypeId) {
-      statsQuery["listingType.id"] = new mongoose.Types.ObjectId(listingTypeId);
-    }
+    // Stats query — same filters as main query but WITHOUT status
+    // so counts reflect all statuses under the current filter set
+    const { status: _omit, ...reqQueryWithoutStatus } = req.query;
+    const statsQuery = buildQuery(reqQueryWithoutStatus, listingTypeId);
 
     const [listings, total, stats] = await Promise.all([
       PropertyListing.find(query)
@@ -193,4 +210,23 @@ const getForRent = (req, res) => getPaginatedListings(req, res, LISTING_TYPE_REN
 // GET /admin/property-listings/for-pg — PG/Co-living listings only
 const getForPG = (req, res) => getPaginatedListings(req, res, LISTING_TYPE_PG_ID);
 
-module.exports = { getAll, getForSell, getForRent, getForPG };
+// GET /admin/property-listings/listing-user-roles — Owner, Broker, Builder, Customer roles only
+const getListingUserRoles = async (req, res) => {
+  try {
+    const ids = [
+      process.env.OWNER_ROLE_ID,
+      process.env.BROKER_ROLE_ID,
+      process.env.BUILDER_ROLE_ID,
+    ].filter(Boolean).filter(id => mongoose.isValidObjectId(id));
+
+    const roles = await SystemUserRole.find({ _id: { $in: ids } })
+      .select("name")
+      .lean();
+
+    res.json({ success: true, data: roles });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getAll, getForSell, getForRent, getForPG, getListingUserRoles };

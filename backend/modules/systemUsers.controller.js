@@ -474,19 +474,24 @@ const getActiveUsers = async (req, res) => {
       process.env.BUILDER_ROLE_ID,
     ];
 
-    const users = await SystemUser.find(
-      { role: { $in: allowedRoleIds } },
-      { mobile: 1, role: 1, ownerProfile: 1, brokerProfile: 1, builderProfile: 1 }
-    ).populate("role", "name").lean();
+    const filter = { role: { $in: allowedRoleIds } };
+
+    if (req.query.search) {
+      const s = req.query.search.trim().slice(0, 100);
+      if (s) filter.name = { $regex: s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    }
+
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+
+    const users = await SystemUser.find(filter, { mobile: 1, role: 1, name: 1 })
+      .populate("role", "name")
+      .limit(limit)
+      .lean();
 
     const data = users.map((u) => ({
-      _id:    u._id,
-      mobile: u.mobile,
-      name:
-        u.ownerProfile?.fullName ??
-        u.brokerProfile?.fullName ??
-        u.builderProfile?.name ??
-        null,
+      _id:      u._id,
+      mobile:   u.mobile,
+      name:     u.name ?? null,
       role:     u.role?._id,
       roleName: u.role?.name ?? null,
     }));

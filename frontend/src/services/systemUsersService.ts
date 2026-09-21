@@ -44,6 +44,6 @@ export const systemUsersService = {
     api.get<{ success: boolean; data: Array<{ _id: string; name?: string; mobile: string; createdAt: string; updatedAt: string }>; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/auth/incomplete-profiles", { params }),
   deleteIncompleteProfile: (id: string) =>
     api.delete(`/admin/auth/incomplete-profiles/${id}`),
-  getActiveUsers: () =>
-    api.get<{ success: boolean; data: ActiveUser[] }>("/system-users/active-users"),
+  getActiveUsers: (params?: Record<string, string>) =>
+    api.get<{ success: boolean; data: ActiveUser[] }>("/system-users/active-users", { params }),
 };

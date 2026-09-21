@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "@/lib/axiosInterceptor";
+import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -214,9 +215,11 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const [view, setView] = useState<"grid" | "list" | "map">("list");
 
   // ── Filter option lists from API ────────────────────────────────────────────
-  const [purposes, setPurposes]         = useState<FilterOption[]>([]);
-  const [categories, setCategories]     = useState<FilterOption[]>([]);
+  const [purposes, setPurposes]           = useState<FilterOption[]>([]);
+  const [categories, setCategories]       = useState<FilterOption[]>([]);
   const [propertyTypes, setPropertyTypes] = useState<FilterOption[]>([]);
+  const [roles, setRoles]                 = useState<FilterOption[]>([]);
+  const [activeUsers, setActiveUsers]     = useState<ActiveUser[]>([]);
 
   // ── Applied filters (sent to API on every fetch) ────────────────────────────
   const [purposeFilter, setPurposeFilter]   = useState("");  // _id
@@ -224,12 +227,19 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const [typeFilter, setTypeFilter]         = useState("");  // _id
   const [statusFilter, setStatusFilter]     = useState("");  // enum string
   const [listedByFilter, setListedByFilter] = useState(resolvedListedByType ?? "All");
+  const [roleIdFilter, setRoleIdFilter]     = useState("");  // _id
+  const [userIdFilter, setUserIdFilter]     = useState("");  // _id
+  const [cityFilter,   setCityFilter]       = useState("");  // string
 
   // ── Pending filters (staged until Apply is clicked) ─────────────────────────
   const [pendingPurpose,   setPendingPurpose]   = useState("");
   const [pendingCategory,  setPendingCategory]  = useState("");
   const [pendingType,      setPendingType]      = useState("");
   const [pendingStatus,    setPendingStatus]    = useState("");
+  const [pendingRoleId,    setPendingRoleId]    = useState("");
+  const [pendingUserId,    setPendingUserId]    = useState("");
+  const [pendingCity,      setPendingCity]      = useState("");
+  const [userSearch,       setUserSearch]       = useState("");
 
   // ── Listings API state ──────────────────────────────────────────────────────
   const [properties, setProperties] = useState<any[]>([]);
@@ -237,22 +247,44 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const [loading, setLoading]       = useState(true);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
 
-  // ── 1. Fetch purposes + categories on mount ─────────────────────────────────
+  // ── 1. Fetch purposes + categories + roles + active users on mount ──────────
   useEffect(() => {
     const load = async () => {
       try {
-        const [purRes, catRes] = await Promise.all([
+        const [purRes, catRes, rolesRes] = await Promise.all([
           api.get('/admin/property-purposes'),
           api.get('/admin/property-categories'),
+          api.get('/admin/property-listings/listing-user-roles'),
         ]);
-        if (purRes.data.success) setPurposes(purRes.data.data);
-        if (catRes.data.success) setCategories(catRes.data.data);
+        if (purRes.data.success)   setPurposes(purRes.data.data);
+        if (catRes.data.success)   setCategories(catRes.data.data);
+        if (rolesRes.data.success) setRoles(rolesRes.data.data);
       } catch (err) {
         console.error('Failed to fetch filter options:', err);
       }
     };
     load();
   }, []);
+
+  // ── Debounced user search ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userSearch.trim()) {
+      // reset to full list without debounce
+      systemUsersService.getActiveUsers()
+        .then((res) => { if (res.data.success) setActiveUsers(res.data.data); })
+        .catch(() => {});
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await systemUsersService.getActiveUsers({ search: userSearch.trim() });
+        if (res.data.success) setActiveUsers(res.data.data);
+      } catch (err) {
+        console.error('Failed to search users:', err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
 
   // ── 2. Fetch property types whenever applied category changes ───────────────
   useEffect(() => {
@@ -285,21 +317,12 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
         if (statusFilter)   params.append('status',     statusFilter);
         if (categoryFilter) params.append('categoryId', categoryFilter);
         if (typeFilter)     params.append('typeId',     typeFilter);
-        // purposeFilter selects the route rather than being a query param
-        // (backend already filters by listingType.id via the route)
+        if (purposeFilter)  params.append('purposeId',  purposeFilter);
+        if (roleIdFilter)   params.append('roleId',     roleIdFilter);
+        if (userIdFilter)   params.append('userId',     userIdFilter);
+        if (cityFilter)     params.append('city',       cityFilter);
 
-        let route = '/admin/property-listings';
-        if (purposeFilter) {
-          const match = purposes.find(p => p._id === purposeFilter);
-          if (match) {
-            const n = match.name.toLowerCase();
-            if      (n.includes('sell'))                          route = '/admin/property-listings/for-sell';
-            else if (n.includes('rent'))                          route = '/admin/property-listings/for-rent';
-            else if (n.includes('pg') || n.includes('co-living')) route = '/admin/property-listings/for-pg';
-          }
-        }
-
-        const response = await api.get(`${route}?${params.toString()}`);
+        const response = await api.get(`/admin/property-listings?${params.toString()}`);
         if (response.data.success) {
           setProperties(response.data.data.properties);
           setStats(response.data.data.stats);
@@ -313,21 +336,24 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
     };
 
     fetchProperties();
-  }, [pagination.page, pagination.limit, search, purposeFilter, categoryFilter, typeFilter, statusFilter, purposes]);
+  }, [pagination.page, pagination.limit, search, purposeFilter, categoryFilter, typeFilter, statusFilter, roleIdFilter, userIdFilter, cityFilter]);
 
-  const hasFilters = purposeFilter !== "" || categoryFilter !== "" || typeFilter !== "" || statusFilter !== "" || listedByFilter !== "All" || search !== "";
+  const hasFilters = purposeFilter !== "" || categoryFilter !== "" || typeFilter !== "" || statusFilter !== "" || listedByFilter !== "All" || search !== "" || roleIdFilter !== "" || userIdFilter !== "" || cityFilter !== "";
 
   function applyFilters() {
     setPurposeFilter(pendingPurpose);
     setCategoryFilter(pendingCategory);
     setTypeFilter(pendingType);
     setStatusFilter(pendingStatus);
+    setRoleIdFilter(pendingRoleId);
+    setUserIdFilter(pendingUserId);
+    setCityFilter(pendingCity);
     setPagination(prev => ({ ...prev, page: 1 }));
   }
 
   function clearAll() {
-    setPendingPurpose(""); setPendingCategory(""); setPendingType(""); setPendingStatus("");
-    setPurposeFilter(""); setCategoryFilter(""); setTypeFilter(""); setStatusFilter("");
+    setPendingPurpose(""); setPendingCategory(""); setPendingType(""); setPendingStatus(""); setPendingRoleId(""); setPendingUserId(""); setPendingCity("");
+    setPurposeFilter(""); setCategoryFilter(""); setTypeFilter(""); setStatusFilter(""); setRoleIdFilter(""); setUserIdFilter(""); setCityFilter("");
     setListedByFilter("All"); setSearch("");
     setPagination(prev => ({ ...prev, page: 1 }));
   }
@@ -510,18 +536,56 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex-1" />
 
-        {/* Listed By filter */}
+        {/* City filter */}
+        <input
+          value={pendingCity}
+          onChange={(e) => setPendingCity(e.target.value)}
+          placeholder="Filter by city..."
+          className="h-9 w-40 rounded-md border px-2.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+        />
+
+        {/* Role filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
-              {listedByFilter === "All" ? "All Listed By" : listedByFilter}
+              {pendingRoleId ? (roles.find(r => r._id === pendingRoleId)?.name ?? "All Roles") : "All Roles"}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {["All", "Owner", "Agent / Broker", "Builder / Developer"].map((t) => (
-              <DropdownMenuItem key={t} onClick={() => setListedByFilter(t)}>
-                {t === "All" ? "All Listed By" : t}
+            <DropdownMenuItem onClick={() => { setPendingRoleId(""); setPendingUserId(""); }}>All Roles</DropdownMenuItem>
+            {roles.map((r) => (
+              <DropdownMenuItem key={r._id} onClick={() => { setPendingRoleId(r._id); setPendingUserId(""); }}>
+                {r.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* User filter */}
+        <DropdownMenu onOpenChange={(open) => { if (!open) setUserSearch(""); }}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pendingUserId ? (activeUsers.find(u => u._id === pendingUserId)?.name ?? activeUsers.find(u => u._id === pendingUserId)?.mobile ?? "All Users") : "All Users"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <div className="px-2 py-1.5">
+              <input
+                autoFocus
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="Search by name..."
+                className="w-full rounded-md border px-2.5 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            <DropdownMenuItem onClick={() => setPendingUserId("")}>All Users</DropdownMenuItem>
+            {activeUsers.map((u) => (
+              <DropdownMenuItem key={u._id} onClick={() => setPendingUserId(u._id)}>
+                {u.name ?? u.mobile} — {u.roleName}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
