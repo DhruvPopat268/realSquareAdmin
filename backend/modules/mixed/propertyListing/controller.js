@@ -117,9 +117,7 @@ const create = async (req, res) => {
 
   try {
     // ── Profile completion check ──────────────────────────────────────────────
-    const userProfile = req.user.customerProfile || req.user.ownerProfile || req.user.brokerProfile || req.user.builderProfile;
-    const displayName = req.user.name || userProfile?.fullName || userProfile?.name || "";
-    const isProfileCompleted = !!(req.user.mobile && displayName && req.user.role);
+    const isProfileCompleted = !!(req.user.mobile && req.user.name && req.user.role);
 
     if (!isProfileCompleted) {
       return res.status(403).json({
@@ -184,14 +182,13 @@ const create = async (req, res) => {
     }
 
     // build denormalized listedBy from req.user
-    const u       = req.user;
-    const profile = u.ownerProfile || u.brokerProfile || u.builderProfile || u.profile || {};
+    const u = req.user;
     const listedByDoc = {
       id:           u._id,
-      name:         profile.fullName || profile.name,
-      mobile:       profile.mobile   || u.mobile,
-      email:        profile.email,
-      profilePhoto: profile.profilePhoto,
+      name:         u.name,
+      mobile:       u.mobile,
+      email:        u.email,
+      profilePhoto: u.profilePhoto,
       role: { id: u.role?._id, name: u.role?.name },
     };
 
