@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
 const PropertyListing = require("../../mixed/propertyListing/model");
-const SystemUserRole  = require("../systemUsersRoles/model");
+const SystemUserRole = require("../systemUsersRoles/model");
 
 const LISTING_TYPE_SELL_ID = process.env.LISTING_TYPE_SELL_ID;
 const LISTING_TYPE_RENT_ID = process.env.LISTING_TYPE_RENT_ID;
-const LISTING_TYPE_PG_ID   = process.env.LISTING_TYPE_PG_ID;
+const LISTING_TYPE_PG_ID = process.env.LISTING_TYPE_PG_ID;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,10 +26,10 @@ const buildQuery = (reqQuery, listingTypeId = null) => {
     if (s) {
       const escaped = escapeRegex(s);
       query.$or = [
-        { cityName:              { $regex: escaped, $options: "i" } },
-        { "locality.address":    { $regex: escaped, $options: "i" } },
-        { "listedBy.name":       { $regex: escaped, $options: "i" } },
-        { "listedBy.mobile":     { $regex: escaped, $options: "i" } },
+        { cityName: { $regex: escaped, $options: "i" } },
+        { "locality.address": { $regex: escaped, $options: "i" } },
+        { "listedBy.name": { $regex: escaped, $options: "i" } },
+        { "listedBy.mobile": { $regex: escaped, $options: "i" } },
       ];
     }
   }
@@ -89,9 +89,9 @@ const getPaginatedListings = async (req, res, listingTypeId = null) => {
   try {
     const { page = 1, limit = 10 } = req.query;
 
-    const pageNum  = Math.max(1, parseInt(page));
+    const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-    const skip     = (pageNum - 1) * limitNum;
+    const skip = (pageNum - 1) * limitNum;
 
     const query = buildQuery(req.query, listingTypeId);
 
@@ -102,7 +102,7 @@ const getPaginatedListings = async (req, res, listingTypeId = null) => {
 
     const [listings, total, stats] = await Promise.all([
       PropertyListing.find(query)
-        .select("category listingType propertyType cityName locality listedBy media.images sellInfo rentInfo pgDetails.rooms status createdAt updatedAt")
+        .select("category listingType propertyType cityName locality listedBy media.images sellInfo rentInfo pgDetails.rooms status approvedAt rejectedAt rejectedReasons createdAt updatedAt")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -142,7 +142,7 @@ const getPaginatedListings = async (req, res, listingTypeId = null) => {
     const processedListings = listings.map((listing) => {
       let sellPrice = null;
       let rentPrice = null;
-      let pgPrice   = null;
+      let pgPrice = null;
 
       // Sell listings
       if (listing.listingType?.id?.toString() === LISTING_TYPE_SELL_ID) {
@@ -230,4 +230,86 @@ const getListingUserRoles = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getById, getListingUserRoles };
+// PATCH /admin/property-listings/:id/approve
+const approve = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+    }
+
+    const listing = await PropertyListing.findOneAndUpdate(
+      { _id: req.params.id, status: "UnderReview" },
+      {
+        $set: {
+          status:          "Active",
+          approvedAt:      new Date(),
+          rejectedAt:      null,
+          rejectedReasons: [],
+        },
+      },
+      { new: true }
+    );
+
+    if (!listing) {
+      const exists = await PropertyListing.findById(req.params.id).select("status");
+      if (!exists) return res.status(404).json({ success: false, message: "Listing not found" });
+      return res.status(400).json({
+        success: false,
+        message: `Listing cannot be approved. Current status is '${exists.status}', expected 'UnderReview'`,
+      });
+    }
+
+    res.json({ success: true, message: "Listing approved successfully", data: { status: listing.status, approvedAt: listing.approvedAt } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PATCH /admin/property-listings/:id/reject
+const reject = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+    }
+
+    const { reasons } = req.body;
+
+    if (!Array.isArray(reasons) || reasons.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one rejection reason is required" });
+    }
+
+    const cleanedReasons = reasons.map((r) => (typeof r === "string" ? r.trim() : "")).filter(Boolean);
+
+    if (cleanedReasons.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one non-empty rejection reason is required" });
+    }
+
+    const listing = await PropertyListing.findOneAndUpdate(
+      { _id: req.params.id, status: "UnderReview" },
+      {
+        $set: {
+          status:          "Rejected",
+          rejectedAt:      new Date(),
+          rejectedReasons: cleanedReasons,
+          approvedAt:      null,
+        },
+      },
+      { new: true }
+    );
+
+    if (!listing) {
+      const exists = await PropertyListing.findById(req.params.id).select("status");
+      if (!exists) return res.status(404).json({ success: false, message: "Listing not found" });
+      return res.status(400).json({
+        success: false,
+        message: `Listing cannot be rejected. Current status is '${exists.status}', expected 'UnderReview'`,
+      });
+    }
+
+    res.json({ success: true, message: "Listing rejected successfully", data: { status: listing.status, rejectedAt: listing.rejectedAt, rejectedReasons: listing.rejectedReasons } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getAll, getById, getListingUserRoles, approve, reject };

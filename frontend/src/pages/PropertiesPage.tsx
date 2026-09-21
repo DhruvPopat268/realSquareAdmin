@@ -2,14 +2,19 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import api from "@/lib/axiosInterceptor";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
+import { propertyListingService } from "@/services/propertyListingService";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+import {
   ChevronDown, LayoutGrid, List, Map,
-  Bed, Eye, ChevronLeft, ChevronRight,
+  Bed, Eye, ChevronLeft, ChevronRight, CheckCircle, XCircle,
 } from "lucide-react";
 import { type ListingStatus } from "@/data/propertiesData";
 import PropertyMapView from "@/components/PropertyMapView";
@@ -136,7 +141,13 @@ function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
   );
 }
 
-function PropertyRow({ p, index, onView }: { p: any; index: number; onView: (id: string) => void }) {
+function PropertyRow({ p, index, onView, onApprove, onReject }: {
+  p: any;
+  index: number;
+  onView: (id: string) => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+}) {
   // Format date and time in IST
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -150,7 +161,7 @@ function PropertyRow({ p, index, onView }: { p: any; index: number; onView: (id:
 
   // Format price
   const formatPrice = (price: number | string) => {
-    if (typeof price === 'string') return price; // Already formatted range like "3000 - 8000"
+    if (typeof price === 'string') return price;
     if (!price) return '-';
     return `₹${price.toLocaleString('en-IN')}`;
   };
@@ -160,9 +171,19 @@ function PropertyRow({ p, index, onView }: { p: any; index: number; onView: (id:
       {/* Actions */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
-          <button onClick={() => onView(p._id)} className="p-1.5 rounded-md bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
+          <button onClick={() => onView(p._id)} className="p-1.5 rounded-md bg-green-50 text-green-600 hover:bg-green-100 transition-colors" title="View">
             <Eye className="h-3.5 w-3.5" />
           </button>
+          {p.status === "UnderReview" && (
+            <>
+              <button onClick={() => onApprove(p._id)} className="p-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" title="Approve">
+                <CheckCircle className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => onReject(p._id)} className="p-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Reject">
+                <XCircle className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
         </div>
       </td>
       
@@ -217,20 +238,51 @@ function PropertyRow({ p, index, onView }: { p: any; index: number; onView: (id:
           {p.status}
         </span>
       </td>
-      
+
+      {/* Rejected Reasons */}
+      <td className="px-4 py-3 text-xs max-w-[180px]">
+        {p.rejectedReasons?.length > 0 ? (
+          <ul className="space-y-0.5 list-disc list-inside">
+            {p.rejectedReasons.map((r: string, i: number) => (
+              <li key={i} className="text-red-500">{r}</li>
+            ))}
+          </ul>
+        ) : '-'}
+      </td>
+
       {/* Listed By */}
       <td className="px-4 py-3 text-xs">
         <p className="font-medium text-foreground">{p.listedBy?.name || '-'}</p>
         <p className="text-muted-foreground mt-0.5">{p.listedBy?.mobile || '-'}</p>
         <p className="text-muted-foreground">({p.listedBy?.role?.name || 'N/A'})</p>
       </td>
-      
+
+      {/* Approved At */}
+      <td className="px-4 py-3 text-xs">
+        {p.approvedAt ? (
+          <>
+            <p className="font-medium text-foreground">{formatDateTime(p.approvedAt).date}</p>
+            <p className="text-muted-foreground">{formatDateTime(p.approvedAt).time}</p>
+          </>
+        ) : <span className="text-muted-foreground">-</span>}
+      </td>
+
+      {/* Rejected At */}
+      <td className="px-4 py-3 text-xs">
+        {p.rejectedAt ? (
+          <>
+            <p className="font-medium text-foreground">{formatDateTime(p.rejectedAt).date}</p>
+            <p className="text-muted-foreground">{formatDateTime(p.rejectedAt).time}</p>
+          </>
+        ) : <span className="text-muted-foreground">-</span>}
+      </td>
+
       {/* Created At */}
       <td className="px-4 py-3 text-xs">
         <p className="font-medium text-foreground">{createdAt.date}</p>
         <p className="text-muted-foreground">{createdAt.time}</p>
       </td>
-      
+
       {/* Updated At */}
       <td className="px-4 py-3 text-xs">
         <p className="font-medium text-foreground">{updatedAt.date}</p>
@@ -412,6 +464,62 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
 
   const tableRef = useRef<HTMLDivElement>(null);
   const scrollingRef = useRef(false);
+
+  // ── Approve / Reject ────────────────────────────────────────────────────────
+  const [approveDialog, setApproveDialog] = useState<{ id: string } | null>(null);
+  const [approvingId, setApprovingId]     = useState<string | null>(null);
+  const [rejectDialog, setRejectDialog]   = useState<{ id: string } | null>(null);
+  const [rejectReasons, setRejectReasons] = useState<string[]>([]);
+  const [rejectInput, setRejectInput]     = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+
+  const handleRejectKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const trimmed = rejectInput.trim();
+      if (trimmed && !rejectReasons.includes(trimmed)) {
+        setRejectReasons((prev) => [...prev, trimmed]);
+      }
+      setRejectInput("");
+    }
+  };
+
+  const removeRejectReason = (index: number) => {
+    setRejectReasons((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRejectSubmit = async () => {
+    if (!rejectDialog) return;
+    if (rejectReasons.length === 0) { toast.error("Please add at least one rejection reason"); return; }
+    setRejectLoading(true);
+    try {
+      await propertyListingService.reject(rejectDialog.id, rejectReasons);
+      toast.success("Property rejected");
+      setProperties((prev) => prev.map((p) => p._id === rejectDialog.id ? { ...p, status: "Rejected", rejectedReasons: rejectReasons } : p));
+      setRejectDialog(null);
+      setRejectReasons([]);
+      setRejectInput("");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to reject property");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!approveDialog) return;
+    setApprovingId(approveDialog.id);
+    try {
+      await propertyListingService.approve(approveDialog.id);
+      toast.success("Property approved successfully");
+      setProperties((prev) => prev.map((p) => p._id === approveDialog.id ? { ...p, status: "Active" } : p));
+      setApproveDialog(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to approve property");
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -683,16 +791,19 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sales Price</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rent Price</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rejected Reasons</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Listed By</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Approved At</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rejected At</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created At</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Updated At</th>
               </tr>
             </thead>
             <tbody>
               {properties.length === 0
-                ? <tr><td colSpan={14} className="text-center text-muted-foreground py-16">No properties found</td></tr>
+                ? <tr><td colSpan={17} className="text-center text-muted-foreground py-16">No properties found</td></tr>
                 : properties.map((p, index) => (
-                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} onView={(id) => navigate(`/properties/${id}`)} />
+                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} onView={(id) => navigate(`/properties/${id}`)} onApprove={(id) => setApproveDialog({ id })} onReject={(id) => { setRejectDialog({ id }); setRejectReasons([]); setRejectInput(""); }} />
                 ))
               }
             </tbody>
@@ -717,13 +828,16 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sales Price</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rent Price</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rejected Reasons</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Listed By</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Approved At</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rejected At</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created At</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Updated At</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colSpan={14} className="py-16"><Spinner fullPage={false} size="md" label="Loading properties..." /></td></tr>
+              <tr><td colSpan={17} className="py-16"><Spinner fullPage={false} size="md" label="Loading properties..." /></td></tr>
             </tbody>
           </table>
         </div>
@@ -771,6 +885,69 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           </Button>
         </div>
       )}
+
+      {/* Approve Confirmation Dialog */}
+      <Dialog open={!!approveDialog} onOpenChange={(open) => { if (!open) setApproveDialog(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Approve Property</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">
+            Are you sure you want to approve this property listing? It will become <span className="font-semibold text-foreground">Active</span> and visible to customers.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveDialog(null)} disabled={!!approvingId}>Cancel</Button>
+            <Button onClick={handleApprove} disabled={!!approvingId}>
+              {approvingId ? "Approving..." : "Approve"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Reason Dialog */}
+      <Dialog open={!!rejectDialog} onOpenChange={(open) => { if (!open) { setRejectDialog(null); setRejectReasons([]); setRejectInput(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Property</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Add one or more rejection reasons. Press <kbd className="px-1.5 py-0.5 rounded border text-xs font-mono">Enter</kbd> after each reason to add it.</p>
+
+            {/* Added reasons list */}
+            {rejectReasons.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {rejectReasons.map((r, i) => (
+                  <span key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 border border-red-200 text-red-700 text-xs rounded-full">
+                    {r}
+                    <button onClick={() => removeRejectReason(i)} className="hover:text-red-900 font-bold leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <input
+              autoFocus
+              value={rejectInput}
+              onChange={(e) => setRejectInput(e.target.value)}
+              onKeyDown={handleRejectKeyDown}
+              placeholder="Type a reason and press Enter..."
+              className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+            />
+            {rejectReasons.length === 0 && (
+              <p className="text-xs text-red-500">At least 1 reason is required</p>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setRejectDialog(null); setRejectReasons([]); setRejectInput(""); }} disabled={rejectLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRejectSubmit} disabled={rejectLoading || rejectReasons.length === 0}>
+              {rejectLoading ? "Rejecting..." : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

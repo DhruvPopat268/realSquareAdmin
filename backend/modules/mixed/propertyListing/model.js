@@ -187,6 +187,9 @@ const propertyListingSchema = new Schema(
       enum: ["Active", "Inactive", "Sold", "Rented", "UnderReview", "Rejected"],
       default: "UnderReview",
     },
+    approvedAt:      { type: Date, default: null },
+    rejectedAt:      { type: Date, default: null },
+    rejectedReasons: [{ type: String, trim: true }],
   },
   { timestamps: true }
 );

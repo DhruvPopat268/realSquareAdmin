@@ -115,4 +115,8 @@ export interface PropertyListing {
 export const propertyListingService = {
   getById: (id: string) =>
     api.get<{ success: boolean; data: PropertyListing }>(`/admin/property-listings/${id}`),
+  approve: (id: string) =>
+    api.patch<{ success: boolean; message: string; data: { status: string; approvedAt: string } }>(`/admin/property-listings/${id}/approve`),
+  reject: (id: string, reasons: string[]) =>
+    api.patch<{ success: boolean; message: string; data: { status: string; rejectedAt: string; rejectedReasons: string[] } }>(`/admin/property-listings/${id}/reject`, { reasons }),
 };
