@@ -188,6 +188,15 @@ frontend/src/
 | `ProjectMapView.tsx` | Project map display |
 | `UserManagementPage.tsx` | Reusable user management component |
 
+### Property Detail Components (`components/propertyDetails/`)
+| Component | Purpose |
+|---|---|
+| `PropertyTypeDetails.tsx` | Switcher — selects correct detail component based on `category.name` and `listingType.name` |
+| `ResidentialDetails.tsx` | Renders residential-specific fields: BHK, builtUpArea, furnishings, amenities, sellInfo/rentInfo |
+| `PlotDetails.tsx` | Renders plot-specific fields: plotArea, dimensions, ownership, zone |
+| `PGDetails.tsx` | Renders PG-specific fields: rooms+pricing, meals, commonAreas, notice/lock-in period |
+| `CommercialDetails.tsx` | Renders commercial-specific fields: areas, floor info, ownership, zone, office seats/cabins |
+
 ### Services Pattern
 Each domain has a dedicated service file in `src/services/` that wraps Axios calls:
 ```ts
@@ -195,6 +204,8 @@ Each domain has a dedicated service file in `src/services/` that wraps Axios cal
 export const getProperties = (params) => axiosInstance.get('/api/properties', { params });
 export const updateProperty = (id, data) => axiosInstance.put(`/api/properties/${id}`, data);
 ```
+
+Key service files include `propertyListingService.ts` which exposes `getById(id)` for fetching a full property listing with all sub-documents (residentialDetails, plotDetails, pgDetails, commercialDetails, sellInfo, rentInfo).
 
 ### Auth & Permissions
 - `ProfileContext.tsx` — stores logged-in admin profile globally

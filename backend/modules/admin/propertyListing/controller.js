@@ -138,43 +138,41 @@ const getPaginatedListings = async (req, res, listingTypeId = null) => {
       statusCounts.total += stat.count;
     });
 
-    // Process listings to add computed price field
+    // Process listings to add computed price fields
     const processedListings = listings.map((listing) => {
-      let price = null;
-      
-      // For Sell listings
+      let sellPrice = null;
+      let rentPrice = null;
+      let pgPrice   = null;
+
+      // Sell listings
       if (listing.listingType?.id?.toString() === LISTING_TYPE_SELL_ID) {
-        price = listing.sellInfo?.price ?? null;
+        sellPrice = listing.sellInfo?.price ?? null;
       }
-      
-      // For Rent listings
+
+      // Rent listings
       else if (listing.listingType?.id?.toString() === LISTING_TYPE_RENT_ID) {
-        price = listing.rentInfo?.monthlyRent ?? null;
+        rentPrice = listing.rentInfo?.monthlyRent ?? null;
       }
-      
-      // For PG listings - handle multiple room configs
+
+      // PG listings — compute range from rooms
       else if (listing.listingType?.id?.toString() === LISTING_TYPE_PG_ID && listing.pgDetails?.rooms?.length) {
         const rooms = listing.pgDetails.rooms;
-        if (rooms.length === 1) {
-          // Single room config - return direct price
-          price = rooms[0].rent ?? null;
-        } else {
-          // Multiple room configs - return range
-          const rents = rooms.map(r => r.rent).filter(r => r != null);
-          if (rents.length > 0) {
-            const minRent = Math.min(...rents);
-            const maxRent = Math.max(...rents);
-            price = minRent === maxRent ? minRent : `${minRent} - ${maxRent}`;
-          }
+        const rents = rooms.map(r => r.rent).filter(r => r != null);
+        if (rents.length > 0) {
+          const minRent = Math.min(...rents);
+          const maxRent = Math.max(...rents);
+          pgPrice = minRent === maxRent ? minRent : `${minRent} - ${maxRent}`;
         }
       }
-      
+
       // Remove pgDetails from response
       const { pgDetails, ...listingWithoutPgDetails } = listing;
-      
+
       return {
         ...listingWithoutPgDetails,
-        price,
+        sellPrice,
+        rentPrice,
+        pgPrice,
       };
     });
 
@@ -201,14 +199,17 @@ const getPaginatedListings = async (req, res, listingTypeId = null) => {
 // GET /admin/property-listings — All listings
 const getAll = (req, res) => getPaginatedListings(req, res, null);
 
-// GET /admin/property-listings/for-sell — Sell listings only
-const getForSell = (req, res) => getPaginatedListings(req, res, LISTING_TYPE_SELL_ID);
-
-// GET /admin/property-listings/for-rent — Rent listings only
-const getForRent = (req, res) => getPaginatedListings(req, res, LISTING_TYPE_RENT_ID);
-
-// GET /admin/property-listings/for-pg — PG/Co-living listings only
-const getForPG = (req, res) => getPaginatedListings(req, res, LISTING_TYPE_PG_ID);
+// GET /admin/property-listings/:id — Single listing detail
+const getById = async (req, res) => {
+  try {
+    const listing = await PropertyListing.findById(req.params.id).lean();
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+    res.json({ success: true, data: listing });
+  } catch (err) {
+    if (err.name === "CastError") return res.status(404).json({ success: false, message: "Listing not found" });
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 // GET /admin/property-listings/listing-user-roles — Owner, Broker, Builder, Customer roles only
 const getListingUserRoles = async (req, res) => {
@@ -229,4 +230,4 @@ const getListingUserRoles = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getForSell, getForRent, getForPG, getListingUserRoles };
+module.exports = { getAll, getById, getListingUserRoles };

@@ -1,20 +1,22 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
-import { PROPERTIES, LISTING_STATUS_LABEL } from "@/data/propertiesData";
+import { propertyListingService, type PropertyListing } from "@/services/propertyListingService";
 import { Button } from "@/components/ui/button";
+import PropertyTypeDetails from "@/components/propertyDetails/PropertyTypeDetails";
+import Spinner from "@/components/Spinner";
 import {
-  ChevronRight, Mail, Share2, MoreVertical, Bed, Bath,
-  Maximize2, CheckCircle2, Car, Layers, CalendarDays, Tag, ArrowLeft,
+  ChevronRight, Tag, CalendarDays, ArrowLeft, MapPin, User, Maximize2,
 } from "lucide-react";
 
-function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  return `$${(n / 1_000).toFixed(0)}K`;
-}
-
-function fmtFull(n: number) {
-  return "$" + n.toLocaleString();
-}
+const statusStyle: Record<string, string> = {
+  UnderReview: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+  Active:      "bg-green-50 text-green-700 border border-green-200",
+  Inactive:    "bg-slate-100 text-slate-600 border border-slate-200",
+  Sold:        "bg-gray-100 text-gray-600 border border-gray-200",
+  Rented:      "bg-teal-50 text-teal-700 border border-teal-200",
+  Rejected:    "bg-red-50 text-red-600 border border-red-200",
+};
 
 const purposeStyle: Record<string, string> = {
   "Sell":           "bg-blue-50 text-blue-700 border border-blue-200",
@@ -22,19 +24,19 @@ const purposeStyle: Record<string, string> = {
   "PG / Co-living": "bg-purple-50 text-purple-700 border border-purple-200",
 };
 
-const statusStyle: Record<string, string> = {
-  PENDING_APPROVAL: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  ACTIVE:           "bg-green-50 text-green-700 border border-green-200",
-  RESERVED:         "bg-blue-50 text-blue-700 border border-blue-200",
-  SOLD:             "bg-gray-100 text-gray-600 border border-gray-200",
-  RENTED:           "bg-teal-50 text-teal-700 border border-teal-200",
-  EXPIRED:          "bg-orange-50 text-orange-700 border border-orange-200",
-  INACTIVE:         "bg-slate-100 text-slate-500 border border-slate-200",
-  ARCHIVED:         "bg-stone-100 text-stone-500 border border-stone-200",
-  REJECTED:         "bg-red-50 text-red-600 border border-red-200",
-};
+function formatPrice(price?: number) {
+  if (!price) return null;
+  if (price >= 10000000) return `₹${(price / 10000000).toFixed(2).replace(/\.?0+$/, "")} Cr`;
+  if (price >= 100000)   return `₹${(price / 100000).toFixed(2).replace(/\.?0+$/, "")} L`;
+  return `₹${price.toLocaleString("en-IN")}`;
+}
 
-function DetailItem({ label, value }: { label: string; value: string | number | undefined }) {
+function formatDate(dateStr?: string) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function DetailItem({ label, value }: { label: string; value?: string | number | null }) {
   if (value === undefined || value === null || value === "") return null;
   return (
     <div>
@@ -45,32 +47,66 @@ function DetailItem({ label, value }: { label: string; value: string | number | 
 }
 
 export default function PropertyDetailPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const property = PROPERTIES.find((p) => p.id === Number(id));
+
+  const [property, setProperty] = useState<PropertyListing | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<string[]>([]);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  if (!property) {
+  // Close lightbox on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    propertyListingService.getById(id)
+      .then((res) => {
+        if (res.data.success) setProperty(res.data.data);
+        else setError("Property not found.");
+      })
+      .catch(() => setError("Failed to load property."))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64"><Spinner fullPage={false} size="md" label="Loading property..." /></div>;
+  }
+
+  if (error || !property) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-muted-foreground text-lg">Property not found.</p>
+        <p className="text-muted-foreground text-lg">{error ?? "Property not found."}</p>
         <Button variant="outline" onClick={() => navigate("/properties")}>Back to Properties</Button>
       </div>
     );
   }
 
   const p = property;
+  const imgs = p.media?.images ?? [];
+
+  const displayPrice = p.sellInfo?.price
+    ? formatPrice(p.sellInfo.price)
+    : p.rentInfo?.monthlyRent
+    ? `${formatPrice(p.rentInfo.monthlyRent)}/month`
+    : "Price on request";
 
   const handleComment = () => {
     if (!comment.trim()) return;
     setComments((c) => [...c, comment.trim()]);
     setComment("");
   };
-
-  const imgs = p.images;
 
   return (
     <div className="space-y-6">
@@ -87,167 +123,156 @@ export default function PropertyDetailPage() {
         </nav>
       </div>
 
-      {/* Image Gallery */}
-      <div className="grid grid-cols-3 gap-2 h-72 rounded-xl overflow-hidden">
-        <div className="col-span-1 row-span-2 cursor-pointer" onClick={() => setLightbox(0)}>
-          <img src={imgs[0]} alt={p.title} className="w-full h-full object-cover hover:brightness-95 transition" />
+      {/* Image Gallery — 3 per row */}
+      {imgs.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 rounded-xl overflow-hidden">
+          {imgs.map((src, i) => (
+            <div key={i} className="relative cursor-pointer overflow-hidden h-64 rounded-lg" onClick={() => setLightbox(i)}>
+              <img src={src} alt={`Property ${i + 1}`} className="w-full h-full object-cover hover:brightness-95 transition" />
+            </div>
+          ))}
         </div>
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="relative cursor-pointer overflow-hidden" onClick={() => setLightbox(i)}>
-            <img
-              src={imgs[i] ?? imgs[0]}
-              alt={`${p.title} ${i}`}
-              className="w-full h-full object-cover hover:brightness-95 transition"
-            />
-            {i === 4 && imgs.length > 5 && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <span className="text-white text-xl font-bold">30+</span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      )}
 
-      {/* Lightbox */}
-      {lightbox !== null && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setLightbox(null)}>
+      {/* Lightbox — rendered via portal so it covers sidebar/header too */}
+      {lightbox !== null && imgs[lightbox] && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
           <img
             src={imgs[lightbox]}
             alt=""
-            className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain"
+            className="max-h-screen max-w-screen object-contain"
             onClick={(e) => e.stopPropagation()}
           />
-          <button onClick={() => setLightbox(null)} className="absolute top-4 right-6 text-white text-2xl font-bold hover:opacity-70">✕</button>
-        </div>
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-6 text-white text-2xl font-bold hover:opacity-70"
+          >✕</button>
+        </div>,
+        document.body
       )}
 
       {/* Title Row */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-2xl font-bold text-foreground">{p.title}</h1>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status] ?? "bg-muted text-muted-foreground border"}`}>
+              {p.status}
+            </span>
+            {p.listingType?.name && (
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${purposeStyle[p.listingType.name] ?? "bg-muted text-muted-foreground border"}`}>
+                {p.listingType.name}
+              </span>
+            )}
+            {p.category?.name && (
+              <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+                {p.category.name}
+              </span>
+            )}
+            {p.propertyType?.name && (
+              <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+                {p.propertyType.name}
+              </span>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground mt-1">{p.address}, {p.city}</p>
-
-          {/* Quick spec chips */}
-          <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status]}`}>{LISTING_STATUS_LABEL[p.status]}</span>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${purposeStyle[p.purpose] ?? "bg-muted text-muted-foreground border"}`}>{p.purpose}</span>
-            <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">{p.category}</span>
-            <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">{p.type}</span>
-            {p.beds   !== undefined && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Bed className="h-4 w-4" />{p.beds}</span>}
-            {p.baths  !== undefined && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Bath className="h-4 w-4" />{p.baths}</span>}
-            <span className="flex items-center gap-1 text-sm text-muted-foreground"><Maximize2 className="h-4 w-4" />{p.sqft.toLocaleString()} sqft</span>
-            {p.parking !== undefined && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Car className="h-4 w-4" />{p.parking} Parking</span>}
-            {p.floor   !== undefined && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Layers className="h-4 w-4" />Floor {p.floor}{p.totalFloors ? ` / ${p.totalFloors}` : ""}</span>}
-          </div>
+          <p className="text-2xl font-bold text-foreground">{displayPrice}</p>
+          {(p.locality?.address || p.cityName) && (
+            <p className="flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5" />
+              {[p.locality?.address, p.cityName].filter(Boolean).join(", ")}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <Share2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <MoreVertical className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </div>
 
-      {/* Main Content + Comment Panel */}
+      {/* Main Content + Side Panel */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-8">
-
-          {/* About */}
-          <section>
-            <h2 className="text-base font-bold text-foreground mb-2">About the Property</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">{p.description}</p>
-          </section>
 
           {/* Listing Details */}
           <section>
             <h2 className="text-base font-bold text-foreground">Listing Details</h2>
             <p className="text-xs text-muted-foreground mb-4">Pricing and listing information</p>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
-              <DetailItem label="Purpose"         value={p.purpose} />
-              <DetailItem label="Status"           value={LISTING_STATUS_LABEL[p.status]} />
-              <DetailItem label="List Price"       value={fmtFull(p.price)} />
-              <DetailItem label="Previous Price"   value={fmtFull(p.previousPrice)} />
-              <DetailItem label="Days on Market"   value={p.daysOnMarket} />
-              <DetailItem label="Agent"            value={p.agent} />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm">
+              <DetailItem label="Status"       value={p.status} />
+              <DetailItem label="Purpose"      value={p.listingType?.name} />
+              <DetailItem label="Category"     value={p.category?.name} />
+              <DetailItem label="Type"         value={p.propertyType?.name} />
+              <DetailItem label="City"         value={p.cityName} />
+              <DetailItem label="Locality"     value={p.locality?.address} />
+              {p.sellInfo?.price && (
+                <DetailItem label="Sale Price" value={formatPrice(p.sellInfo.price) ?? undefined} />
+              )}
+              {p.rentInfo?.monthlyRent && (
+                <DetailItem label="Monthly Rent" value={`${formatPrice(p.rentInfo.monthlyRent)}/month`} />
+              )}
+              <DetailItem label="Listed On"    value={formatDate(p.createdAt)} />
+              <DetailItem label="Last Updated" value={formatDate(p.updatedAt)} />
             </div>
           </section>
 
-          {/* Property Classification */}
+          {/* Listed By */}
           <section>
-            <h2 className="text-base font-bold text-foreground">Property Classification</h2>
-            <p className="text-xs text-muted-foreground mb-4">Purpose and type</p>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
-              <DetailItem label="Purpose"   value={p.purpose} />
-              <DetailItem label="Category"  value={p.category} />
-              <DetailItem label="Type"      value={p.type} />
-              <DetailItem label="Ref #"     value={p.refNo} />
+            <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-1">
+              <User className="h-4 w-4" /> Listed By
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">Owner / agent details</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm">
+              <DetailItem label="Name"   value={p.listedBy?.name} />
+              <DetailItem label="Mobile" value={p.listedBy?.mobile} />
+              <DetailItem label="Email"  value={p.listedBy?.email} />
+              <DetailItem label="Role"   value={p.listedBy?.role?.name} />
             </div>
           </section>
 
-          {/* Property Specifications */}
+          {/* Property Type-specific Details */}
           <section>
-            <h2 className="text-base font-bold text-foreground">Specifications</h2>
-            <p className="text-xs text-muted-foreground mb-4">Size, layout and physical details</p>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
-              <DetailItem label="Built-up Area"       value={p.sqft ? `${p.sqft.toLocaleString()} sqft` : undefined} />
-              <DetailItem label="Plot / Land Area"    value={p.plotSqft ? `${p.plotSqft.toLocaleString()} sqft` : undefined} />
-              <DetailItem label="Bedrooms"            value={p.beds} />
-              <DetailItem label="Bathrooms"           value={p.baths} />
-              <DetailItem label="Parking Spaces"      value={p.parking} />
-              <DetailItem label="Floor"               value={p.floor !== undefined ? `${p.floor}${p.totalFloors ? ` of ${p.totalFloors}` : ""}` : undefined} />
-              <DetailItem label="Furnishing"          value={p.furnishing} />
-              <DetailItem label="Construction Year"   value={p.constructionYear} />
-              <DetailItem label="Occupancy"           value={p.occupancyType} />
-              <DetailItem label="Meals Included"      value={p.mealsIncluded !== undefined ? (p.mealsIncluded ? "Yes" : "No") : undefined} />
-            </div>
+            <h2 className="text-base font-bold text-foreground mb-1">Property Details</h2>
+            <p className="text-xs text-muted-foreground mb-4">Specific details based on property type</p>
+            <PropertyTypeDetails listing={p} />
           </section>
-
-          {/* Amenities & Features */}
-          {p.amenities.length > 0 && (
-            <section>
-              <h2 className="text-base font-bold text-foreground">Amenities & Features</h2>
-              <p className="text-xs text-muted-foreground mb-4">What this property includes</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4">
-                {p.amenities.map((a) => (
-                  <div key={a} className="flex items-center gap-1.5 text-sm text-foreground">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />{a}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
 
         </div>
 
-        {/* Comments Panel */}
+        {/* Side Panel */}
         <div className="xl:col-span-1">
           {/* Price summary card */}
           <div className="border rounded-xl p-4 bg-card space-y-3 mb-4">
             <h3 className="text-sm font-bold text-foreground">Price Summary</h3>
             <div className="space-y-2">
+              {p.sellInfo?.price && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" /> Sale Price</span>
+                  <span className="font-bold text-foreground text-base">{formatPrice(p.sellInfo.price)}</span>
+                </div>
+              )}
+              {p.rentInfo?.monthlyRent && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" /> Monthly Rent</span>
+                  <span className="font-bold text-foreground text-base">{formatPrice(p.rentInfo.monthlyRent)}/month</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" /> List Price</span>
-                <span className="font-bold text-foreground text-base">{fmt(p.price)}</span>
+                <span className="text-muted-foreground flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Listed On</span>
+                <span className="font-medium text-foreground">{formatDate(p.createdAt)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Previous Price</span>
-                <span className="text-muted-foreground line-through">{fmt(p.previousPrice)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Days on Market</span>
-                <span className="font-medium text-foreground">{p.daysOnMarket}</span>
-              </div>
+              {(p.locality?.latitude && p.locality?.longitude) && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5"><Maximize2 className="h-3.5 w-3.5" /> Location</span>
+                  <span className="font-medium text-foreground text-xs">{p.locality.latitude.toFixed(4)}, {p.locality.longitude.toFixed(4)}</span>
+                </div>
+              )}
             </div>
-            <Button className="w-full" size="sm">Contact Agent</Button>
           </div>
 
+          {/* Comments */}
           <div className="sticky top-4 border rounded-xl p-4 bg-card space-y-3">
             <h3 className="text-sm font-bold text-foreground">Comments</h3>
-            <p className="text-xs text-muted-foreground">It's good to talk</p>
+            <p className="text-xs text-muted-foreground">Admin notes for this listing</p>
 
             {comments.length > 0 && (
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -262,7 +287,7 @@ export default function PropertyDetailPage() {
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleComment(); }}
-              placeholder="Say something"
+              placeholder="Add a note..."
               rows={4}
               className="w-full border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
             />

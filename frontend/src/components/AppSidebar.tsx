@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Home, Building2, FolderOpen, MapPin, Users,
+  LayoutDashboard, Home, Building2, FolderOpen, Users,
   BookUser, UserCheck, Tag, FileText, Calendar, Megaphone, File,
   BarChart2, TrendingUp, Settings, HelpCircle, ChevronDown,
   Wrench, Bell, ShieldCheck, UserCog, Coins, Wallet,
@@ -99,16 +99,7 @@ const sections = [
       { type: "link", to: "/property-categories", icon: Tag,    label: "Property Categories" },
       { type: "link", to: "/property-types",        icon: Wrench, label: "Property Types" },
       { type: "link", to: "/furnishings-amenities",  icon: Tag,    label: "Furnishings & Amenities" },
-      {
-        type: "group", icon: Home, label: "Property Management",
-        urls: ["/properties", "/properties/sale", "/properties/rent", "/properties/pg"],
-        items: [
-          { title: "All Properties",   url: "/properties",      icon: Home },
-          { title: "For Sale",         url: "/properties/sale", icon: Tag },
-          { title: "For Rent",         url: "/properties/rent", icon: Building2 },
-          { title: "PG / Co-living",   url: "/properties/pg",   icon: MapPin },
-        ],
-      },
+      { type: "link", to: "/properties",            icon: Home,   label: "Properties" },
       { type: "link", to: "/projects", icon: FolderOpen, label: "Projects" },
     ],
   },

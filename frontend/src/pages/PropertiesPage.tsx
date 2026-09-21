@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import api from "@/lib/axiosInterceptor";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   ChevronDown, LayoutGrid, List, Map,
   Bed, Eye, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { type ListingStatus, LISTING_STATUS_LABEL } from "@/data/propertiesData";
+import { type ListingStatus } from "@/data/propertiesData";
 import PropertyMapView from "@/components/PropertyMapView";
 import Spinner from "@/components/Spinner";
 
@@ -136,7 +136,7 @@ function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
   );
 }
 
-function PropertyRow({ p, index }: { p: any; index: number }) {
+function PropertyRow({ p, index, onView }: { p: any; index: number; onView: (id: string) => void }) {
   // Format date and time in IST
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -160,7 +160,7 @@ function PropertyRow({ p, index }: { p: any; index: number }) {
       {/* Actions */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
-          <button disabled className="p-1.5 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
+          <button onClick={() => onView(p._id)} className="p-1.5 rounded-md bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
             <Eye className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -199,12 +199,16 @@ function PropertyRow({ p, index }: { p: any; index: number }) {
       
       {/* Sales Price */}
       <td className="px-4 py-3 text-sm font-semibold text-foreground">
-        {p.sellInfo?.price ? formatPrice(p.sellInfo.price) : '-'}
+        {p.sellPrice ? formatPrice(p.sellPrice) : '-'}
       </td>
-      
+
       {/* Rent Price */}
       <td className="px-4 py-3 text-sm font-semibold text-foreground">
-        {p.rentInfo?.monthlyRent ? formatPrice(p.rentInfo.monthlyRent) : (p.price && typeof p.price === 'string' ? p.price : p.price ? formatPrice(p.price) : '-')}
+        {p.rentPrice
+          ? formatPrice(p.rentPrice)
+          : p.pgPrice != null
+          ? (typeof p.pgPrice === 'string' ? `₹${p.pgPrice}` : formatPrice(p.pgPrice))
+          : '-'}
       </td>
       
       {/* Status */}
@@ -239,10 +243,12 @@ function PropertyRow({ p, index }: { p: any; index: number }) {
 export default function PropertiesPage({ filterType, listedByType: lockedListedByType, listedByName }: { filterType?: string; listedByType?: string; listedByName?: string }) {
   const navigate = useNavigate();
   const { state } = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const resolvedListedByType = lockedListedByType ?? state?.listedByType;
   const resolvedListedByName = listedByName ?? state?.listedByName;
 
-  const [search, setSearch] = useState(resolvedListedByName ?? "");
+  // ── View toggle (not persisted in URL) ─────────────────────────────────────
   const [view, setView] = useState<"grid" | "list" | "map">("list");
 
   // ── Filter option lists from API ────────────────────────────────────────────
@@ -252,33 +258,49 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const [roles, setRoles]                 = useState<FilterOption[]>([]);
   const [activeUsers, setActiveUsers]     = useState<ActiveUser[]>([]);
 
-  // ── Applied filters (sent to API on every fetch) ────────────────────────────
-  const [purposeFilter, setPurposeFilter]   = useState("");  // _id
-  const [categoryFilter, setCategoryFilter] = useState("");  // _id
-  const [typeFilter, setTypeFilter]         = useState("");  // _id
-  const [statusFilter, setStatusFilter]     = useState("");  // enum string
-  const [listedByFilter, setListedByFilter] = useState(resolvedListedByType ?? "All");
-  const [roleIdFilter, setRoleIdFilter]     = useState("");  // _id
-  const [userIdFilter, setUserIdFilter]     = useState("");  // _id
-  const [cityFilter,   setCityFilter]       = useState("");  // string
+  // ── Applied filters — read directly from URL search params ─────────────────
+  const purposeFilter   = searchParams.get("purposeId")  ?? "";
+  const categoryFilter  = searchParams.get("categoryId") ?? "";
+  const typeFilter      = searchParams.get("typeId")     ?? "";
+  const statusFilter    = searchParams.get("status")     ?? "";
+  const roleIdFilter    = searchParams.get("roleId")     ?? "";
+  const userIdFilter    = searchParams.get("userId")     ?? "";
+  const cityFilter      = searchParams.get("city")       ?? "";
+  const search          = searchParams.get("search")     ?? (resolvedListedByName ?? "");
+  const currentPage     = Number(searchParams.get("page")  ?? "1");
+  const currentLimit    = Number(searchParams.get("limit") ?? "10");
 
-  // ── Pending filters (staged until Apply is clicked) ─────────────────────────
-  const [pendingPurpose,   setPendingPurpose]   = useState("");
-  const [pendingCategory,  setPendingCategory]  = useState("");
-  const [pendingType,      setPendingType]      = useState("");
-  const [pendingStatus,    setPendingStatus]    = useState("");
-  const [pendingRoleId,    setPendingRoleId]    = useState("");
-  const [pendingUserId,    setPendingUserId]    = useState("");
-  const [pendingCity,      setPendingCity]      = useState("");
-  const [userSearch,       setUserSearch]       = useState("");
+  // ── Pending filters (staged in local state until Apply) ─────────────────────
+  const [pendingPurpose,  setPendingPurpose]  = useState(purposeFilter);
+  const [pendingCategory, setPendingCategory] = useState(categoryFilter);
+  const [pendingType,     setPendingType]     = useState(typeFilter);
+  const [pendingStatus,   setPendingStatus]   = useState(statusFilter);
+  const [pendingRoleId,   setPendingRoleId]   = useState(roleIdFilter);
+  const [pendingUserId,   setPendingUserId]   = useState(userIdFilter);
+  const [pendingCity,     setPendingCity]     = useState(cityFilter);
+  const [pendingSearch,   setPendingSearch]   = useState(search);
+  const [userSearch,      setUserSearch]      = useState("");
+  const [listedByFilter,  setListedByFilter]  = useState(resolvedListedByType ?? "All");
 
   // ── Listings API state ──────────────────────────────────────────────────────
   const [properties, setProperties] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, Active: 0, Inactive: 0, Sold: 0, Rented: 0, UnderReview: 0, Rejected: 0 });
   const [loading, setLoading]       = useState(true);
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+  const [pagination, setPagination] = useState({ total: 0, page: currentPage, limit: currentLimit, totalPages: 0 });
 
-  // ── 1. Fetch purposes + categories + roles + active users on mount ──────────
+  // ── Helper: update URL params ───────────────────────────────────────────────
+  const updateParams = (updates: Record<string, string>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v) next.set(k, v);
+        else next.delete(k);
+      });
+      return next;
+    }, { replace: true });
+  };
+
+  // ── 1. Fetch purposes + categories + roles on mount ─────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
@@ -300,7 +322,6 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   // ── Debounced user search ────────────────────────────────────────────────────
   useEffect(() => {
     if (!userSearch.trim()) {
-      // reset to full list without debounce
       systemUsersService.getActiveUsers()
         .then((res) => { if (res.data.success) setActiveUsers(res.data.data); })
         .catch(() => {});
@@ -329,19 +350,16 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
       }
     };
     load();
-    // When category changes, clear any pending/applied type that may no longer belong
-    setPendingType("");
-    setTypeFilter("");
   }, [categoryFilter]);
 
-  // ── 3. Fetch listings whenever applied filters or pagination change ──────────
+  // ── 3. Fetch listings whenever URL params (filters/pagination) change ───────
   useEffect(() => {
     const fetchProperties = async () => {
       setLoading(true);
       try {
         const params = new URLSearchParams({
-          page:  pagination.page.toString(),
-          limit: pagination.limit.toString(),
+          page:  String(currentPage),
+          limit: String(currentLimit),
         });
 
         if (search)         params.append('search',     search);
@@ -367,26 +385,29 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
     };
 
     fetchProperties();
-  }, [pagination.page, pagination.limit, search, purposeFilter, categoryFilter, typeFilter, statusFilter, roleIdFilter, userIdFilter, cityFilter]);
+  }, [currentPage, currentLimit, search, purposeFilter, categoryFilter, typeFilter, statusFilter, roleIdFilter, userIdFilter, cityFilter]);
 
   const hasFilters = purposeFilter !== "" || categoryFilter !== "" || typeFilter !== "" || statusFilter !== "" || listedByFilter !== "All" || search !== "" || roleIdFilter !== "" || userIdFilter !== "" || cityFilter !== "";
 
   function applyFilters() {
-    setPurposeFilter(pendingPurpose);
-    setCategoryFilter(pendingCategory);
-    setTypeFilter(pendingType);
-    setStatusFilter(pendingStatus);
-    setRoleIdFilter(pendingRoleId);
-    setUserIdFilter(pendingUserId);
-    setCityFilter(pendingCity);
-    setPagination(prev => ({ ...prev, page: 1 }));
+    updateParams({
+      purposeId:  pendingPurpose,
+      categoryId: pendingCategory,
+      typeId:     pendingType,
+      status:     pendingStatus,
+      roleId:     pendingRoleId,
+      userId:     pendingUserId,
+      city:       pendingCity,
+      search:     pendingSearch,
+      page:       "1",
+    });
   }
 
   function clearAll() {
-    setPendingPurpose(""); setPendingCategory(""); setPendingType(""); setPendingStatus(""); setPendingRoleId(""); setPendingUserId(""); setPendingCity("");
-    setPurposeFilter(""); setCategoryFilter(""); setTypeFilter(""); setStatusFilter(""); setRoleIdFilter(""); setUserIdFilter(""); setCityFilter("");
-    setListedByFilter("All"); setSearch("");
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPendingPurpose(""); setPendingCategory(""); setPendingType(""); setPendingStatus("");
+    setPendingRoleId(""); setPendingUserId(""); setPendingCity(""); setPendingSearch("");
+    setListedByFilter("All");
+    setSearchParams({}, { replace: true });
   }
 
   const tableRef = useRef<HTMLDivElement>(null);
@@ -435,7 +456,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">
-          {filterType ? `${filterType} Properties` : "Properties"}
+          {filterType ? `${filterType} Properties` : "All Properties"}
         </h1>
       </div>
 
@@ -478,8 +499,8 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Rows per page</span>
           <Select
-            value={String(pagination.limit)}
-            onValueChange={(v) => setPagination(prev => ({ ...prev, limit: Number(v), page: 1 }))}
+            value={String(currentLimit)}
+            onValueChange={(v) => updateParams({ limit: v, page: "1" })}
           >
             <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -671,7 +692,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
               {properties.length === 0
                 ? <tr><td colSpan={14} className="text-center text-muted-foreground py-16">No properties found</td></tr>
                 : properties.map((p, index) => (
-                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} />
+                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} onView={(id) => navigate(`/properties/${id}`)} />
                 ))
               }
             </tbody>
@@ -714,7 +735,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           ? <div className="text-center text-muted-foreground py-16">No properties found</div>
           : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {properties.map((p) => (
-                <PropertyCard key={p._id} p={p} onClick={() => {}} />
+                <PropertyCard key={p._id} p={p} onClick={() => navigate(`/properties/${p._id}`)} />
               ))}
             </div>
       )}
@@ -732,19 +753,19 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           <span className="text-sm text-muted-foreground">
             Page {pagination.page} of {pagination.totalPages}
           </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            disabled={pagination.page === 1} 
-            onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === 1}
+            onClick={() => updateParams({ page: String(currentPage - 1) })}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            disabled={pagination.page === pagination.totalPages || pagination.totalPages === 0} 
-            onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === pagination.totalPages || pagination.totalPages === 0}
+            onClick={() => updateParams({ page: String(currentPage + 1) })}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
