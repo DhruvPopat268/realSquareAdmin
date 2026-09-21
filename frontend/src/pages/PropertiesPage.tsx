@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronDown, LayoutGrid, List, Map,
-  Bed, Bath, Maximize2, Layers, Pencil, Trash2, Eye, ChevronLeft, ChevronRight,
+  Bed, Eye, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { type ListingStatus, LISTING_STATUS_LABEL } from "@/data/propertiesData";
 import PropertyMapView from "@/components/PropertyMapView";
@@ -40,66 +40,97 @@ const purposeStyle: Record<string, string> = {
   "PG / Co-living": "bg-purple-50 text-purple-700 border border-purple-200",
 };
 
-function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  return `$${(n / 1_000).toFixed(0)}K`;
-}
-
-function PropertyCard({ p, onClick }: { p: Property; onClick: () => void }) {
+function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
   const [imgIdx, setImgIdx] = useState(0);
-  const total = p.images.length;
+  const images = p.media?.images ?? [];
+  const total = images.length;
   const prev = (e: React.MouseEvent) => { e.stopPropagation(); setImgIdx((i) => (i - 1 + total) % total); };
   const next = (e: React.MouseEvent) => { e.stopPropagation(); setImgIdx((i) => (i + 1) % total); };
+
+  const formatPrice = (price: number | string) => {
+    if (typeof price === "string") return price;
+    if (!price) return null;
+    if (price >= 10000000) return `₹${(price / 10000000).toFixed(2).replace(/\.?0+$/, "")} Cr`;
+    if (price >= 100000)   return `₹${(price / 100000).toFixed(2).replace(/\.?0+$/, "")} L`;
+    return `₹${price.toLocaleString("en-IN")}`;
+  };
+
+  const displayPrice = p.sellInfo?.price
+    ? formatPrice(p.sellInfo.price)
+    : p.rentInfo?.monthlyRent
+    ? `${formatPrice(p.rentInfo.monthlyRent)}/mo`
+    : p.price
+    ? (typeof p.price === "string" ? p.price : formatPrice(p.price))
+    : "Price on request";
+
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow">
       <div className="p-[9px] pb-0">
-        <div className="relative h-52 overflow-hidden rounded-lg">
-          <img src={p.images[imgIdx]} alt={p.title} className="w-full h-full object-cover transition-opacity duration-300" />
-          {/* Top-left checkbox */}
-          <div className="absolute top-3 left-3">
-            <div className="h-7 w-7 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center">
-              <div className="h-4 w-4 rounded border-2 border-white" />
-            </div>
-          </div>
+        <div className="relative h-48 overflow-hidden rounded-lg">
+          {images.length > 0 ? (
+            <img src={images[imgIdx]} alt="Property" className="w-full h-full object-cover transition-opacity duration-300" />
+          ) : (
+            <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground text-xs">No image</div>
+          )}
           {/* Top-right actions */}
           <div className="absolute top-3 right-3 flex gap-1">
             <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-1.5 rounded-full bg-white/90 hover:bg-green-50 text-green-600 transition-colors">
               <Eye className="h-3.5 w-3.5" />
             </button>
-            <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-full bg-white/90 hover:bg-blue-50 text-blue-600 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-full bg-white/90 hover:bg-red-50 text-red-500 transition-colors">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
           </div>
-          {/* Bottom - listing status badge */}
-          <div className="absolute bottom-8 right-3 flex gap-1">
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusStyle[p.status]}`}>{LISTING_STATUS_LABEL[p.status]}</span>
+          {/* Status badge */}
+          <div className="absolute bottom-2 left-2">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusStyle[p.status] ?? "bg-gray-100 text-gray-600"}`}>{p.status}</span>
           </div>
-          {/* Image dots */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-            {p.images.slice(0, 5).map((_, i) => (
-              <div key={i} className={`h-1.5 rounded-full transition-all ${i === imgIdx ? "w-3 bg-white" : "w-1.5 bg-white/50"}`} />
-            ))}
-          </div>
+          {/* Image nav dots */}
+          {total > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {images.slice(0, 5).map((_: any, i: number) => (
+                <div key={i} className={`h-1.5 rounded-full transition-all ${i === imgIdx ? "w-3 bg-white" : "w-1.5 bg-white/50"}`} />
+              ))}
+            </div>
+          )}
+          {/* Prev/Next */}
+          {total > 1 && (
+            <>
+              <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-black/30 text-white hover:bg-black/50">
+                <ChevronLeft className="h-3 w-3" />
+              </button>
+              <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-black/30 text-white hover:bg-black/50">
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            </>
+          )}
         </div>
       </div>
-      <div className="p-3">
-        {/* Price */}
-        <div className="flex items-center justify-between">
-          <p className="text-xl font-bold text-foreground">{fmt(p.price)}</p>
+      <div className="p-3 space-y-1">
+        <p className="text-base font-bold text-foreground">{displayPrice}</p>
+        <div className="flex items-center gap-1 flex-wrap">
+          {p.listingType?.name && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${purposeStyle[p.listingType.name] ?? "bg-muted text-muted-foreground"}`}>
+              {p.listingType.name}
+            </span>
+          )}
+          {p.category?.name && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+              {p.category.name}
+            </span>
+          )}
+          {p.propertyType?.name && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+              {p.propertyType.name}
+            </span>
+          )}
         </div>
-        {/* Type for purpose */}
-        <p className="text-sm text-muted-foreground mt-0.5">{p.type} for {p.purpose}</p>
-        {/* Address */}
-        <p className="text-sm text-foreground mt-0.5">{p.address}</p>
-        {/* Beds / Baths / Sqft */}
-        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-          {p.beds   !== undefined && <span className="flex items-center gap-1"><Bed className="h-4 w-4" />{p.beds}</span>}
-          {p.baths  !== undefined && <span className="flex items-center gap-1"><Bath className="h-4 w-4" />{p.baths}</span>}
-          {p.sqft   !== undefined && <span className="flex items-center gap-1 font-medium text-foreground"><Maximize2 className="h-4 w-4" />{p.sqft.toLocaleString()} sqft</span>}
-        </div>
+        <p className="text-sm text-foreground truncate">{p.locality?.address ?? p.cityName ?? "—"}</p>
+        {p.listedBy?.name && (
+          <p className="text-xs text-muted-foreground">By {p.listedBy.name} ({p.listedBy?.role?.name ?? "—"})</p>
+        )}
+        {p.residentialDetails?.bhk && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Bed className="h-3 w-3" />{p.residentialDetails.bhk} BHK
+          </p>
+        )}
       </div>
     </div>
   );
@@ -674,6 +705,24 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
               <tr><td colSpan={14} className="py-16"><Spinner fullPage={false} size="md" label="Loading properties..." /></td></tr>
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Grid view */}
+      {!loading && view === "grid" && (
+        properties.length === 0
+          ? <div className="text-center text-muted-foreground py-16">No properties found</div>
+          : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {properties.map((p) => (
+                <PropertyCard key={p._id} p={p} onClick={() => {}} />
+              ))}
+            </div>
+      )}
+
+      {/* Grid loading */}
+      {loading && view === "grid" && (
+        <div className="flex items-center justify-center py-16">
+          <Spinner fullPage={false} size="md" label="Loading properties..." />
         </div>
       )}
 
