@@ -541,12 +541,10 @@ const getMyListings = async (req, res) => {
 const updateListing = async (req, res) => {
   try {
     const {
-      propertyListingId, // ID from body
-      listingTypeId, categoryId, propertyTypeId, // ALWAYS sent
+      propertyListingId,
       cityName, locality,
       residentialDetails, plotDetails, pgDetails, commercialDetails,
       sellInfo, rentInfo,
-      // NOTE: images are intentionally excluded — handled exclusively by PATCH /media
     } = req.body;
 
     // Validate propertyListingId is provided
@@ -566,10 +564,10 @@ const updateListing = async (req, res) => {
       return res.status(403).json({ success: false, message: "You are not allowed to edit this listing" });
     }
 
-    // ── Validate always-sent fields (purpose, category, type) ────────────────
-    if (!listingTypeId || !categoryId) {
-      return res.status(400).json({ success: false, message: "listingTypeId and categoryId are required" });
-    }
+    // ── purpose / category / type are locked — derive from existing listing ──
+    const listingTypeId  = listing.listingType?.id?.toString();
+    const categoryId     = listing.category?.id?.toString();
+    const propertyTypeId = listing.propertyType?.id?.toString();
 
     // ── Validate cityName and locality are optional but valid if sent ──────────
     if (cityName !== undefined) {
@@ -583,7 +581,6 @@ const updateListing = async (req, res) => {
         return res.status(400).json({ success: false, message: "locality must be an object if sent" });
       }
 
-      // Validate individual locality fields if they are sent
       if (locality.address !== undefined) {
         if (locality.address === null || typeof locality.address !== "string" || !locality.address.trim()) {
           return res.status(400).json({ success: false, message: "locality.address must be a non-empty string if sent" });
@@ -601,47 +598,24 @@ const updateListing = async (req, res) => {
           return res.status(400).json({ success: false, message: "locality.longitude must be a valid longitude (-180 to 180) if sent" });
         }
       }
+    }
 
-      // Validate that locality belongs to the city (if cityName is sent or exists)
-      const effectiveCityName = cityName !== undefined ? cityName : listing.cityName;
-      if (effectiveCityName && locality.address) {
-        // Basic validation: check if city name is mentioned in address or is a known city
-        const addressLower = locality.address.toLowerCase();
-        const cityLower = effectiveCityName.toLowerCase();
-        if (!addressLower.includes(cityLower)) {
-          return res.status(400).json({ success: false, message: `locality.address must belong to ${effectiveCityName}` });
-        }
+    // ── Locality-city consistency check ─────────────────────────────────────
+    // Runs whenever cityName or locality.address changes (using effective values)
+    const effectiveCityName    = cityName    !== undefined ? cityName.trim()           : listing.cityName ?? "";
+    const effectiveAddress     = locality?.address !== undefined ? locality.address.trim() : listing.locality?.address ?? "";
+    const cityChanged          = cityName    !== undefined && cityName.trim()    !== (listing.cityName ?? "");
+    const localityChanged      = locality?.address !== undefined && locality.address.trim() !== (listing.locality?.address ?? "");
+
+    if ((cityChanged || localityChanged) && effectiveCityName && effectiveAddress) {
+      const addressLower = effectiveAddress.toLowerCase();
+      const cityLower    = effectiveCityName.toLowerCase();
+      if (!addressLower.includes(cityLower)) {
+        return res.status(400).json({
+          success: false,
+          message: `The selected locality does not belong to ${effectiveCityName}. Please pick an address within the city.`,
+        });
       }
-    }
-
-    // Validate IDs exist and are active
-    const [category, listingType, propertyType] = await Promise.all([
-      PropertyCategory.findById(categoryId).select("name"),
-      PropertyPurpose.findById(listingTypeId).select("name"),
-      propertyTypeId ? PropertyType.findById(propertyTypeId).select("name isActive propertyCategory") : Promise.resolve(null),
-    ]);
-
-    if (!category) return res.status(404).json({ success: false, message: "Category not found" });
-    if (!listingType) return res.status(404).json({ success: false, message: "Listing type not found" });
-
-    // propertyTypeId required unless PG listing
-    if (listingTypeId !== process.env.LISTING_TYPE_PG_ID && !propertyTypeId) {
-      return res.status(400).json({ success: false, message: "propertyTypeId is required for non-PG listings" });
-    }
-
-    if (propertyTypeId && !propertyType) {
-      return res.status(404).json({ success: false, message: "Property type not found" });
-    }
-
-    if (propertyTypeId && propertyType && propertyType.propertyCategory.toString() !== categoryId) {
-      return res.status(400).json({ success: false, message: "Property type does not belong to the selected category" });
-    }
-
-    // Update purpose, category, type (these can be changed)
-    listing.listingType = { id: listingType._id, name: listingType.name };
-    listing.category = { id: category._id, name: category.name };
-    if (propertyType) {
-      listing.propertyType = { id: propertyType._id, name: propertyType.name };
     }
 
     // ── Validate consistency: if detail field is sent, it must match category ──
