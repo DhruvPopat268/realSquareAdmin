@@ -716,6 +716,18 @@ const updateListing = async (req, res) => {
       listing.commercialDetails = commercialDetails === null
         ? null
         : await resolveFurnishingsAmenities(commercialDetails, listing.commercialDetails);
+
+      // Validate carpet area ≤ built-up area for non-plot commercial
+      if (listing.commercialDetails) {
+        const builtUp = listing.commercialDetails.builtUpArea?.value;
+        const carpet  = listing.commercialDetails.carpetArea?.value;
+        if (builtUp !== undefined && carpet !== undefined && Number(carpet) > Number(builtUp)) {
+          return res.status(400).json({
+            success: false,
+            message: `Carpet area (${carpet}) cannot be greater than built-up area (${builtUp}).`,
+          });
+        }
+      }
     }
 
     if (pgDetails !== undefined) {

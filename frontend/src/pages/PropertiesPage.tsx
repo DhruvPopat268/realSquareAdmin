@@ -141,12 +141,13 @@ function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
   );
 }
 
-function PropertyRow({ p, index, onView, onApprove, onReject }: {
+function PropertyRow({ p, index, onView, onApprove, onReject, onLocalityClick }: {
   p: any;
   index: number;
   onView: (id: string) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onLocalityClick: (address: string, lat: number, lng: number) => void;
 }) {
   // Format date and time in IST
   const formatDateTime = (dateString: string) => {
@@ -216,7 +217,29 @@ function PropertyRow({ p, index, onView, onApprove, onReject }: {
       <td className="px-4 py-3 text-sm text-foreground">{p.cityName || '-'}</td>
       
       {/* Locality */}
-      <td className="px-4 py-3 text-sm text-muted-foreground">{p.locality?.address || '-'}</td>
+      <td className="px-4 py-3">
+        {p.locality?.address ? (
+          <div className="w-36">
+            <button
+              title={p.locality.address}
+              onClick={() => {
+                if (p.locality?.latitude && p.locality?.longitude) {
+                  onLocalityClick(p.locality.address, p.locality.latitude, p.locality.longitude);
+                }
+              }}
+              className={`block w-full text-left text-sm truncate ${
+                p.locality?.latitude && p.locality?.longitude
+                  ? "text-blue-600 hover:underline cursor-pointer"
+                  : "text-muted-foreground cursor-default"
+              }`}
+            >
+              {p.locality.address}
+            </button>
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground">-</span>
+        )}
+      </td>
       
       {/* Sales Price */}
       <td className="px-4 py-3 text-sm font-semibold text-foreground">
@@ -472,6 +495,9 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const [rejectReasons, setRejectReasons] = useState<string[]>([]);
   const [rejectInput, setRejectInput]     = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
+
+  // ── Maps dialog ──────────────────────────────────────────────────────────────
+  const [mapsDialog, setMapsDialog] = useState<{ address: string; lat: number; lng: number } | null>(null);
 
   const handleRejectKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -803,7 +829,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
               {properties.length === 0
                 ? <tr><td colSpan={17} className="text-center text-muted-foreground py-16">No properties found</td></tr>
                 : properties.map((p, index) => (
-                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} onView={(id) => navigate(`/properties/${id}`)} onApprove={(id) => setApproveDialog({ id })} onReject={(id) => { setRejectDialog({ id }); setRejectReasons([]); setRejectInput(""); }} />
+                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} onView={(id) => navigate(`/properties/${id}`)} onApprove={(id) => setApproveDialog({ id })} onReject={(id) => { setRejectDialog({ id }); setRejectReasons([]); setRejectInput(""); }} onLocalityClick={(address, lat, lng) => setMapsDialog({ address, lat, lng })} />
                 ))
               }
             </tbody>
@@ -943,6 +969,31 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
             </Button>
             <Button variant="destructive" onClick={handleRejectSubmit} disabled={rejectLoading || rejectReasons.length === 0}>
               {rejectLoading ? "Rejecting..." : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Maps Confirmation Dialog */}
+      <Dialog open={!!mapsDialog} onOpenChange={(open) => { if (!open) setMapsDialog(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Map className="h-4 w-4 text-blue-500" /> Open in Google Maps
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-1">
+            Do you want to view <span className="font-medium text-foreground">"{mapsDialog?.address}"</span> on Google Maps?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMapsDialog(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                window.open(`https://www.google.com/maps?q=${mapsDialog!.lat},${mapsDialog!.lng}`, "_blank", "noopener,noreferrer");
+                setMapsDialog(null);
+              }}
+            >
+              Open Maps
             </Button>
           </DialogFooter>
         </DialogContent>

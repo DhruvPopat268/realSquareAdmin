@@ -11,7 +11,7 @@ import Spinner from "@/components/Spinner";
 import { toast } from "sonner";
 import {
   ChevronRight, ChevronLeft, Tag, CalendarDays, ArrowLeft, MapPin, User, Maximize2,
-  CheckCircle, XCircle,
+  CheckCircle, XCircle, Map,
 } from "lucide-react";
 
 const statusStyle: Record<string, string> = {
@@ -60,6 +60,9 @@ export default function PropertyDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [lightbox, setLightbox] = useState<number | null>(null);
+
+  // Maps dialog
+  const [mapsDialog, setMapsDialog] = useState<{ address: string; lat: number; lng: number } | null>(null);
 
   // Approve / Reject
   const [approveDialog, setApproveDialog] = useState(false);
@@ -325,7 +328,16 @@ export default function PropertyDetailPage() {
           {(p.locality?.address || p.cityName) && (
             <p className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
-              {[p.locality?.address, p.cityName].filter(Boolean).join(", ")}
+              {p.locality?.address && p.locality?.latitude && p.locality?.longitude ? (
+                <button
+                  onClick={() => setMapsDialog({ address: p.locality.address, lat: p.locality.latitude, lng: p.locality.longitude })}
+                  className="text-blue-600 hover:underline"
+                >
+                  {[p.locality.address, p.cityName].filter(Boolean).join(", ")}
+                </button>
+              ) : (
+                <span>{[p.locality?.address, p.cityName].filter(Boolean).join(", ")}</span>
+              )}
             </p>
           )}
         </div>
@@ -347,7 +359,21 @@ export default function PropertyDetailPage() {
               <DetailItem label="Category"     value={p.category?.name} />
               <DetailItem label="Type"         value={p.propertyType?.name} />
               <DetailItem label="City"         value={p.cityName} />
-              <DetailItem label="Locality"     value={p.locality?.address} />
+              {p.locality?.address ? (
+                <div>
+                  <p className="text-xs text-muted-foreground">Locality</p>
+                  {p.locality?.latitude && p.locality?.longitude ? (
+                    <button
+                      onClick={() => setMapsDialog({ address: p.locality.address, lat: p.locality.latitude, lng: p.locality.longitude })}
+                      className="font-semibold text-blue-600 hover:underline mt-0.5 text-left"
+                    >
+                      {p.locality.address}
+                    </button>
+                  ) : (
+                    <p className="font-semibold text-foreground mt-0.5">{p.locality.address}</p>
+                  )}
+                </div>
+              ) : null}
               {p.sellInfo?.price && (
                 <DetailItem label="Sale Price" value={formatPrice(p.sellInfo.price) ?? undefined} />
               )}
@@ -477,6 +503,31 @@ export default function PropertyDetailPage() {
             </Button>
             <Button variant="destructive" onClick={handleRejectSubmit} disabled={rejectLoading || rejectReasons.length === 0}>
               {rejectLoading ? "Rejecting..." : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Maps Confirmation Dialog */}
+      <Dialog open={!!mapsDialog} onOpenChange={(open) => { if (!open) setMapsDialog(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Map className="h-4 w-4 text-blue-500" /> Open in Google Maps
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-1">
+            Do you want to view <span className="font-medium text-foreground">"{mapsDialog?.address}"</span> on Google Maps?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMapsDialog(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                window.open(`https://www.google.com/maps?q=${mapsDialog!.lat},${mapsDialog!.lng}`, "_blank", "noopener,noreferrer");
+                setMapsDialog(null);
+              }}
+            >
+              Open Maps
             </Button>
           </DialogFooter>
         </DialogContent>
