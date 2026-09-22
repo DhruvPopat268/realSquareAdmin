@@ -20,6 +20,28 @@ const localitySchema = new Schema(
   { _id: false }
 );
 
+// ─── Shared Furnishing & Amenity sub-schema ──────────────────────────────────
+
+const furnishingItemSchema = new Schema(
+  {
+    id:    { type: Schema.Types.ObjectId, ref: "FurnishingAmenity" },
+    name:  { type: String, trim: true },
+    icon:  { type: String, trim: true },           // denormalized from FurnishingAmenity
+    count: { type: Number },                       // only when hasCount = true
+  },
+  { _id: false }
+);
+
+const amenityItemSchema = new Schema(
+  {
+    id:    { type: Schema.Types.ObjectId, ref: "FurnishingAmenity" },
+    name:  { type: String, trim: true },
+    icon:  { type: String, trim: true },           // denormalized from FurnishingAmenity
+    count: { type: Number },
+  },
+  { _id: false }
+);
+
 // ─── Residential (Apartment / House / Duplex / Floor / Villa / Penthouse / Studio / Farmhouse) ──
 
 const residentialDetailsSchema = new Schema(
@@ -28,16 +50,8 @@ const residentialDetailsSchema = new Schema(
     bhk: { type: Number },                     // 1,2,3,4,5...
     builtUpArea: areaSchema,
     furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
-    furnishings: [{
-      id:    { type: Schema.Types.ObjectId, ref: "FurnishingAmenity" },
-      name:  { type: String, trim: true },
-      count: { type: Number },                       // only when hasCount = true
-    }],
-    amenities: [{
-      id:    { type: Schema.Types.ObjectId, ref: "FurnishingAmenity" },
-      name:  { type: String, trim: true },
-      count: { type: Number },
-    }],
+    furnishings: [furnishingItemSchema],
+    amenities:   [amenityItemSchema],
   },
   { _id: false }
 );
@@ -78,6 +92,9 @@ const pgDetailsSchema = new Schema(
     lockInPeriod: { type: Number },                   // in days
     commonAreas: [{ type: String, enum: ["Living Room", "Kitchen", "Dining Area", "Bathroom", "Balcony", "Terrace", "Laundry Room", "Study Room", "Gym", "Parking"] }],
     rooms: [pgRoomSchema],
+    furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
+    furnishings: [furnishingItemSchema],               // PG-level furnishings (Bed, Wardrobe, etc.)
+    amenities:   [amenityItemSchema],                  // PG-level amenities (WiFi, Laundry, etc.)
   },
   { _id: false }
 );
@@ -101,6 +118,9 @@ const commercialDetailsSchema = new Schema(
     minSeats: { type: Number },              // office only
     minCabins: { type: Number },           // office only
     minMeetingRooms: { type: Number },     // office only
+    furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
+    furnishings: [furnishingItemSchema],
+    amenities:   [amenityItemSchema],
   },
   { _id: false }
 );
@@ -168,7 +188,7 @@ const propertyListingSchema = new Schema(
 
     // ── Media ─────────────────────────────────────────────────────────────────
     media: {
-      images: [{ type: String, trim: true }],           // S3/CDN URLs
+      images: [{ type: String, trim: true }],           // S3/CDN URLs (first is primary/cover)
     },
 
     // ── Type-specific details (only one will be populated per listing) ────────

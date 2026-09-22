@@ -1,5 +1,6 @@
 import { Maximize2, Layers } from "lucide-react";
 import type { CommercialDetails as CommercialDetailsType, SellInfo, RentInfo } from "@/services/propertyListingService";
+import FurnishingsAmenitiesDisplay from "./FurnishingsAmenitiesDisplay";
 
 interface Props {
   data: CommercialDetailsType;
@@ -59,7 +60,7 @@ export default function CommercialDetails({ data, sellInfo, rentInfo, propertyTy
     data.minCabins != null ||
     data.minMeetingRooms != null;
 
-  const hasFloorInfo = data.totalFloors != null || data.yourFloor;
+  const hasFloorInfo  = data.totalFloors != null || !!data.yourFloor;
   const hasOfficeInfo = isOffice && (data.minSeats != null || data.minCabins != null || data.minMeetingRooms != null);
 
   return (
@@ -72,16 +73,16 @@ export default function CommercialDetails({ data, sellInfo, rentInfo, propertyTy
         </h2>
         <p className="text-xs text-muted-foreground mb-4">Key specifications for this commercial property</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm">
-          <InfoItem label="Building / Project"    value={data.societyName} />
-          <InfoItem label="Built-up Area"         value={formatArea(data.builtUpArea)} />
-          <InfoItem label="Carpet Area"           value={formatArea(data.carpetArea)} />
-          <InfoItem label="Plot Area"             value={formatArea(data.plotArea)} />
-          <InfoItem label="Ownership"             value={formatOwnership(data.ownership)} />
-          <InfoItem label="Zone Type"             value={formatZone(data.zoneType)} />
-          <InfoItem label="Location Hub"          value={data.locationHub} />
+          <InfoItem label="Building / Project"  value={data.societyName} />
+          <InfoItem label="Built-up Area"        value={formatArea(data.builtUpArea)} />
+          <InfoItem label="Carpet Area"          value={formatArea(data.carpetArea)} />
+          <InfoItem label="Plot Area"            value={formatArea(data.plotArea)} />
+          <InfoItem label="Ownership"            value={formatOwnership(data.ownership)} />
+          <InfoItem label="Zone Type"            value={formatZone(data.zoneType)} />
+          <InfoItem label="Location Hub"         value={data.locationHub} />
           <InfoItem label="Construction Status"
             value={
-              sellInfo?.constructionStatus === "ReadyToMove" ? "Ready to Move" :
+              sellInfo?.constructionStatus === "ReadyToMove"       ? "Ready to Move" :
               sellInfo?.constructionStatus === "UnderConstruction" ? "Under Construction" :
               undefined
             }
@@ -89,7 +90,7 @@ export default function CommercialDetails({ data, sellInfo, rentInfo, propertyTy
           <InfoItem label="Age of Property"
             value={sellInfo?.ageOfProperty != null ? `${sellInfo.ageOfProperty} year${sellInfo.ageOfProperty !== 1 ? "s" : ""}` : null}
           />
-          <InfoItem label="Available From"       value={formatDate(sellInfo?.availableFrom ?? rentInfo?.availableFrom)} />
+          <InfoItem label="Available From"      value={formatDate(sellInfo?.availableFrom ?? rentInfo?.availableFrom)} />
         </div>
       </section>
 
@@ -134,6 +135,13 @@ export default function CommercialDetails({ data, sellInfo, rentInfo, propertyTy
           </div>
         </section>
       )}
+
+      {/* Furnishings & Amenities — card grid */}
+      <FurnishingsAmenitiesDisplay
+        furnishType={data.furnishType}
+        furnishings={data.furnishings ?? []}
+        amenities={data.amenities ?? []}
+      />
 
     </div>
   );

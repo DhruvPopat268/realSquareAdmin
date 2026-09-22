@@ -1,5 +1,5 @@
 const express  = require("express");
-const { canList, create, uploadMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById } = require("./controller");
+const { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById } = require("./controller");
 const { createListingValidator }        = require("./validator");
 const { userProtect }                   = require("../../../middleware/userAuth");
 const { uploadImage }                   = require("../../../utils/upload");
@@ -16,9 +16,12 @@ router.get("/active-property-types",        userProtect, getActivePropertyTypes)
 router.get("/my-listings",                  userProtect, getMyListings);
 
 router.post("/",      userProtect, createListingValidator, create);
+router.patch("/",     userProtect, updateListing); // PATCH with ID in body
 router.post("/media", userProtect, uploadImage.array("images", 20), uploadMedia);
+router.patch("/media", userProtect, uploadImage.array("images", 20), appendMedia); // PATCH with ID in body for media upload
 
 // ── Must be last to avoid swallowing named routes above ──────────────────────
-router.get("/:id", userProtect, getListingById);
+router.get   ("/:id",        userProtect, getListingById);
+router.post  ("/:id/media",  userProtect, uploadImage.array("images", 20), appendMedia);
 
 module.exports = router;

@@ -10,6 +10,7 @@ export interface AreaValue {
 export interface FurnishingItem {
   id: string;
   name: string;
+  icon?: string;
   count?: number;
 }
 

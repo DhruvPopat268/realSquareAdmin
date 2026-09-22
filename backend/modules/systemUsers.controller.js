@@ -514,10 +514,11 @@ const getMe = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const [wallet, purchased, hasListings] = await Promise.all([
+    const [wallet, purchased, hasListings, rejectedPropertiesCount] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
       ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
       PropertyListing.exists({ "listedBy.id": req.user._id }),
+      PropertyListing.countDocuments({ "listedBy.id": req.user._id, status: "Rejected" }),
     ]);
 
     let activePlan = null;
@@ -582,6 +583,7 @@ const getMe = async (req, res) => {
         myPropertyListingAllowed: !!hasListings,
         isProfileCompleted,
         canListProperty,
+        rejectedPropertiesCount,
       } 
     });
   } catch (err) {

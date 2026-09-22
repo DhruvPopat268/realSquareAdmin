@@ -422,13 +422,16 @@ function formatPrice(n) {
 // ── GET /property-listings/:id (public) ──────────────────────────────────────
 const getListingById = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+    }
+
     const listing = await PropertyListing.findById(req.params.id).lean();
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
     // Merge normalized title & price into the full listing doc
     const normalized = normalizeListingCard(listing);
     res.json({ success: true, data: { ...listing, title: normalized.title, price: normalized.price } });
   } catch (err) {
-    // Invalid ObjectId format
     if (err.name === "CastError") return res.status(404).json({ success: false, message: "Listing not found" });
     res.status(500).json({ success: false, message: err.message });
   }
@@ -518,4 +521,315 @@ const getMyListings = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, uploadMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById };
+// ── PATCH /property-listings/:id ─────────────────────────────────────────────
+const updateListing = async (req, res) => {
+  try {
+    const {
+      propertyListingId, // ID from body
+      listingTypeId, categoryId, propertyTypeId, // ALWAYS sent
+      cityName, locality,
+      residentialDetails, plotDetails, pgDetails, commercialDetails,
+      sellInfo, rentInfo,
+      // NOTE: images are intentionally excluded — handled exclusively by PATCH /media
+    } = req.body;
+
+    // Validate propertyListingId is provided
+    if (!propertyListingId) {
+      return res.status(400).json({ success: false, message: "propertyListingId is required" });
+    }
+
+    if (!mongoose.isValidObjectId(propertyListingId)) {
+      return res.status(400).json({ success: false, message: "Invalid propertyListingId" });
+    }
+
+    const listing = await PropertyListing.findById(propertyListingId);
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    // Only the owner can edit their own listing
+    if (listing.listedBy.id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not allowed to edit this listing" });
+    }
+
+    // ── Validate always-sent fields (purpose, category, type) ────────────────
+    if (!listingTypeId || !categoryId) {
+      return res.status(400).json({ success: false, message: "listingTypeId and categoryId are required" });
+    }
+
+    // ── Validate cityName and locality are optional but valid if sent ──────────
+    if (cityName !== undefined) {
+      if (cityName === null || typeof cityName !== "string" || !cityName.trim()) {
+        return res.status(400).json({ success: false, message: "cityName must be a non-empty string if sent" });
+      }
+    }
+
+    if (locality !== undefined) {
+      if (locality === null || typeof locality !== "object") {
+        return res.status(400).json({ success: false, message: "locality must be an object if sent" });
+      }
+
+      // Validate individual locality fields if they are sent
+      if (locality.address !== undefined) {
+        if (locality.address === null || typeof locality.address !== "string" || !locality.address.trim()) {
+          return res.status(400).json({ success: false, message: "locality.address must be a non-empty string if sent" });
+        }
+      }
+
+      if (locality.latitude !== undefined) {
+        if (locality.latitude === null || typeof locality.latitude !== "number" || locality.latitude < -90 || locality.latitude > 90) {
+          return res.status(400).json({ success: false, message: "locality.latitude must be a valid latitude (-90 to 90) if sent" });
+        }
+      }
+
+      if (locality.longitude !== undefined) {
+        if (locality.longitude === null || typeof locality.longitude !== "number" || locality.longitude < -180 || locality.longitude > 180) {
+          return res.status(400).json({ success: false, message: "locality.longitude must be a valid longitude (-180 to 180) if sent" });
+        }
+      }
+
+      // Validate that locality belongs to the city (if cityName is sent or exists)
+      const effectiveCityName = cityName !== undefined ? cityName : listing.cityName;
+      if (effectiveCityName && locality.address) {
+        // Basic validation: check if city name is mentioned in address or is a known city
+        const addressLower = locality.address.toLowerCase();
+        const cityLower = effectiveCityName.toLowerCase();
+        if (!addressLower.includes(cityLower)) {
+          return res.status(400).json({ success: false, message: `locality.address must belong to ${effectiveCityName}` });
+        }
+      }
+    }
+
+    // Validate IDs exist and are active
+    const [category, listingType, propertyType] = await Promise.all([
+      PropertyCategory.findById(categoryId).select("name"),
+      PropertyPurpose.findById(listingTypeId).select("name"),
+      propertyTypeId ? PropertyType.findById(propertyTypeId).select("name isActive propertyCategory") : Promise.resolve(null),
+    ]);
+
+    if (!category) return res.status(404).json({ success: false, message: "Category not found" });
+    if (!listingType) return res.status(404).json({ success: false, message: "Listing type not found" });
+
+    // propertyTypeId required unless PG listing
+    if (listingTypeId !== process.env.LISTING_TYPE_PG_ID && !propertyTypeId) {
+      return res.status(400).json({ success: false, message: "propertyTypeId is required for non-PG listings" });
+    }
+
+    if (propertyTypeId && !propertyType) {
+      return res.status(404).json({ success: false, message: "Property type not found" });
+    }
+
+    if (propertyTypeId && propertyType && propertyType.propertyCategory.toString() !== categoryId) {
+      return res.status(400).json({ success: false, message: "Property type does not belong to the selected category" });
+    }
+
+    // Update purpose, category, type (these can be changed)
+    listing.listingType = { id: listingType._id, name: listingType.name };
+    listing.category = { id: category._id, name: category.name };
+    if (propertyType) {
+      listing.propertyType = { id: propertyType._id, name: propertyType.name };
+    }
+
+    // ── Validate consistency: if detail field is sent, it must match category ──
+    if (residentialDetails !== undefined && categoryId !== process.env.CATEGORY_RESIDENTIAL_ID) {
+      return res.status(400).json({ success: false, message: "residentialDetails only allowed for residential category" });
+    }
+    if (plotDetails !== undefined && categoryId !== process.env.CATEGORY_RESIDENTIAL_ID) {
+      return res.status(400).json({ success: false, message: "plotDetails only allowed for residential category" });
+    }
+    if (commercialDetails !== undefined && categoryId !== process.env.CATEGORY_COMMERCIAL_ID) {
+      return res.status(400).json({ success: false, message: "commercialDetails only allowed for commercial category" });
+    }
+    if (pgDetails !== undefined && listingTypeId !== process.env.LISTING_TYPE_PG_ID) {
+      return res.status(400).json({ success: false, message: "pgDetails only allowed for PG listings" });
+    }
+
+    // Validate sell/rent info matches listing type
+    if (sellInfo !== undefined && listingTypeId !== process.env.LISTING_TYPE_SELL_ID) {
+      return res.status(400).json({ success: false, message: "sellInfo only allowed for Sell listings" });
+    }
+    if (rentInfo !== undefined && (listingTypeId !== process.env.LISTING_TYPE_RENT_ID && listingTypeId !== process.env.LISTING_TYPE_PG_ID)) {
+      return res.status(400).json({ success: false, message: "rentInfo only allowed for Rent/PG listings" });
+    }
+
+    // ── Update simple scalar fields (only if sent) ───────────────────────────
+    if (cityName !== undefined) listing.cityName = cityName.trim();
+    
+    if (locality !== undefined) {
+      // Smart merge: only update fields that were sent
+      listing.locality = {
+        address: locality.address !== undefined ? locality.address.trim() : listing.locality?.address,
+        latitude: locality.latitude !== undefined ? locality.latitude : listing.locality?.latitude,
+        longitude: locality.longitude !== undefined ? locality.longitude : listing.locality?.longitude,
+      };
+    }
+
+    // ── Helper: resolve furnishingId/amenityId → { id, name, icon, count } ─────
+    async function resolveFurnishingsAmenities(details, existingDetails) {
+      const hasNewFurnishings = Array.isArray(details.furnishings) &&
+        details.furnishings.some((f) => f.furnishingId);
+      const hasNewAmenities = Array.isArray(details.amenities) &&
+        details.amenities.some((a) => a.amenityId);
+
+      if (!hasNewFurnishings && !hasNewAmenities) {
+        return { ...existingDetails?.toObject?.() ?? {}, ...details };
+      }
+
+      const allIds = [
+        ...(hasNewFurnishings ? details.furnishings.map((f) => f.furnishingId) : []),
+        ...(hasNewAmenities   ? details.amenities.map((a) => a.amenityId)     : []),
+      ].filter(Boolean);
+
+      const items   = await FurnishingAmenity.find({ _id: { $in: allIds } }).select("name icon");
+      const itemMap = Object.fromEntries(items.map((i) => [i._id.toString(), { name: i.name, icon: i.icon }]));
+
+      return {
+        ...existingDetails?.toObject?.() ?? {},
+        ...details,
+        furnishings: hasNewFurnishings
+          ? details.furnishings.map((f) => ({
+              id:    f.furnishingId,
+              name:  itemMap[f.furnishingId]?.name,
+              icon:  itemMap[f.furnishingId]?.icon,
+              count: f.count,
+            }))
+          : details.furnishings === undefined
+            ? existingDetails?.furnishings
+            : details.furnishings,
+        amenities: hasNewAmenities
+          ? details.amenities.map((a) => ({
+              id:   a.amenityId,
+              name: itemMap[a.amenityId]?.name,
+              icon: itemMap[a.amenityId]?.icon,
+              count: a.count,
+            }))
+          : details.amenities === undefined
+            ? existingDetails?.amenities
+            : details.amenities,
+      };
+    }
+
+    // ── Update type-specific details (only if sent) ──────────────────────────
+    if (residentialDetails !== undefined) {
+      listing.residentialDetails = residentialDetails === null
+        ? null
+        : await resolveFurnishingsAmenities(residentialDetails, listing.residentialDetails);
+    }
+
+    if (plotDetails !== undefined) {
+      if (plotDetails === null) {
+        listing.plotDetails = null;
+      } else {
+        listing.plotDetails = { ...listing.plotDetails?.toObject?.() ?? {}, ...plotDetails };
+      }
+    }
+
+    if (commercialDetails !== undefined) {
+      listing.commercialDetails = commercialDetails === null
+        ? null
+        : await resolveFurnishingsAmenities(commercialDetails, listing.commercialDetails);
+    }
+
+    if (pgDetails !== undefined) {
+      if (pgDetails === null) {
+        listing.pgDetails = null;
+      } else {
+        const resolved = await resolveFurnishingsAmenities(pgDetails, listing.pgDetails);
+        const rooms = (resolved.rooms || listing.pgDetails?.rooms || []).map((r) =>
+          r.roomType === "1 Sharing" ? { ...r, bedsAvailable: 1 } : r
+        );
+        listing.pgDetails = { ...resolved, rooms };
+      }
+    }
+
+    if (sellInfo !== undefined) {
+      if (sellInfo === null) {
+        listing.sellInfo = null;
+      } else {
+        listing.sellInfo = { ...listing.sellInfo?.toObject?.() ?? {}, ...sellInfo };
+      }
+    }
+
+    if (rentInfo !== undefined) {
+      if (rentInfo === null) {
+        listing.rentInfo = null;
+      } else {
+        listing.rentInfo = { ...listing.rentInfo?.toObject?.() ?? {}, ...rentInfo };
+      }
+    }
+
+    // ── Reset status to UnderReview on edit ───────────────────────────────────
+    const wasActive = listing.status === "Active";
+    const autoApprovalStatus = await resolveStatus(req.user);
+    if (!wasActive || autoApprovalStatus !== "Active") {
+      listing.status = autoApprovalStatus;
+    }
+
+    await listing.save();
+
+    res.json({
+      success: true,
+      message: listing.status === "Active" ? "Listing updated successfully" : "Listing updated and sent for review",
+      data: { _id: listing._id, status: listing.status },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST/PATCH /property-listings/:id/media (append new images) ──────────────
+const appendMedia = async (req, res) => {
+  try {
+    const { propertyListingId } = req.body;
+
+    // Support both old (:id) and new (body) formats for backward compatibility
+    const id = propertyListingId || req.params.id;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+    }
+
+    const listing = await PropertyListing.findById(id);
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    if (listing.listedBy.id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    // ── existingImages: ordered array of existing URLs (after reorder/delete by client)
+    // If sent, it replaces the current image list as the base before appending new uploads.
+    let existingImages = listing.media.images; // default: keep current order
+    if (req.body.existingImages !== undefined) {
+      try {
+        const parsed = typeof req.body.existingImages === "string"
+          ? JSON.parse(req.body.existingImages)
+          : req.body.existingImages;
+        if (Array.isArray(parsed)) existingImages = parsed;
+      } catch {
+        // malformed — ignore and keep current
+      }
+    }
+
+    // ── Upload new files (if any) and append/prepend ──────────────────────────
+    if (req.files?.length) {
+      const newUrls = req.files.map((f) => toUrl(f.path));
+
+      // isPrimary: if first new file is primary, prepend so it becomes cover
+      const isPrimaryFlags = req.body.isPrimary ? JSON.parse(req.body.isPrimary) : [];
+      const hasPrimary = isPrimaryFlags[0] === true;
+
+      listing.media.images = hasPrimary
+        ? [...newUrls, ...existingImages]
+        : [...existingImages, ...newUrls];
+    } else {
+      // No new files — just save the reordered/deleted existing list
+      listing.media.images = existingImages;
+    }
+
+    await listing.save();
+
+    res.json({ success: true, data: { images: listing.media.images } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById };

@@ -1,5 +1,6 @@
 import { Home, Users, Clock, Calendar, CheckCircle2 } from "lucide-react";
 import type { PGDetails as PGDetailsType, RentInfo } from "@/services/propertyListingService";
+import FurnishingsAmenitiesDisplay from "./FurnishingsAmenitiesDisplay";
 
 interface Props {
   data: PGDetailsType;
@@ -32,13 +33,13 @@ export default function PGDetails({ data, rentInfo }: Props) {
         </h2>
         <p className="text-xs text-muted-foreground mb-4">Key details for this PG / co-living space</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm">
-          <InfoItem label="PG Name"              value={data.pgName} />
-          <InfoItem label="Total Beds"           value={data.totalBedsAvailable != null ? `${data.totalBedsAvailable} beds` : null} />
-          <InfoItem label="Accommodation For"    value={data.pgFor} />
-          <InfoItem label="Best Suited For"      value={data.bestSuitedFor?.join(", ")} />
-          <InfoItem label="Notice Period"        value={data.noticePeriod != null ? `${data.noticePeriod} days` : null} />
-          <InfoItem label="Lock-in Period"       value={data.lockInPeriod != null ? `${data.lockInPeriod} days` : null} />
-          <InfoItem label="Available From"       value={formatDate(rentInfo?.availableFrom)} />
+          <InfoItem label="PG Name"           value={data.pgName} />
+          <InfoItem label="Total Beds"         value={data.totalBedsAvailable != null ? `${data.totalBedsAvailable} beds` : null} />
+          <InfoItem label="Accommodation For"  value={data.pgFor} />
+          <InfoItem label="Best Suited For"    value={data.bestSuitedFor?.join(", ")} />
+          <InfoItem label="Notice Period"      value={data.noticePeriod != null ? `${data.noticePeriod} days` : null} />
+          <InfoItem label="Lock-in Period"     value={data.lockInPeriod != null ? `${data.lockInPeriod} days` : null} />
+          <InfoItem label="Available From"     value={formatDate(rentInfo?.availableFrom)} />
           <InfoItem label="Meals Included"
             value={
               data.mealsAvailable && data.meals?.length
@@ -98,6 +99,13 @@ export default function PGDetails({ data, rentInfo }: Props) {
           </div>
         </section>
       )}
+
+      {/* Furnishings & Amenities — card grid */}
+      <FurnishingsAmenitiesDisplay
+        furnishType={data.furnishType}
+        furnishings={data.furnishings ?? []}
+        amenities={data.amenities ?? []}
+      />
 
       {/* Rules & Policies */}
       {(data.noticePeriod != null || data.lockInPeriod != null || (data.bestSuitedFor?.length ?? 0) > 0) && (
