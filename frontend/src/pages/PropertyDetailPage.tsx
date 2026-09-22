@@ -1,12 +1,17 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { propertyListingService, type PropertyListing } from "@/services/propertyListingService";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import PropertyTypeDetails from "@/components/propertyDetails/PropertyTypeDetails";
 import Spinner from "@/components/Spinner";
+import { toast } from "sonner";
 import {
-  ChevronRight, Tag, CalendarDays, ArrowLeft, MapPin, User, Maximize2,
+  ChevronRight, ChevronLeft, Tag, CalendarDays, ArrowLeft, MapPin, User, Maximize2,
+  CheckCircle, XCircle,
 } from "lucide-react";
 
 const statusStyle: Record<string, string> = {
@@ -54,19 +59,71 @@ export default function PropertyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [comment, setComment] = useState("");
-  const [comments, setComments] = useState<string[]>([]);
   const [lightbox, setLightbox] = useState<number | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Close lightbox on Escape key
+  // Approve / Reject
+  const [approveDialog, setApproveDialog] = useState(false);
+  const [approvingId, setApprovingId]     = useState(false);
+  const [rejectDialog, setRejectDialog]   = useState(false);
+  const [rejectReasons, setRejectReasons] = useState<string[]>([]);
+  const [rejectInput, setRejectInput]     = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+
+  const handleRejectKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const trimmed = rejectInput.trim();
+      if (trimmed && !rejectReasons.includes(trimmed)) {
+        setRejectReasons((prev) => [...prev, trimmed]);
+      }
+      setRejectInput("");
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!id) return;
+    setApprovingId(true);
+    try {
+      await propertyListingService.approve(id);
+      toast.success("Property approved successfully");
+      setProperty((prev) => prev ? { ...prev, status: "Active" } : prev);
+      setApproveDialog(false);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to approve property");
+    } finally {
+      setApprovingId(false);
+    }
+  };
+
+  const handleRejectSubmit = async () => {
+    if (!id) return;
+    if (rejectReasons.length === 0) { toast.error("Please add at least one rejection reason"); return; }
+    setRejectLoading(true);
+    try {
+      await propertyListingService.reject(id, rejectReasons);
+      toast.success("Property rejected");
+      setProperty((prev) => prev ? { ...prev, status: "Rejected", rejectedReasons: rejectReasons } : prev);
+      setRejectDialog(false);
+      setRejectReasons([]);
+      setRejectInput("");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to reject property");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  // Close lightbox on Escape, navigate with arrow keys
   useEffect(() => {
+    const total = property?.media?.images?.length ?? 0;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightbox(null);
+      if (e.key === "Escape") { setLightbox(null); return; }
+      if (e.key === "ArrowLeft")  setLightbox((i) => i !== null && total > 0 ? (i - 1 + total) % total : null);
+      if (e.key === "ArrowRight") setLightbox((i) => i !== null && total > 0 ? (i + 1) % total : null);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [property]);
 
   useEffect(() => {
     if (!id) return;
@@ -102,12 +159,6 @@ export default function PropertyDetailPage() {
     ? `${formatPrice(p.rentInfo.monthlyRent)}/month`
     : "Price on request";
 
-  const handleComment = () => {
-    if (!comment.trim()) return;
-    setComments((c) => [...c, comment.trim()]);
-    setComment("");
-  };
-
   return (
     <div className="space-y-6">
 
@@ -123,14 +174,66 @@ export default function PropertyDetailPage() {
         </nav>
       </div>
 
-      {/* Image Gallery — 3 per row */}
+      {/* Approve / Reject — banner above gallery for UnderReview */}
+      {p.status === "UnderReview" && (
+        <div className="flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+            <p className="text-sm font-medium text-yellow-800">This property is <span className="font-bold">Under Review</span> — approve or reject it.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 border-green-200 text-green-700 hover:bg-green-50"
+              onClick={() => setApproveDialog(true)}
+            >
+              <CheckCircle className="h-3.5 w-3.5" /> Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50"
+              onClick={() => { setRejectDialog(true); setRejectReasons([]); setRejectInput(""); }}
+            >
+              <XCircle className="h-3.5 w-3.5" /> Reject
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Image Gallery — show first 4, 4th blurred with +N overlay */}
       {imgs.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 rounded-xl overflow-hidden">
-          {imgs.map((src, i) => (
-            <div key={i} className="relative cursor-pointer overflow-hidden h-64 rounded-lg" onClick={() => setLightbox(i)}>
-              <img src={src} alt={`Property ${i + 1}`} className="w-full h-full object-cover hover:brightness-95 transition" />
-            </div>
-          ))}
+        <div className="grid grid-cols-4 gap-2 rounded-xl overflow-hidden">
+          {imgs.slice(0, 4).map((src, i) => {
+            const isLast    = i === 3;
+            const remaining = imgs.length - 4; // how many hidden beyond 4
+            const showOverlay = isLast && remaining > 0;
+
+            return (
+              <div
+                key={i}
+                className="relative cursor-pointer overflow-hidden h-56 rounded-lg"
+                onClick={() => setLightbox(i)}
+              >
+                <img
+                  src={src}
+                  alt={`Property ${i + 1}`}
+                  className={`w-full h-full object-cover transition
+                    ${showOverlay ? "blur-sm brightness-50 scale-105" : "hover:brightness-95"}`}
+                />
+                {showOverlay && (
+                  <div
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-1 cursor-pointer"
+                    onClick={() => setLightbox(3)}
+                  >
+                    <span className="text-white text-3xl font-bold drop-shadow">+{remaining}</span>
+                    <span className="text-white/80 text-xs font-medium">more photos</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -140,16 +243,57 @@ export default function PropertyDetailPage() {
           className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center"
           onClick={() => setLightbox(null)}
         >
+          {/* Image */}
           <img
             src={imgs[lightbox]}
             alt=""
-            className="max-h-screen max-w-screen object-contain"
+            className="max-h-[85vh] max-w-[85vw] object-contain rounded-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
+
+          {/* Close */}
           <button
             onClick={() => setLightbox(null)}
             className="absolute top-4 right-6 text-white text-2xl font-bold hover:opacity-70"
           >✕</button>
+
+          {/* Counter */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white text-sm px-3 py-1 rounded-full">
+            {lightbox + 1} / {imgs.length}
+          </div>
+
+          {/* Left arrow */}
+          {lightbox > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! - 1 + imgs.length) % imgs.length); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center transition"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          )}
+
+          {/* Right arrow */}
+          {lightbox < imgs.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! + 1) % imgs.length); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center transition"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          )}
+
+          {/* Dot indicators (max 10 shown) */}
+          {imgs.length > 1 && imgs.length <= 20 && (
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {imgs.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setLightbox(i); }}
+                  className={`rounded-full transition-all ${i === lightbox ? "w-4 h-2 bg-white" : "w-2 h-2 bg-white/40 hover:bg-white/70"}`}
+                />
+              ))}
+            </div>
+          )}
         </div>,
         document.body
       )}
@@ -241,8 +385,7 @@ export default function PropertyDetailPage() {
         {/* Side Panel */}
         <div className="xl:col-span-1">
           {/* Price summary card */}
-          <div className="border rounded-xl p-4 bg-card space-y-3 mb-4">
-            <h3 className="text-sm font-bold text-foreground">Price Summary</h3>
+          <div className="border rounded-xl p-4 bg-card space-y-3 mb-4">            <h3 className="text-sm font-bold text-foreground">Price Summary</h3>
             <div className="space-y-2">
               {p.sellInfo?.price && (
                 <div className="flex justify-between text-sm">
@@ -268,34 +411,76 @@ export default function PropertyDetailPage() {
               )}
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Comments */}
-          <div className="sticky top-4 border rounded-xl p-4 bg-card space-y-3">
-            <h3 className="text-sm font-bold text-foreground">Comments</h3>
-            <p className="text-xs text-muted-foreground">Admin notes for this listing</p>
+      {/* Approve Confirmation Dialog */}
+      <Dialog open={approveDialog} onOpenChange={(open) => { if (!open) setApproveDialog(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Approve Property</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">
+            Are you sure you want to approve this property listing? It will become{" "}
+            <span className="font-semibold text-foreground">Active</span> and visible to customers.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveDialog(false)} disabled={approvingId}>
+              Cancel
+            </Button>
+            <Button onClick={handleApprove} disabled={approvingId}>
+              {approvingId ? "Approving..." : "Approve"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            {comments.length > 0 && (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {comments.map((c, i) => (
-                  <div key={i} className="bg-muted rounded-lg px-3 py-2 text-sm text-foreground">{c}</div>
+      {/* Reject Reason Dialog */}
+      <Dialog open={rejectDialog} onOpenChange={(open) => { if (!open) { setRejectDialog(false); setRejectReasons([]); setRejectInput(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Property</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Add one or more rejection reasons. Press{" "}
+              <kbd className="px-1.5 py-0.5 rounded border text-xs font-mono">Enter</kbd> after each reason.
+            </p>
+            {rejectReasons.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {rejectReasons.map((r, i) => (
+                  <span key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 border border-red-200 text-red-700 text-xs rounded-full">
+                    {r}
+                    <button
+                      onClick={() => setRejectReasons((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="hover:text-red-900 font-bold leading-none"
+                    >×</button>
+                  </span>
                 ))}
               </div>
             )}
-
-            <textarea
-              ref={textareaRef}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleComment(); }}
-              placeholder="Add a note..."
-              rows={4}
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+            <input
+              autoFocus
+              value={rejectInput}
+              onChange={(e) => setRejectInput(e.target.value)}
+              onKeyDown={handleRejectKeyDown}
+              placeholder="Type a reason and press Enter..."
+              className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
             />
-            <p className="text-[10px] text-muted-foreground">Press Ctrl+Enter to submit</p>
-            <Button className="w-full" size="sm" onClick={handleComment}>Submit</Button>
+            {rejectReasons.length === 0 && (
+              <p className="text-xs text-red-500">At least 1 reason is required</p>
+            )}
           </div>
-        </div>
-      </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setRejectDialog(false); setRejectReasons([]); setRejectInput(""); }} disabled={rejectLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRejectSubmit} disabled={rejectLoading || rejectReasons.length === 0}>
+              {rejectLoading ? "Rejecting..." : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

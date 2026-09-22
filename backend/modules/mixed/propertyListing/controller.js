@@ -428,9 +428,25 @@ const getListingById = async (req, res) => {
 
     const listing = await PropertyListing.findById(req.params.id).lean();
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
     // Merge normalized title & price into the full listing doc
     const normalized = normalizeListingCard(listing);
-    res.json({ success: true, data: { ...listing, title: normalized.title, price: normalized.price } });
+
+    // Determine if the currently logged-in user is the one who listed this property
+    const isListedByCurrentUser =
+      req.user && listing.listedBy?.id
+        ? listing.listedBy.id.toString() === req.user._id.toString()
+        : false;
+
+    res.json({
+      success: true,
+      data: {
+        ...listing,
+        title: normalized.title,
+        price: normalized.price,
+        isListedByCurrentUser,
+      },
+    });
   } catch (err) {
     if (err.name === "CastError") return res.status(404).json({ success: false, message: "Listing not found" });
     res.status(500).json({ success: false, message: err.message });
@@ -756,12 +772,19 @@ const updateListing = async (req, res) => {
       }
     }
 
-    // ── Reset status to UnderReview on edit ───────────────────────────────────
-    const wasActive = listing.status === "Active";
-    const autoApprovalStatus = await resolveStatus(req.user);
-    if (!wasActive || autoApprovalStatus !== "Active") {
-      listing.status = autoApprovalStatus;
+    // ── Reset status to UnderReview on edit — only if something actually changed ──
+    const hasChanges = listing.isModified();
+
+    if (!hasChanges) {
+      return res.json({
+        success: true,
+        message: "No changes detected",
+        data: { _id: listing._id, status: listing.status },
+      });
     }
+
+    const autoApprovalStatus = await resolveStatus(req.user);
+    listing.status = autoApprovalStatus;
 
     await listing.save();
 
@@ -809,6 +832,8 @@ const appendMedia = async (req, res) => {
     }
 
     // ── Upload new files (if any) and append/prepend ──────────────────────────
+    const oldImagesSerialized = JSON.stringify(listing.media.images);
+
     if (req.files?.length) {
       const newUrls = req.files.map((f) => toUrl(f.path));
 
@@ -824,9 +849,22 @@ const appendMedia = async (req, res) => {
       listing.media.images = existingImages;
     }
 
+    // Only update status if images actually changed
+    const imagesChanged = JSON.stringify(listing.media.images) !== oldImagesSerialized;
+    if (!imagesChanged) {
+      return res.json({ success: true, data: { images: listing.media.images } });
+    }
+
+    const autoApprovalStatus = await resolveStatus(req.user);
+    listing.status = autoApprovalStatus;
+
     await listing.save();
 
-    res.json({ success: true, data: { images: listing.media.images } });
+    res.json({
+      success: true,
+      message: listing.status === "Active" ? "Images updated successfully" : "Images updated and listing sent for review",
+      data: { images: listing.media.images },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
