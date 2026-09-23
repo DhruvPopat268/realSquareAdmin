@@ -113,6 +113,20 @@ export interface PropertyListing {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+export interface MapPin {
+  _id: string;
+  listingType: { id: string; name: string };
+  category: { id: string; name: string };
+  propertyType?: { id: string; name: string };
+  cityName?: string;
+  locality?: { address?: string; latitude?: number; longitude?: number };
+  media?: { images: string[] };
+  residentialDetails?: { bhk?: number };
+  listedBy?: { name?: string; role?: { name?: string } };
+  status: string;
+  price: string | null;
+}
+
 export const propertyListingService = {
   getById: (id: string) =>
     api.get<{ success: boolean; data: PropertyListing }>(`/admin/property-listings/${id}`),
@@ -128,4 +142,14 @@ export const propertyListingService = {
     api.patch<{ success: boolean; message: string; data: { status: string; soldAt?: string } }>(`/admin/property-listings/mark-sold/${id}`),
   markRented: (id: string) =>
     api.patch<{ success: boolean; message: string; data: { status: string; rentedAt?: string } }>(`/admin/property-listings/mark-rented/${id}`),
+  getMapPins: (filters: { purposeId?: string; categoryId?: string; typeId?: string; userId?: string; roleId?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.purposeId)  params.set("purposeId",  filters.purposeId);
+    if (filters.categoryId) params.set("categoryId", filters.categoryId);
+    if (filters.typeId)     params.set("typeId",      filters.typeId);
+    if (filters.userId)     params.set("userId",      filters.userId);
+    if (filters.roleId)     params.set("roleId",      filters.roleId);
+    const qs = params.toString();
+    return api.get<{ success: boolean; data: MapPin[] }>(`/admin/property-listings/map-pins${qs ? `?${qs}` : ""}`);
+  },
 };

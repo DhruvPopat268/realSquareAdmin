@@ -718,14 +718,17 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header — hidden in map view */}
+      {view !== "map" && (
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">
           {filterType ? `${filterType} Properties` : "All Properties"}
         </h1>
       </div>
+      )}
 
-      {/* Stats */}
+      {/* Stats — hidden in map view */}
+      {view !== "map" && (<>
       <div className="grid grid-cols-5 gap-3">
         <div className="rounded-xl border bg-card p-4 col-span-1">
           <p className="text-xs text-muted-foreground">Total Properties</p>
@@ -758,9 +761,11 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           <p className="text-2xl font-bold text-red-600 mt-1">{stats.Rejected}</p>
         </div>
       </div>
+      </>)}
 
       {/* Toolbar - Row 1 */}
       <div className="flex items-center gap-2 flex-wrap">
+        {view !== "map" && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Rows per page</span>
           <Select
@@ -773,7 +778,10 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
             </SelectContent>
           </Select>
         </div>
+        )}
+        {view !== "map" && (
         <p className="text-sm text-muted-foreground">{pagination.total} propert{pagination.total !== 1 ? 'ies' : 'y'}</p>
+        )}
 
         <div className="flex-1" />
 
@@ -815,7 +823,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Type filter — options are fetched from API based on applied categoryFilter */}
+        {/* Type filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
@@ -833,6 +841,67 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Role filter — shown in both views */}
+        {view === "map" && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+                {pendingRoleId ? (roles.find(r => r._id === pendingRoleId)?.name ?? "All Roles") : "All Roles"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setPendingRoleId(""); setPendingUserId(""); }}>All Roles</DropdownMenuItem>
+              {roles.map((r) => (
+                <DropdownMenuItem key={r._id} onClick={() => { setPendingRoleId(r._id); setPendingUserId(""); }}>
+                  {r.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {/* User filter — shown in both views */}
+        {view === "map" && (
+          <DropdownMenu onOpenChange={(open) => { if (!open) setUserSearch(""); }}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+                {pendingUserId ? (activeUsers.find(u => u._id === pendingUserId)?.name ?? activeUsers.find(u => u._id === pendingUserId)?.mobile ?? "All Users") : "All Users"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <div className="px-2 py-1.5">
+                <input
+                  autoFocus
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  placeholder="Search by name..."
+                  className="w-full rounded-md border px-2.5 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <DropdownMenuItem onClick={() => setPendingUserId("")}>All Users</DropdownMenuItem>
+              {activeUsers.map((u) => (
+                <DropdownMenuItem key={u._id} onClick={() => setPendingUserId(u._id)}>
+                  {u.name ?? u.mobile} — {u.roleName}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {/* Apply button — shown in both views */}
+        {view === "map" && (
+          <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
+        )}
+
+        {/* Clear all — shown in both views */}
+        {view === "map" && hasFilters && (
+          <button onClick={clearAll} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors underline underline-offset-2">Clear all</button>
+        )}
+
         <div className="flex items-center gap-0.5 border rounded-lg p-1">
           <button onClick={() => setView("grid")}
             className={`p-1.5 rounded-md transition-colors ${view === "grid" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
@@ -849,7 +918,8 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
         </div>
       </div>
 
-      {/* Toolbar - Row 2 */}
+      {/* Toolbar - Row 2 — hidden in map view (all its filters moved to row 1 above) */}
+      {view !== "map" && (
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex-1" />
 
@@ -908,7 +978,8 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Status filter — values from model enum */}
+        {/* Status filter — hidden in map view */}
+        {view !== "map" && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
@@ -923,6 +994,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
 
         <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
 
@@ -930,6 +1002,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           <button onClick={clearAll} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors ml-1 underline underline-offset-2">Clear all</button>
         )}
       </div>
+      )}
 
       {/* List view */}
       {!loading && view === "list" && (
@@ -1027,6 +1100,21 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
             </div>
       )}
 
+      {/* Map view */}
+      {view === "map" && (
+        <div className="mt-2">
+        <PropertyMapView
+          purposeId={purposeFilter   || undefined}
+          categoryId={categoryFilter  || undefined}
+          typeId={typeFilter          || undefined}
+          userId={userIdFilter        || undefined}
+          roleId={roleIdFilter        || undefined}
+          activeCount={stats.Active}
+          onViewProperty={(id) => navigate(`/properties/${id}`)}
+        />
+        </div>
+      )}
+
       {/* Grid loading */}
       {loading && view === "grid" && (
         <div className="flex items-center justify-center py-16">
@@ -1035,7 +1123,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
       )}
 
       {/* Pagination */}
-      {!loading && (
+      {!loading && view !== "map" && (
         <div className="flex items-center justify-end gap-2">
           <span className="text-sm text-muted-foreground">
             Page {pagination.page} of {pagination.totalPages}

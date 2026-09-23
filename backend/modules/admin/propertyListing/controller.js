@@ -406,4 +406,56 @@ const adminMarkRented = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getById, getListingUserRoles, approve, reject, adminMarkInactive, adminMarkActive, adminMarkSold, adminMarkRented };
+// GET /admin/property-listings/map-pins — all Active listings with lat/lng for map
+const getMapPins = async (req, res) => {
+  try {
+    const { purposeId, categoryId, typeId, userId, roleId } = req.query;
+
+    const query = {
+      status: "Active",
+      "locality.latitude":  { $exists: true, $ne: null },
+      "locality.longitude": { $exists: true, $ne: null },
+    };
+
+    if (purposeId  && mongoose.isValidObjectId(purposeId))  query["listingType.id"]  = new mongoose.Types.ObjectId(purposeId);
+    if (categoryId && mongoose.isValidObjectId(categoryId)) query["category.id"]     = new mongoose.Types.ObjectId(categoryId);
+    if (typeId     && mongoose.isValidObjectId(typeId))     query["propertyType.id"] = new mongoose.Types.ObjectId(typeId);
+    if (userId     && mongoose.isValidObjectId(userId))     query["listedBy.id"]     = new mongoose.Types.ObjectId(userId);
+    if (roleId     && mongoose.isValidObjectId(roleId))     query["listedBy.role.id"] = new mongoose.Types.ObjectId(roleId);
+
+    const pins = await PropertyListing.find(query)
+      .select("listingType category propertyType cityName locality media.images sellInfo rentInfo pgDetails.rooms residentialDetails.bhk listedBy.name listedBy.role.name status")
+      .lean();
+
+    // Compute display price for each pin
+    const processed = pins.map((p) => {
+      let price = null;
+      const ltId = p.listingType?.id?.toString();
+      if (ltId === LISTING_TYPE_SELL_ID && p.sellInfo?.price) {
+        const n = p.sellInfo.price;
+        if (n >= 10000000) price = `₹${(n / 10000000).toFixed(1).replace(/\.0$/, "")}Cr`;
+        else if (n >= 100000) price = `₹${(n / 100000).toFixed(1).replace(/\.0$/, "")}L`;
+        else price = `₹${n.toLocaleString("en-IN")}`;
+      } else if (ltId === LISTING_TYPE_RENT_ID && p.rentInfo?.monthlyRent) {
+        const n = p.rentInfo.monthlyRent;
+        price = `₹${n >= 1000 ? (n / 1000).toFixed(0) + "K" : n}/mo`;
+      } else if (ltId === LISTING_TYPE_PG_ID && p.pgDetails?.rooms?.length) {
+        const rents = p.pgDetails.rooms.map((r) => r.rent).filter(Boolean);
+        if (rents.length) {
+          const min = Math.min(...rents);
+          const max = Math.max(...rents);
+          price = min === max ? `₹${min >= 1000 ? (min / 1000).toFixed(0) + "K" : min}/mo` : `₹${(min / 1000).toFixed(0)}K-${(max / 1000).toFixed(0)}K/mo`;
+        }
+      }
+
+      const { pgDetails, sellInfo, rentInfo, ...rest } = p;
+      return { ...rest, price };
+    });
+
+    res.json({ success: true, data: processed });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getAll, getById, getListingUserRoles, approve, reject, adminMarkInactive, adminMarkActive, adminMarkSold, adminMarkRented, getMapPins };
