@@ -210,6 +210,8 @@ const propertyListingSchema = new Schema(
     approvedAt:      { type: Date, default: null },
     rejectedAt:      { type: Date, default: null },
     rejectedReasons: [{ type: String, trim: true }],
+    soldAt:          { type: Date, default: null },
+    rentedAt:        { type: Date, default: null },
   },
   { timestamps: true }
 );

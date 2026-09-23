@@ -13,7 +13,7 @@ const app = express();
 connectDB();
 
 // ── Connect Redis
-if (process.env.NODE_ENV !== "development") connectRedis();
+if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") connectRedis();
 
 // ── Webhook (must be before express.json() to get raw body)
 app.post("/api/webhook", express.raw({ type: "application/json" }), manageOnlinePayment);
@@ -54,6 +54,10 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  });
+}
+
+module.exports = app;

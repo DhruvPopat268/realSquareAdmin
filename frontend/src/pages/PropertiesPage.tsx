@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import api from "@/lib/axiosInterceptor";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { propertyListingService } from "@/services/propertyListingService";
+import { getAvailableStatusOptions, OPTION_COLOR_CONFIG, type StatusOption } from "@/lib/listingStatusOptions";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -14,7 +15,7 @@ import {
 import { toast } from "sonner";
 import {
   ChevronDown, LayoutGrid, List, Map,
-  Bed, Eye, ChevronLeft, ChevronRight, CheckCircle, XCircle,
+  Bed, Eye, ChevronLeft, ChevronRight, CheckCircle, XCircle, Zap,
 } from "lucide-react";
 import { type ListingStatus } from "@/data/propertiesData";
 import PropertyMapView from "@/components/PropertyMapView";
@@ -45,7 +46,20 @@ const purposeStyle: Record<string, string> = {
   "PG / Co-living": "bg-purple-50 text-purple-700 border border-purple-200",
 };
 
-function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
+const STATUS_API_FN = {
+  markInactive: propertyListingService.markInactive,
+  markActive:   propertyListingService.markActive,
+  markSold:     propertyListingService.markSold,
+  markRented:   propertyListingService.markRented,
+};
+
+function PropertyCard({ p, onClick, onApprove, onReject, onStatusUpdate }: {
+  p: any;
+  onClick: () => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  onStatusUpdate: (listing: any, options: StatusOption[]) => void;
+}) {
   const [imgIdx, setImgIdx] = useState(0);
   const images = p.media?.images ?? [];
   const total = images.length;
@@ -68,8 +82,10 @@ function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
     ? (typeof p.price === "string" ? p.price : formatPrice(p.price))
     : "Price on request";
 
+  const statusOptions = getAvailableStatusOptions(p.status, p.listingType?.id?.toString());
+
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow">
+    <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow flex flex-col">
       <div className="p-[9px] pb-0">
         <div className="relative h-48 overflow-hidden rounded-lg">
           {images.length > 0 ? (
@@ -108,7 +124,7 @@ function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
           )}
         </div>
       </div>
-      <div className="p-3 space-y-1">
+      <div className="p-3 space-y-1 flex-1">
         <p className="text-base font-bold text-foreground">{displayPrice}</p>
         <div className="flex items-center gap-1 flex-wrap">
           {p.listingType?.name && (
@@ -137,17 +153,53 @@ function PropertyCard({ p, onClick }: { p: any; onClick: () => void }) {
           </p>
         )}
       </div>
+
+      {/* Card footer: Approve/Reject left · Update Status right */}
+      {(p.status === "UnderReview" || statusOptions.length > 0) && (
+        <div className="px-3 pb-3 pt-1 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1">
+            {p.status === "UnderReview" && (
+              <>
+                <button
+                  onClick={() => onApprove(p._id)}
+                  className="p-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                  title="Approve"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => onReject(p._id)}
+                  className="p-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
+                  title="Reject"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+          {statusOptions.length > 0 && (
+            <button
+              onClick={() => onStatusUpdate(p, statusOptions)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-amber-500 text-white text-[11px] font-semibold hover:bg-amber-600 transition-colors"
+            >
+              <Zap className="h-3 w-3" />
+              Update Status
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function PropertyRow({ p, index, onView, onApprove, onReject, onLocalityClick }: {
+function PropertyRow({ p, index, onView, onApprove, onReject, onLocalityClick, onStatusChange }: {
   p: any;
   index: number;
   onView: (id: string) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onLocalityClick: (address: string, lat: number, lng: number) => void;
+  onStatusChange: (listing: any, option: StatusOption) => void;
 }) {
   // Format date and time in IST
   const formatDateTime = (dateString: string) => {
@@ -166,6 +218,8 @@ function PropertyRow({ p, index, onView, onApprove, onReject, onLocalityClick }:
     if (!price) return '-';
     return `₹${price.toLocaleString('en-IN')}`;
   };
+
+  const statusOptions = getAvailableStatusOptions(p.status, p.listingType?.id?.toString());
 
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
@@ -257,9 +311,30 @@ function PropertyRow({ p, index, onView, onApprove, onReject, onLocalityClick }:
       
       {/* Status */}
       <td className="px-4 py-3">
-        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-600'}`}>
-          {p.status}
-        </span>
+        {statusOptions.length === 0 ? (
+          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-600'}`}>
+            {p.status}
+          </span>
+        ) : (
+          <Select
+            value={p.status}
+            onValueChange={(value) => {
+              if (value === p.status) return;
+              const opt = statusOptions.find((o) => o.value === value);
+              if (opt) onStatusChange(p, opt);
+            }}
+          >
+            <SelectTrigger className={`h-8 w-[140px] text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-600'}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={p.status}>{p.status}</SelectItem>
+              {statusOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </td>
 
       {/* Rejected Reasons */}
@@ -496,8 +571,29 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
   const [rejectInput, setRejectInput]     = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
 
+  // ── Status update modal ─────────────────────────────────────────────────────
+  // statusModal: picker (options only) or confirm (selectedOption set)
+  const [statusModal, setStatusModal] = useState<{
+    listing: any;
+    options: StatusOption[];
+    selectedOption: StatusOption | null;
+  } | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+
   // ── Maps dialog ──────────────────────────────────────────────────────────────
   const [mapsDialog, setMapsDialog] = useState<{ address: string; lat: number; lng: number } | null>(null);
+
+  const applyLocalStatusChange = (id: string, oldStatus: string, newStatus: string, extra: Record<string, unknown> = {}) => {
+    setProperties((prev) =>
+      prev.map((p) => (p._id === id ? { ...p, status: newStatus, ...extra } : p))
+    );
+    setStats((prev) => {
+      const next = { ...prev };
+      if ((next as any)[oldStatus] > 0) (next as any)[oldStatus] -= 1;
+      (next as any)[newStatus] = ((next as any)[newStatus] || 0) + 1;
+      return next;
+    });
+  };
 
   const handleRejectKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -521,7 +617,8 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
     try {
       await propertyListingService.reject(rejectDialog.id, rejectReasons);
       toast.success("Property rejected");
-      setProperties((prev) => prev.map((p) => p._id === rejectDialog.id ? { ...p, status: "Rejected", rejectedReasons: rejectReasons } : p));
+      const old = properties.find((p) => p._id === rejectDialog.id)?.status ?? "UnderReview";
+      applyLocalStatusChange(rejectDialog.id, old, "Rejected", { rejectedReasons: rejectReasons });
       setRejectDialog(null);
       setRejectReasons([]);
       setRejectInput("");
@@ -538,12 +635,46 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
     try {
       await propertyListingService.approve(approveDialog.id);
       toast.success("Property approved successfully");
-      setProperties((prev) => prev.map((p) => p._id === approveDialog.id ? { ...p, status: "Active" } : p));
+      const old = properties.find((p) => p._id === approveDialog.id)?.status ?? "UnderReview";
+      applyLocalStatusChange(approveDialog.id, old, "Active");
       setApproveDialog(null);
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Failed to approve property");
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleOpenStatusModal = (listing: any, options: StatusOption[]) => {
+    setStatusModal({
+      listing,
+      options,
+      selectedOption: options.length === 1 ? options[0] : null,
+    });
+  };
+
+  const handleListStatusChange = (listing: any, option: StatusOption) => {
+    setStatusModal({ listing, options: [option], selectedOption: option });
+  };
+
+  const handleConfirmStatusUpdate = async () => {
+    if (!statusModal?.selectedOption) return;
+    const { listing, selectedOption } = statusModal;
+    const apiFn = STATUS_API_FN[selectedOption.apiAction];
+    if (!apiFn) return;
+
+    setStatusLoading(true);
+    try {
+      const { data } = await apiFn(listing._id);
+      if (data.success) {
+        toast.success(data.message ?? "Status updated");
+        applyLocalStatusChange(listing._id, listing.status, data.data.status);
+        setStatusModal(null);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to update status");
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -829,7 +960,16 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
               {properties.length === 0
                 ? <tr><td colSpan={17} className="text-center text-muted-foreground py-16">No properties found</td></tr>
                 : properties.map((p, index) => (
-                  <PropertyRow key={p._id} p={p} index={index + ((pagination.page - 1) * pagination.limit)} onView={(id) => navigate(`/properties/${id}`)} onApprove={(id) => setApproveDialog({ id })} onReject={(id) => { setRejectDialog({ id }); setRejectReasons([]); setRejectInput(""); }} onLocalityClick={(address, lat, lng) => setMapsDialog({ address, lat, lng })} />
+                  <PropertyRow
+                    key={p._id}
+                    p={p}
+                    index={index + ((pagination.page - 1) * pagination.limit)}
+                    onView={(id) => navigate(`/properties/${id}`)}
+                    onApprove={(id) => setApproveDialog({ id })}
+                    onReject={(id) => { setRejectDialog({ id }); setRejectReasons([]); setRejectInput(""); }}
+                    onLocalityClick={(address, lat, lng) => setMapsDialog({ address, lat, lng })}
+                    onStatusChange={handleListStatusChange}
+                  />
                 ))
               }
             </tbody>
@@ -875,7 +1015,14 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           ? <div className="text-center text-muted-foreground py-16">No properties found</div>
           : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {properties.map((p) => (
-                <PropertyCard key={p._id} p={p} onClick={() => navigate(`/properties/${p._id}`)} />
+                <PropertyCard
+                  key={p._id}
+                  p={p}
+                  onClick={() => navigate(`/properties/${p._id}`)}
+                  onApprove={(id) => setApproveDialog({ id })}
+                  onReject={(id) => { setRejectDialog({ id }); setRejectReasons([]); setRejectInput(""); }}
+                  onStatusUpdate={handleOpenStatusModal}
+                />
               ))}
             </div>
       )}
@@ -971,6 +1118,64 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
               {rejectLoading ? "Rejecting..." : "Reject"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status update — option picker (grid) or confirm */}
+      <Dialog
+        open={!!statusModal}
+        onOpenChange={(open) => { if (!open && !statusLoading) setStatusModal(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          {statusModal?.selectedOption ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{statusModal.selectedOption.confirmTitle}</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground py-2">
+                {statusModal.selectedOption.confirmMessage}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                Listing: <span className="font-medium text-foreground">{statusModal.listing?.cityName || statusModal.listing?.locality?.address || statusModal.listing._id}</span>
+              </p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStatusModal(null)} disabled={statusLoading}>
+                  Cancel
+                </Button>
+                <Button
+                  className={OPTION_COLOR_CONFIG[statusModal.selectedOption.color].confirmBtn}
+                  onClick={handleConfirmStatusUpdate}
+                  disabled={statusLoading}
+                >
+                  {statusLoading ? "Updating..." : "Confirm"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Update Status</DialogTitle>
+              </DialogHeader>
+              <p className="text-xs text-muted-foreground mb-2">
+                Current: <span className="font-semibold text-foreground">{statusModal?.listing?.status}</span>
+              </p>
+              <div className="flex flex-col gap-2">
+                {statusModal?.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setStatusModal((prev) => prev ? { ...prev, selectedOption: opt } : null)}
+                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition ${OPTION_COLOR_CONFIG[opt.color].btn}`}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStatusModal(null)}>Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

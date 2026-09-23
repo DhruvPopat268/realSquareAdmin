@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { propertyListingService, type PropertyListing } from "@/services/propertyListingService";
+import { getAvailableStatusOptions, OPTION_COLOR_CONFIG, type StatusOption } from "@/lib/listingStatusOptions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -11,7 +12,7 @@ import Spinner from "@/components/Spinner";
 import { toast } from "sonner";
 import {
   ChevronRight, ChevronLeft, Tag, CalendarDays, ArrowLeft, MapPin, User, Maximize2,
-  CheckCircle, XCircle, Map,
+  CheckCircle, XCircle, Map, Zap,
 } from "lucide-react";
 
 const statusStyle: Record<string, string> = {
@@ -27,6 +28,13 @@ const purposeStyle: Record<string, string> = {
   "Sell":           "bg-blue-50 text-blue-700 border border-blue-200",
   "Rent":           "bg-green-50 text-green-700 border border-green-200",
   "PG / Co-living": "bg-purple-50 text-purple-700 border border-purple-200",
+};
+
+const STATUS_API_FN = {
+  markInactive: propertyListingService.markInactive,
+  markActive:   propertyListingService.markActive,
+  markSold:     propertyListingService.markSold,
+  markRented:   propertyListingService.markRented,
 };
 
 function formatPrice(price?: number) {
@@ -72,6 +80,13 @@ export default function PropertyDetailPage() {
   const [rejectInput, setRejectInput]     = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
 
+  // Status update
+  const [statusModal, setStatusModal] = useState<{
+    options: StatusOption[];
+    selectedOption: StatusOption | null;
+  } | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+
   const handleRejectKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -95,6 +110,35 @@ export default function PropertyDetailPage() {
       toast.error(err?.response?.data?.message ?? "Failed to approve property");
     } finally {
       setApprovingId(false);
+    }
+  };
+
+  const handleOpenStatusModal = () => {
+    if (!property) return;
+    const options = getAvailableStatusOptions(property.status, property.listingType?.id?.toString());
+    if (options.length === 0) return;
+    setStatusModal({
+      options,
+      selectedOption: options.length === 1 ? options[0] : null,
+    });
+  };
+
+  const handleConfirmStatusUpdate = async () => {
+    if (!statusModal?.selectedOption || !property) return;
+    const apiFn = STATUS_API_FN[statusModal.selectedOption.apiAction];
+    if (!apiFn) return;
+    setStatusLoading(true);
+    try {
+      const { data } = await apiFn(property._id);
+      if (data.success) {
+        toast.success(data.message ?? "Status updated");
+        setProperty((prev) => prev ? { ...prev, status: data.data.status } : prev);
+        setStatusModal(null);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to update status");
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -204,6 +248,22 @@ export default function PropertyDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Update Status — above gallery */}
+      {(() => {
+        const statusOptions = getAvailableStatusOptions(p.status, p.listingType?.id?.toString());
+        return statusOptions.length > 0 ? (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              className="gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
+              onClick={handleOpenStatusModal}
+            >
+              <Zap className="h-3.5 w-3.5" /> Update Status
+            </Button>
+          </div>
+        ) : null;
+      })()}
 
       {/* Image Gallery — show first 4, 4th blurred with +N overlay */}
       {imgs.length > 0 && (
@@ -505,6 +565,61 @@ export default function PropertyDetailPage() {
               {rejectLoading ? "Rejecting..." : "Reject"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status update dialog */}
+      <Dialog
+        open={!!statusModal}
+        onOpenChange={(open) => { if (!open && !statusLoading) setStatusModal(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          {statusModal?.selectedOption ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{statusModal.selectedOption.confirmTitle}</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground py-2">
+                {statusModal.selectedOption.confirmMessage}
+              </p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStatusModal(null)} disabled={statusLoading}>
+                  Cancel
+                </Button>
+                <Button
+                  className={OPTION_COLOR_CONFIG[statusModal.selectedOption.color].confirmBtn}
+                  onClick={handleConfirmStatusUpdate}
+                  disabled={statusLoading}
+                >
+                  {statusLoading ? "Updating..." : "Confirm"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Update Status</DialogTitle>
+              </DialogHeader>
+              <p className="text-xs text-muted-foreground mb-2">
+                Current: <span className="font-semibold text-foreground">{p.status}</span>
+              </p>
+              <div className="flex flex-col gap-2">
+                {statusModal?.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setStatusModal((prev) => prev ? { ...prev, selectedOption: opt } : null)}
+                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition ${OPTION_COLOR_CONFIG[opt.color].btn}`}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStatusModal(null)}>Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

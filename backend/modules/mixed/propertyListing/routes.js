@@ -1,5 +1,5 @@
 const express  = require("express");
-const { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById } = require("./controller");
+const { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented } = require("./controller");
 const { createListingValidator }        = require("./validator");
 const { userProtect }                   = require("../../../middleware/userAuth");
 const { uploadImage }                   = require("../../../utils/upload");
@@ -19,6 +19,12 @@ router.post("/",      userProtect, createListingValidator, create);
 router.patch("/",     userProtect, updateListing); // PATCH with ID in body
 router.post("/media", userProtect, uploadImage.array("images", 20), uploadMedia);
 router.patch("/media", userProtect, uploadImage.array("images", 20), appendMedia); // PATCH with ID in body for media upload
+
+// ── Status transition routes (must be before /:id wildcard) ─────────────────
+router.patch("/mark-inactive/:id", userProtect, markInactive);
+router.patch("/mark-active/:id",   userProtect, markActive);
+router.patch("/mark-sold/:id",     userProtect, markSold);
+router.patch("/mark-rented/:id",   userProtect, markRented);
 
 // ── Must be last to avoid swallowing named routes above ──────────────────────
 router.get   ("/:id",        userProtect, getListingById);

@@ -120,4 +120,12 @@ export const propertyListingService = {
     api.patch<{ success: boolean; message: string; data: { status: string; approvedAt: string } }>(`/admin/property-listings/${id}/approve`),
   reject: (id: string, reasons: string[]) =>
     api.patch<{ success: boolean; message: string; data: { status: string; rejectedAt: string; rejectedReasons: string[] } }>(`/admin/property-listings/${id}/reject`, { reasons }),
+  markInactive: (id: string) =>
+    api.patch<{ success: boolean; message: string; data: { status: string } }>(`/admin/property-listings/mark-inactive/${id}`),
+  markActive: (id: string) =>
+    api.patch<{ success: boolean; message: string; data: { status: string } }>(`/admin/property-listings/mark-active/${id}`),
+  markSold: (id: string) =>
+    api.patch<{ success: boolean; message: string; data: { status: string; soldAt?: string } }>(`/admin/property-listings/mark-sold/${id}`),
+  markRented: (id: string) =>
+    api.patch<{ success: boolean; message: string; data: { status: string; rentedAt?: string } }>(`/admin/property-listings/mark-rented/${id}`),
 };

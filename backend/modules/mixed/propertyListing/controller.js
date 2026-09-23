@@ -390,19 +390,20 @@ function normalizeListingCard(listing) {
   }
 
   return {
-    _id:         listing._id,
-    title:       title || "Property",
-    price:       priceLabel,
-    thumbnail:   listing.media?.images?.[0] ?? null,
-    media:       listing.media ?? { images: [] },
-    listingType: listing.listingType?.name ?? "",
-    category:    listing.category?.name ?? "",
-    propertyType: listing.propertyType?.name ?? "",
-    cityName:    listing.cityName ?? "",
-    address:     listing.locality?.address ?? "",
-    status:      listing.status,
-    createdAt:   listing.createdAt,
-    listedBy:    listing.listedBy ?? null,
+    _id:           listing._id,
+    title:         title || "Property",
+    price:         priceLabel,
+    thumbnail:     listing.media?.images?.[0] ?? null,
+    media:         listing.media ?? { images: [] },
+    listingType:   listing.listingType?.name ?? "",
+    listingTypeId: listing.listingType?.id?.toString() ?? "",
+    category:      listing.category?.name ?? "",
+    propertyType:  listing.propertyType?.name ?? "",
+    cityName:      listing.cityName ?? "",
+    address:       listing.locality?.address ?? "",
+    status:        listing.status,
+    createdAt:     listing.createdAt,
+    listedBy:      listing.listedBy ?? null,
     // Additional property-specific info
     furnishType: listing.residentialDetails?.furnishType ?? null, // Only for residential
     pgFor:       listing.pgDetails?.pgFor ?? null, // Only for PG
@@ -856,4 +857,110 @@ const appendMedia = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById };
+// ── PATCH /property-listings/mark-inactive/:id ────────────────────────────────
+const markInactive = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+
+    const listing = await PropertyListing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    if (listing.listedBy.id.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "You are not allowed to update this listing" });
+
+    if (listing.status !== "Active")
+      return res.status(400).json({ success: false, message: `Listing cannot be marked inactive. Current status is '${listing.status}', expected 'Active'` });
+
+    listing.status = "Inactive";
+    await listing.save();
+
+    res.json({ success: true, message: "Listing marked as inactive", data: { status: listing.status } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /property-listings/mark-active/:id ──────────────────────────────────
+const markActive = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+
+    const listing = await PropertyListing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    if (listing.listedBy.id.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "You are not allowed to update this listing" });
+
+    const allowed = ["Inactive", "Sold", "Rented"];
+    if (!allowed.includes(listing.status))
+      return res.status(400).json({ success: false, message: `Listing cannot be marked active. Current status is '${listing.status}', expected one of: ${allowed.join(", ")}` });
+
+    listing.status = "Active";
+    await listing.save();
+
+    res.json({ success: true, message: "Listing marked as active", data: { status: listing.status } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /property-listings/mark-sold/:id ────────────────────────────────────
+const markSold = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+
+    const listing = await PropertyListing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    if (listing.listedBy.id.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "You are not allowed to update this listing" });
+
+    if (listing.status !== "Active")
+      return res.status(400).json({ success: false, message: `Listing cannot be marked sold. Current status is '${listing.status}', expected 'Active'` });
+
+    if (listing.listingType?.id?.toString() !== process.env.LISTING_TYPE_SELL_ID)
+      return res.status(400).json({ success: false, message: "Only Sell listings can be marked as sold" });
+
+    listing.status = "Sold";
+    listing.soldAt = new Date();
+    await listing.save();
+
+    res.json({ success: true, message: "Listing marked as sold", data: { status: listing.status, soldAt: listing.soldAt } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /property-listings/mark-rented/:id ──────────────────────────────────
+const markRented = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+
+    const listing = await PropertyListing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    if (listing.listedBy.id.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "You are not allowed to update this listing" });
+
+    if (listing.status !== "Active")
+      return res.status(400).json({ success: false, message: `Listing cannot be marked rented. Current status is '${listing.status}', expected 'Active'` });
+
+    const rentOrPg = [process.env.LISTING_TYPE_RENT_ID, process.env.LISTING_TYPE_PG_ID];
+    if (!rentOrPg.includes(listing.listingType?.id?.toString()))
+      return res.status(400).json({ success: false, message: "Only Rent or PG listings can be marked as rented" });
+
+    listing.status = "Rented";
+    listing.rentedAt = new Date();
+    await listing.save();
+
+    res.json({ success: true, message: "Listing marked as rented", data: { status: listing.status, rentedAt: listing.rentedAt } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented };
