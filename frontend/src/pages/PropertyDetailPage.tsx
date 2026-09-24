@@ -12,7 +12,7 @@ import Spinner from "@/components/Spinner";
 import { toast } from "sonner";
 import {
   ChevronRight, ChevronLeft, Tag, CalendarDays, ArrowLeft, MapPin, User, Maximize2,
-  CheckCircle, XCircle, Map, Zap,
+  CheckCircle, XCircle, Map, Zap, ShieldCheck, ShieldAlert,
 } from "lucide-react";
 
 const statusStyle: Record<string, string> = {
@@ -465,6 +465,84 @@ export default function PropertyDetailPage() {
             <p className="text-xs text-muted-foreground mb-4">Specific details based on property type</p>
             <PropertyTypeDetails listing={p} />
           </section>
+
+          {/* RERA Details */}
+          {p.rera?.reraId && (
+            <section>
+              <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-1">
+                {p.rera.reraStatus === "verified"
+                  ? <ShieldCheck className="h-4 w-4 text-green-600" />
+                  : <ShieldAlert className="h-4 w-4 text-amber-500" />
+                }
+                RERA Verification
+              </h2>
+              <p className="text-xs text-muted-foreground mb-4">RERA registration and project details</p>
+
+              {/* Status badge */}
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-5
+                ${p.rera.reraStatus === "verified"
+                  ? "bg-green-50 text-green-700 border border-green-200"
+                  : "bg-amber-50 text-amber-700 border border-amber-200"}`}
+              >
+                {p.rera.reraStatus === "verified"
+                  ? <ShieldCheck className="h-3.5 w-3.5" />
+                  : <ShieldAlert className="h-3.5 w-3.5" />
+                }
+                {p.rera.reraStatus === "verified" ? "RERA Verified" : "RERA Unverified"}
+                {p.rera.reraAdminApproved && (
+                  <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">
+                    Admin Approved
+                  </span>
+                )}
+              </div>
+
+              {/* Core RERA fields */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm mb-5">
+                <DetailItem label="RERA ID"         value={p.rera.reraId} />
+                <DetailItem label="Verification"    value={p.rera.reraStatus === "verified" ? "Verified" : "Unverified"} />
+                <DetailItem label="Admin Approved"  value={p.rera.reraAdminApproved ? "Yes" : "No"} />
+                {p.rera.verifiedAt && (
+                  <DetailItem label="Verified At" value={formatDate(p.rera.verifiedAt)} />
+                )}
+              </div>
+
+              {/* Project details */}
+              {p.rera.projectDetails && p.rera.reraStatus === "verified" && (
+                <div className="border border-green-100 bg-green-50/50 rounded-xl p-4">
+                  <p className="text-xs font-bold text-green-700 mb-3">Verified Project Details</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+                    <DetailItem label="Project Name"    value={p.rera.projectDetails.projectName ?? undefined} />
+                    <DetailItem label="Developer"       value={p.rera.projectDetails.developerName ?? undefined} />
+                    <DetailItem label="Location"        value={p.rera.projectDetails.localityOrCity ?? undefined} />
+                    <DetailItem label="State"           value={p.rera.projectDetails.state ?? undefined} />
+                    <DetailItem label="Project Type"    value={p.rera.projectDetails.projectType ?? undefined} />
+                    <DetailItem label="Project Status"  value={p.rera.projectDetails.status ?? undefined} />
+                    <DetailItem label="Completion Date" value={p.rera.projectDetails.completionDate ?? undefined} />
+                    <DetailItem label="Total Units"     value={p.rera.projectDetails.totalUnits ?? undefined} />
+                    <DetailItem label="Confidence"      value={p.rera.projectDetails.confidence ?? undefined} />
+                  </div>
+                  {p.rera.sources && p.rera.sources.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-green-100">
+                      <p className="text-xs text-muted-foreground mb-1.5">Sources</p>
+                      <div className="flex flex-col gap-1">
+                        {p.rera.sources.map((src, i) => (
+                          <a
+                            key={i}
+                            href={src}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline truncate"
+                          >
+                            {src}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
         </div>
 

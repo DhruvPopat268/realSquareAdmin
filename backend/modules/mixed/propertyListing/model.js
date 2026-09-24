@@ -151,6 +151,35 @@ const rentInfoSchema = new Schema(
   { _id: false }
 );
 
+// ─── RERA sub-schema ─────────────────────────────────────────────────────────
+
+const reraProjectDetailsSchema = new Schema(
+  {
+    projectName:    { type: String },
+    developerName:  { type: String },
+    localityOrCity: { type: String },
+    state:          { type: String },
+    projectType:    { type: String },
+    completionDate: { type: String },
+    totalUnits:     { type: String },
+    status:         { type: String },
+    confidence:     { type: String, enum: ["high", "low", "unknown"] },
+  },
+  { _id: false }
+);
+
+const reraSchema = new Schema(
+  {
+    reraId:            { type: String, trim: true },
+    reraStatus:        { type: String, enum: ["unverified", "verified"], default: "unverified" },
+    reraAdminApproved: { type: Boolean, default: false },
+    verifiedAt:        { type: Date, default: null },
+    projectDetails:    reraProjectDetailsSchema,
+    sources:           [{ type: String }],
+  },
+  { _id: false }
+);
+
 // ─── Main Property Listing Schema ────────────────────────────────────────────
 
 const propertyListingSchema = new Schema(
@@ -212,6 +241,9 @@ const propertyListingSchema = new Schema(
     rejectedReasons: [{ type: String, trim: true }],
     soldAt:          { type: Date, default: null },
     rentedAt:        { type: Date, default: null },
+
+    // ── RERA ──────────────────────────────────────────────────────────────────
+    rera: reraSchema,
   },
   { timestamps: true }
 );

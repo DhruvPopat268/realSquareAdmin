@@ -259,6 +259,12 @@ const approve = async (req, res) => {
       });
     }
 
+    // If the listing has a RERA ID attached, mark it admin-approved
+    if (listing.rera?.reraId) {
+      listing.rera.reraAdminApproved = true;
+      await listing.save();
+    }
+
     res.json({ success: true, message: "Listing approved successfully", data: { status: listing.status, approvedAt: listing.approvedAt } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

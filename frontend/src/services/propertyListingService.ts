@@ -84,6 +84,27 @@ export interface RentInfo {
   };
 }
 
+export interface ReraProjectDetails {
+  projectName?: string | null;
+  developerName?: string | null;
+  localityOrCity?: string | null;
+  state?: string | null;
+  projectType?: string | null;
+  completionDate?: string | null;
+  totalUnits?: string | null;
+  status?: string | null;
+  confidence?: "high" | "low" | "unknown";
+}
+
+export interface ReraDetails {
+  reraId?: string;
+  reraStatus?: "verified" | "unverified";
+  reraAdminApproved?: boolean;
+  verifiedAt?: string | null;
+  projectDetails?: ReraProjectDetails;
+  sources?: string[];
+}
+
 export interface PropertyListing {
   _id: string;
   category: { id: string; name: string };
@@ -106,6 +127,7 @@ export interface PropertyListing {
   commercialDetails?: CommercialDetails;
   sellInfo?: SellInfo;
   rentInfo?: RentInfo;
+  rera?: ReraDetails;
   status: string;
   createdAt: string;
   updatedAt: string;

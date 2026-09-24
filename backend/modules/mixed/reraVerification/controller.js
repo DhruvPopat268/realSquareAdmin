@@ -131,64 +131,57 @@ async function fetchPageText(url) {
   }
 }
 
-// ── POST /api/mixed/rera/verify ─────────────────────────────────────────────
-const verifyReraId = async (req, res) => {
-  try {
-    const { reraId } = req.body;
+// ── runReraVerification — reusable internal function ────────────────────────
+// Returns: { verified, reason, projectDetails, sources }
+// Throws on unrecoverable errors (caller should handle).
+async function runReraVerification(reraId) {
+  const cleanId = reraId.trim();
 
-    if (!reraId || typeof reraId !== "string" || !reraId.trim()) {
-      return res.status(400).json({ success: false, message: "reraId is required" });
-    }
+  // Step 1 — Search for the exact RERA ID
+  const organic = await searchRera(cleanId);
 
-    const cleanId = reraId.trim();
+  if (organic.length === 0) {
+    return {
+      verified: false,
+      reason: "No search results found for this RERA ID",
+      projectDetails: null,
+      sources: [],
+    };
+  }
 
-    // Step 1 — Search for the exact RERA ID
-    const organic = await searchRera(cleanId);
+  // Step 2 — Fetch full page content from top results (up to 3)
+  const pageContents = await Promise.all(
+    organic.slice(0, 3).map(async (r) => {
+      const text = await fetchPageText(r.link);
+      return {
+        title:    r.title,
+        snippet:  r.snippet,
+        url:      r.link,
+        pageText: text,
+      };
+    })
+  );
 
-    if (organic.length === 0) {
-      return res.json({
-        success: true,
-        reraId: cleanId,
-        verified: false,
-        reason: "No search results found for this RERA ID",
-        projectDetails: null,
-        sources: [],
-      });
-    }
+  // Step 3 — Build context for Gemini
+  const context = pageContents
+    .map((r, i) => {
+      const content = r.pageText
+        ? `Page Content:\n${r.pageText}`
+        : `Snippet: ${r.snippet}`;
+      return `[Source ${i + 1}]\nTitle: ${r.title}\nURL: ${r.url}\n${content}`;
+    })
+    .join("\n\n---\n\n");
 
-    // Step 2 — Fetch full page content from top results (up to 3)
-    const pageContents = await Promise.all(
-      organic.slice(0, 3).map(async (r) => {
-        const text = await fetchPageText(r.link);
-        return {
-          title: r.title,
-          snippet: r.snippet,
-          url: r.link,
-          pageText: text,
-        };
-      })
-    );
+  // Step 4 — Ask Gemini to extract structured details
+  const model = genAI.getGenerativeModel({
+    model: "gemini-3.5-flash-lite",
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema,
+    },
+  });
 
-    // Step 3 — Build context for Gemini
-    const context = pageContents
-      .map((r, i) => {
-        const content = r.pageText
-          ? `Page Content:\n${r.pageText}`
-          : `Snippet: ${r.snippet}`;
-        return `[Source ${i + 1}]\nTitle: ${r.title}\nURL: ${r.url}\n${content}`;
-      })
-      .join("\n\n---\n\n");
-
-    // Step 4 — Ask Gemini to extract structured details
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3.5-flash-lite",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema,
-      },
-    });
-
-    const prompt = `You are a Real Estate Regulatory Authority (RERA) verification assistant for India.
+  const prompt = `You are a Real Estate Regulatory Authority (RERA) verification assistant for India.
 
 === RERA ID TO VERIFY ===
 ${cleanId}
@@ -204,30 +197,46 @@ Extract all available details about the project registered under this exact RERA
 - Set verified to true only if the content clearly confirms this RERA ID belongs to a registered project.
 - Set confidence to "high" if multiple sources confirm the same project, "low" if only one source partially matches, "unknown" if nothing reliable was found.`;
 
-    const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text());
+  const result = await model.generateContent(prompt);
+  const parsed = JSON.parse(result.response.text());
+
+  return {
+    verified: parsed.verified,
+    reason:   parsed.reason ?? "",
+    projectDetails: {
+      projectName:    parsed.project_details?.project_name    ?? null,
+      developerName:  parsed.project_details?.developer_name  ?? null,
+      localityOrCity: parsed.project_details?.locality_or_city ?? null,
+      state:          parsed.project_details?.state           ?? null,
+      projectType:    parsed.project_details?.project_type    ?? null,
+      completionDate: parsed.project_details?.completion_date ?? null,
+      totalUnits:     parsed.project_details?.total_units     ?? null,
+      status:         parsed.project_details?.status          ?? null,
+      confidence:     parsed.project_details?.confidence      ?? "unknown",
+    },
+    sources: pageContents.map((r) => r.url),
+  };
+}
+
+// ── POST /api/mixed/rera/verify — Express route handler (thin wrapper) ──────
+const verifyReraId = async (req, res) => {
+  try {
+    const { reraId } = req.body;
+
+    if (!reraId || typeof reraId !== "string" || !reraId.trim()) {
+      return res.status(400).json({ success: false, message: "reraId is required" });
+    }
+
+    const result = await runReraVerification(reraId);
 
     return res.json({
       success: true,
-      reraId: cleanId,
-      verified: parsed.verified,
-      reason: parsed.reason ?? "",
-      projectDetails: {
-        projectName: parsed.project_details?.project_name ?? null,
-        developerName: parsed.project_details?.developer_name ?? null,
-        localityOrCity: parsed.project_details?.locality_or_city ?? null,
-        state: parsed.project_details?.state ?? null,
-        projectType: parsed.project_details?.project_type ?? null,
-        completionDate: parsed.project_details?.completion_date ?? null,
-        totalUnits: parsed.project_details?.total_units ?? null,
-        status: parsed.project_details?.status ?? null,
-        confidence: parsed.project_details?.confidence ?? "unknown",
-      },
-      sources: pageContents.map((r) => r.url),
+      reraId:  reraId.trim(),
+      ...result,
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-module.exports = { verifyReraId };
+module.exports = { verifyReraId, runReraVerification };

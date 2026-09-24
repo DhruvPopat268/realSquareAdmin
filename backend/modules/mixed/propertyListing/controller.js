@@ -9,6 +9,7 @@ const FurnishingAmenity  = require("../../admin/furnishingsAndAmenities/model");
 const FreeListingConfig  = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser         = require("../../systemUsers.model");
+const { runReraVerification } = require("../reraVerification/controller");
 
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
@@ -546,6 +547,7 @@ const updateListing = async (req, res) => {
       cityName, locality,
       residentialDetails, plotDetails, pgDetails, commercialDetails,
       sellInfo, rentInfo,
+      reraId,
     } = req.body;
 
     // Validate propertyListingId is provided
@@ -756,6 +758,44 @@ const updateListing = async (req, res) => {
         listing.rentInfo = null;
       } else {
         listing.rentInfo = { ...listing.rentInfo?.toObject?.() ?? {}, ...rentInfo };
+      }
+    }
+
+    // ── RERA Verification ─────────────────────────────────────────────────────
+    // Only re-verify if a new/changed reraId was sent in the request body
+    if (reraId !== undefined) {
+      if (reraId === null || reraId === "") {
+        // Customer explicitly cleared the RERA ID
+        listing.rera = undefined;
+      } else if (typeof reraId === "string" && reraId.trim()) {
+        const cleanReraId = reraId.trim();
+        const existingReraId = listing.rera?.reraId ?? "";
+
+        // Skip re-verification if the ID hasn't changed (avoid wasting API calls)
+        if (cleanReraId !== existingReraId) {
+          try {
+            const reraResult = await runReraVerification(cleanReraId);
+            listing.rera = {
+              reraId:            cleanReraId,
+              reraStatus:        reraResult.verified ? "verified" : "unverified",
+              reraAdminApproved: false, // reset — admin must re-approve after a re-verify
+              verifiedAt:        reraResult.verified ? new Date() : null,
+              projectDetails:    reraResult.projectDetails ?? undefined,
+              sources:           reraResult.sources ?? [],
+            };
+          } catch (reraErr) {
+            // RERA verification failure is non-blocking — save without RERA data
+            console.error("[updateListing] RERA verification failed:", reraErr.message);
+            listing.rera = {
+              reraId:            cleanReraId,
+              reraStatus:        "unverified",
+              reraAdminApproved: false,
+              verifiedAt:        null,
+              projectDetails:    undefined,
+              sources:           [],
+            };
+          }
+        }
       }
     }
 
