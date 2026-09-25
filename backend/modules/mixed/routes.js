@@ -5,6 +5,7 @@ const coinsTransactionsRoutes  = require("./coinsTransactions/routes");
 const transactionsRoutes       = require("./transactions/routes");
 const propertyListingRoutes    = require("./propertyListing/routes");
 const reraVerificationRoutes   = require("./reraVerification/routes");
+const inquiriesRoutes          = require("./inquiries/routes");
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.use("/coins-transactions",  coinsTransactionsRoutes);
 router.use("/transactions",        transactionsRoutes);
 router.use("/property-listings",   propertyListingRoutes);
 router.use("/rera",                reraVerificationRoutes);
+router.use("/inquiries",           inquiriesRoutes);
 
 module.exports = router;

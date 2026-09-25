@@ -433,6 +433,17 @@ const updateProfile = async (req, res) => {
       else if (key === "email") {
         updateData.email = value;
       }
+      // enquiryCities goes to root — parse JSON array from FormData string
+      else if (key === "enquiryCities") {
+        try {
+          const parsed = typeof value === "string" ? JSON.parse(value) : value;
+          updateData.enquiryCities = Array.isArray(parsed)
+            ? parsed.map((c) => String(c).trim()).filter(Boolean)
+            : [];
+        } catch {
+          updateData.enquiryCities = [];
+        }
+      }
       // All other fields go into the nested profile
       else {
         updateData[`${profileField}.${key}`] = value;
@@ -578,6 +589,7 @@ const getMe = async (req, res) => {
         ownerProfile: req.user.ownerProfile,
         brokerProfile: req.user.brokerProfile,
         builderProfile: req.user.builderProfile,
+        enquiryCities: req.user.enquiryCities ?? [],
         coinsBalance: wallet?.currentBalance ?? 0, 
         activePlan,
         myPropertyListingAllowed: !!hasListings,
