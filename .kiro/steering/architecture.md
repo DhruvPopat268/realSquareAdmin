@@ -82,6 +82,8 @@ modules/admin/<feature>/
 |---|---|
 | Property Listing | `modules/mixed/propertyListing/` |
 | Project Listing | `modules/mixed/projectListing/` |
+| Inquiries | `modules/mixed/inquiries/` |
+| RERA Verification | `modules/mixed/reraVerification/` |
 | Purchased Plans | `modules/mixed/purchasedPlans/` |
 | Coins Transactions | `modules/mixed/coinsTransactions/` |
 | Transactions | `modules/mixed/transactions/` |

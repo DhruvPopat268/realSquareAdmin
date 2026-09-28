@@ -148,6 +148,18 @@ const inquirySchema = new mongoose.Schema(
       default: "active",
       required: true,
     },
+
+    // Verification details
+    verifiedByUser: {
+      isVerified: {
+        type: Boolean,
+        default: false,
+      },
+      source: {
+        type: String,
+        enum: ["whatsapp", "call-agent"],
+      },
+    },
   },
   { timestamps: true }
 );

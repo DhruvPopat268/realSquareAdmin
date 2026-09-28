@@ -1,14 +1,14 @@
 # Inquiries Controller Documentation
 
 ## Overview
-The inquiries controller handles the creation of property inquiries and identification of eligible users for assignment.
+The inquiries controller handles the creation of property inquiries, automatic assignment of those inquiries to eligible users on creation, and a cron-based re-assignment job that picks up any newly eligible users for existing active inquiries.
 
 ---
 
 ## Create Inquiry Controller - `/create`
 
 ### Purpose
-Creates a new inquiry from user input (frontend chatbot) and returns the created inquiry along with a list of eligible users who should be assigned this inquiry.
+Creates a new inquiry from user input (frontend chatbot), automatically creates `AssignedInquiry` records for all currently eligible users, and returns the created inquiry along with the count of assignments made.
 
 ### Request Body
 ```json
@@ -47,14 +47,7 @@ Creates a new inquiry from user input (frontend chatbot) and returns the created
   "success": true,
   "message": "Inquiry created successfully",
   "inquiry": { /* full inquiry object */ },
-  "eligibleUsers": [
-    {
-      "id": "userId",
-      "name": "John Doe",
-      "mobile": "9876543210"
-    }
-  ],
-  "eligibleCount": 2
+  "assignedCount": 3
 }
 ```
 
@@ -113,24 +106,29 @@ Uses the `findEligibleUsers()` helper function:
 - Exclude the inquiry creator (don't assign to themselves)
 
 **Step 5: Data Projection**
-- Return only: `_id` (as `id`), `name`, `mobile`
+- Return only: `_id` (as `id`), `name`, `mobile`, `role`
 
-### 6. Return Response
-- Return inquiry object
-- Return array of eligible users
-- Return count of eligible users
+### 6. Create AssignedInquiry Records
+Uses the `createAssignments()` helper function:
+- Maps each eligible user to an `AssignedInquiry` document
+- Sets `assignmentSource: "automatic"`
+- Uses `insertMany({ ordered: false })` — if any duplicate-key errors occur (unique index on `{inquiry, assignedTo.id}`), they are silently skipped and only successfully inserted records are counted
+- Returns the count of newly created assignment records
+
+### 7. Return Response
+- Return created inquiry object
+- Return `assignedCount` — number of `AssignedInquiry` records successfully created
 - Status: 201 (Created)
 
 ---
 
 ## Key Points
 
-### No Assignment Creation
-- This controller **does NOT create InquiryAssignment records**
-- It only identifies and returns eligible users
-- Assignments will be created by:
-  - Automatic assignment logic (future endpoint)
-  - Cron job (runs every 6 hours)
+### Assignment Creation on Inquiry Create
+- When an inquiry is created, `AssignedInquiry` records are **immediately created** for all currently eligible users via `createAssignments()`
+- `assignmentSource` is set to `"automatic"` for these records
+- Uses `insertMany({ ordered: false })` so a single failure doesn't block the rest
+- If no eligible users exist at the time of creation, `assignedCount` will be `0` — the cron job will pick them up later
 
 ### Profile Completion Requirement
 - Users must have name, mobile, and role to receive inquiries
@@ -141,8 +139,53 @@ Uses the `findEligibleUsers()` helper function:
 - Prevents self-assignment
 
 ### City Matching
-- Must have exact city match in `preferredCities` array
-- If user hasn't added preferred cities, they won't be eligible
+- Must have exact city match in `enquiryCities` array
+- If user hasn't added any enquiry cities, they won't be eligible
+
+---
+
+## Cron Assignment Controller - `/cron-assign`
+
+### Purpose
+Periodically re-runs assignment for all active inquiries to catch any newly eligible users (e.g. users who added a new city to their `enquiryCities` after the inquiry was created). Secured via `x-cron-secret` header — no user auth required.
+
+### Security
+- Request must include header: `x-cron-secret: <CRONJOB_SECRET>`
+- Returns 401 if the header is missing or doesn't match `process.env.CRONJOB_SECRET`
+
+### Response
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Cron assignment completed",
+  "processed": 12,
+  "newAssignments": 5
+}
+```
+
+**No active inquiries (200):**
+```json
+{
+  "success": true,
+  "message": "No active inquiries found",
+  "processed": 0,
+  "newAssignments": 0
+}
+```
+
+### Logic Flow
+1. Fetch all inquiries with `status: "active"`
+2. For each inquiry, call `findEligibleUsers()` (same criteria as `/create`)
+3. Build `AssignedInquiry` documents with `assignmentSource: "cron"`
+4. Run `insertMany({ ordered: false })` — the unique index on `{inquiry, assignedTo.id}` silently skips users who are already assigned; only genuinely new assignments are inserted
+5. Accumulate count of newly inserted records across all inquiries
+6. Return `processed` (total active inquiries) and `newAssignments` (total new records created)
+
+### Key Points
+- **Only creates new assignments** — already-assigned users are never duplicated due to the unique index
+- `assignmentSource` is set to `"cron"` for all records created by this job
+- Designed to be called on a schedule (e.g. every 6 hours) to keep assignments up to date as users update their profiles/cities
 
 ---
 

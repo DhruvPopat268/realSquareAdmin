@@ -756,3 +756,122 @@ describe("eligibleUsers response shape", () => {
   });
 
 });
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 10. GET ASSIGNED INQUIRIES — /api/mixed/inquiries/assigned
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Use a token for a user who has assignments in DB (Dhruv Thakkar — 9157193754)
+// Replace if token expires
+const ASSIGNED_USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNDY2NGU4Y2RhZmFkMWJkZjU4NWU2MCIsImlhdCI6MTc5MDE1MDg2OSwiZXhwIjoxNzkwNzU1NjY5fQ.e_XVjjRIXiPFiylQt7KHK949X_urMCx1qGR7ak22AVw";
+
+const getAssigned = (token = ASSIGNED_USER_TOKEN) =>
+  request(app)
+    .get("/api/mixed/inquiries/assigned")
+    .set("Authorization", `Bearer ${token}`);
+
+describe("GET /api/mixed/inquiries/assigned", () => {
+
+  // ── Auth checks ─────────────────────────────────────────────────────────────
+  test("401 — no token", async () => {
+    const res = await request(app).get("/api/mixed/inquiries/assigned");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("401 — invalid token", async () => {
+    const res = await request(app)
+      .get("/api/mixed/inquiries/assigned")
+      .set("Authorization", "Bearer invalidtoken123");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  // ── Success ──────────────────────────────────────────────────────────────────
+  test("200 — returns success with data array", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  test("200 — count matches data array length", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.count).toBe(res.body.data.length);
+  });
+
+  test("200 — each record has required fields", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    res.body.data.forEach((record) => {
+      expect(record).toHaveProperty("_id");
+      expect(record).toHaveProperty("inquiry");
+      expect(record).toHaveProperty("assignedTo");
+      expect(record).toHaveProperty("assignedAt");
+      expect(record).toHaveProperty("status");
+      expect(record).toHaveProperty("assignmentSource");
+    });
+  });
+
+  test("200 — each record status is active or purchased", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    res.body.data.forEach((record) => {
+      expect(["active", "purchased"]).toContain(record.status);
+    });
+  });
+
+  test("200 — assignmentSource is automatic or cron", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    res.body.data.forEach((record) => {
+      expect(["automatic", "cron"]).toContain(record.assignmentSource);
+    });
+  });
+
+  test("200 — inquiry is populated (not just an ObjectId string)", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    if (res.body.data.length > 0) {
+      const inquiry = res.body.data[0].inquiry;
+      expect(typeof inquiry).toBe("object");
+      expect(inquiry).toHaveProperty("_id");
+      expect(inquiry).toHaveProperty("preferredCity");
+      expect(inquiry).toHaveProperty("status");
+    }
+  });
+
+  test("200 — assignedTo has id, name, mobile, role", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    if (res.body.data.length > 0) {
+      const { assignedTo } = res.body.data[0];
+      expect(assignedTo).toHaveProperty("id");
+      expect(assignedTo).toHaveProperty("name");
+      expect(assignedTo).toHaveProperty("mobile");
+      expect(assignedTo).toHaveProperty("role");
+    }
+  });
+
+  test("200 — results are sorted latest first (createdAt desc)", async () => {
+    const res = await getAssigned();
+    expect(res.statusCode).toBe(200);
+    const dates = res.body.data.map((r) => new Date(r.createdAt).getTime());
+    for (let i = 1; i < dates.length; i++) {
+      expect(dates[i - 1]).toBeGreaterThanOrEqual(dates[i]);
+    }
+  });
+
+  test("200 — user with no assignments gets empty array", async () => {
+    // USER_TOKEN belongs to john snow (customer) — has no assignments
+    const res = await getAssigned(USER_TOKEN);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual([]);
+    expect(res.body.count).toBe(0);
+  });
+
+});

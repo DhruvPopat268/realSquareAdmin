@@ -214,4 +214,38 @@ const runCronAssignment = async (req, res) => {
   }
 };
 
-module.exports = { createInquiry, runCronAssignment };
+/**
+ * Get all assigned inquiries for the logged-in user
+ * GET /api/mixed/inquiries/assigned
+ * Returns AssignedInquiry records with full inquiry details populated
+ */
+const getAssignedInquiries = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    const assignments = await AssignedInquiry.find(
+      { "assignedTo.id": userId },
+    )
+      .populate({
+        path:   "inquiry",
+        select: "-__v",
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count:   assignments.length,
+      data:    assignments,
+    });
+  } catch (error) {
+    console.error("Error fetching assigned inquiries:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch assigned inquiries",
+      error:   error.message,
+    });
+  }
+};
+
+module.exports = { createInquiry, runCronAssignment, getAssignedInquiries };
