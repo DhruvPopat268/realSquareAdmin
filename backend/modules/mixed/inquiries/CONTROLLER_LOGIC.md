@@ -98,10 +98,10 @@ Uses the `findEligibleUsers()` helper function:
 
 **Step 1: Role-Based Filtering**
 - **If `isProperty = true`**: Find users with roles in [Owner, Broker, Builder]
-- **If `isProperty = false`**: Find users with only Builder role
+- **If `isProperty = false`**: Find users with roles in [Broker, Builder]
 
 **Step 2: City Matching**
-- User's `preferredCities` array must include inquiry's `preferredCity`
+- User's `enquiryCities` array must include inquiry's `preferredCity`
 - Case-sensitive exact match
 
 **Step 3: Profile Completion Check**
@@ -159,9 +159,9 @@ Uses the `findEligibleUsers()` helper function:
 ---
 
 ## Environment Variables Required
-- `VITE_OWNER_ROLE_ID` - Owner role ObjectId
-- `VITE_BROKER_ROLE_ID` - Broker role ObjectId
-- `VITE_BUILDER_ROLE_ID` - Builder role ObjectId
+- `OWNER_ROLE_ID` - Owner role ObjectId
+- `BROKER_ROLE_ID` - Broker role ObjectId
+- `BUILDER_ROLE_ID` - Builder role ObjectId
 
 ---
 

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const assignedInquiriesSchema = new mongoose.Schema(
   {
@@ -72,4 +72,4 @@ assignedInquiriesSchema.index({ inquiry: 1, "assignedTo.id": 1 }, { unique: true
 assignedInquiriesSchema.index({ status: 1 });
 assignedInquiriesSchema.index({ assignmentSource: 1 });
 
-export const AssignedInquiry = mongoose.model("AssignedInquiry", assignedInquiriesSchema);
+module.exports = { AssignedInquiry: mongoose.model("AssignedInquiry", assignedInquiriesSchema) };

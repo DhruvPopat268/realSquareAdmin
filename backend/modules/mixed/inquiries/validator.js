@@ -18,7 +18,7 @@ const createInquiryValidator = [
   // ── isProperty ──────────────────────────────────────────────────────────────
   body("isProperty")
     .notEmpty().withMessage("isProperty is required")
-    .isBoolean().withMessage("isProperty must be a boolean"),
+    .isBoolean({ strict: true }).withMessage("isProperty must be a boolean"),
 
   // ── listingType ─────────────────────────────────────────────────────────────
   body("listingType")
