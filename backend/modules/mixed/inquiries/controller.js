@@ -3,6 +3,11 @@ const { Inquiry }          = require("./model");
 const { AssignedInquiry }  = require("./assignedInquiriesModel");
 const SystemUser           = require("../../systemUsers.model");
 
+// Ensure these models are registered before populate runs
+require("../../admin/propertyPurposes/model");
+require("../../admin/propertyCategories/model");
+require("../../admin/propertyTypes/model");
+
 /**
  * Create a new inquiry
  * Returns the created inquiry and list of eligible users for assignment
@@ -42,11 +47,11 @@ const createInquiry = async (req, res) => {
       listingType,
       preferredCity,
       budget: { min: budget.min, max: budget.max },
-      furnishingType,
       inquiryClassification,
       lastFollowUpDate,
       preferredCommunication,
       status: "active",
+      ...(furnishingType                  && { furnishingType }),
       ...(propertyCategory                && { propertyCategory }),
       ...(propertyType                    && { propertyType }),
       ...(preferredArea                   && { preferredArea }),
@@ -217,26 +222,159 @@ const runCronAssignment = async (req, res) => {
 /**
  * Get all assigned inquiries for the logged-in user
  * GET /api/mixed/inquiries/assigned
- * Returns AssignedInquiry records with full inquiry details populated
+ *
+ * Supported query params:
+ *   page, limit
+ *   status         — assignment status: "active" | "purchased"
+ *   classification — inquiry classification: "hot" | "warm" | "cold"
+ *   purposeId      — inquiry listingType ObjectId
+ *   categoryId     — inquiry propertyCategory ObjectId
+ *   typeId         — inquiry propertyType ObjectId
+ *   search         — searches preferredCity, preferredArea, createdBy.name, createdBy.mobile
+ *                    (createdBy fields only visible for purchased assignments)
  */
 const getAssignedInquiries = async (req, res) => {
   try {
     const userId = req.user?._id;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.max(1, parseInt(req.query.limit) || 10);
+    const skip   = (page - 1) * limit;
 
-    const assignments = await AssignedInquiry.find(
-      { "assignedTo.id": userId },
-    )
-      .populate({
-        path:   "inquiry",
-        select: "-__v",
-      })
-      .sort({ createdAt: -1 })
-      .lean();
+    // ── Build the base match on AssignedInquiry ──────────────────────────────
+    const assignmentMatch = { "assignedTo.id": userId };
+    if (req.query.status) assignmentMatch.status = req.query.status;
+
+    // ── Build the post-lookup match on the joined inquiry ────────────────────
+    const inquiryMatch = {};
+    if (req.query.classification) inquiryMatch["inquiry.inquiryClassification"] = req.query.classification;
+    if (req.query.purposeId)      inquiryMatch["inquiry.listingType"]            = new Types.ObjectId(req.query.purposeId);
+    if (req.query.categoryId)     inquiryMatch["inquiry.propertyCategory"]       = new Types.ObjectId(req.query.categoryId);
+    if (req.query.typeId)         inquiryMatch["inquiry.propertyType"]           = new Types.ObjectId(req.query.typeId);
+    if (req.query.search) {
+      const regex = new RegExp(req.query.search, "i");
+      inquiryMatch.$or = [
+        { "inquiry.preferredCity":    regex },
+        { "inquiry.preferredArea":    regex },
+        { "inquiry.createdBy.name":   regex },
+        { "inquiry.createdBy.mobile": regex },
+      ];
+    }
+
+    const hasInquiryFilters = Object.keys(inquiryMatch).length > 0;
+
+    // ── Aggregation pipeline ─────────────────────────────────────────────────
+    const basePipeline = [
+      { $match: assignmentMatch },
+      {
+        $lookup: {
+          from:         "inquiries",
+          localField:   "inquiry",
+          foreignField: "_id",
+          as:           "inquiry",
+        },
+      },
+      { $unwind: { path: "$inquiry", preserveNullAndEmptyArrays: false } },
+      ...(hasInquiryFilters ? [{ $match: inquiryMatch }] : []),
+    ];
+
+    const [countResult, assignments, statusStats, classStats] = await Promise.all([
+      AssignedInquiry.aggregate([...basePipeline, { $count: "total" }]),
+      AssignedInquiry.aggregate([
+        ...basePipeline,
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        // Lookup and replace listingType
+        {
+          $lookup: {
+            from:         "propertypurposes",
+            localField:   "inquiry.listingType",
+            foreignField: "_id",
+            as:           "inquiry.listingType",
+          },
+        },
+        { $set: { "inquiry.listingType": { $arrayElemAt: ["$inquiry.listingType", 0] } } },
+        // Lookup and replace propertyCategory
+        {
+          $lookup: {
+            from:         "propertycategories",
+            localField:   "inquiry.propertyCategory",
+            foreignField: "_id",
+            as:           "inquiry.propertyCategory",
+          },
+        },
+        { $set: { "inquiry.propertyCategory": { $arrayElemAt: ["$inquiry.propertyCategory", 0] } } },
+        // Lookup and replace propertyType
+        {
+          $lookup: {
+            from:         "propertytypes",
+            localField:   "inquiry.propertyType",
+            foreignField: "_id",
+            as:           "inquiry.propertyType",
+          },
+        },
+        { $set: { "inquiry.propertyType": { $arrayElemAt: ["$inquiry.propertyType", 0] } } },
+        // Only keep name from each ref
+        {
+          $set: {
+            "inquiry.listingType":      { $cond: { if: { $ifNull: ["$inquiry.listingType._id", false] }, then: { _id: "$inquiry.listingType._id", name: "$inquiry.listingType.name" }, else: null } },
+            "inquiry.propertyCategory": { $cond: { if: { $ifNull: ["$inquiry.propertyCategory._id", false] }, then: { _id: "$inquiry.propertyCategory._id", name: "$inquiry.propertyCategory.name" }, else: null } },
+            "inquiry.propertyType":     { $cond: { if: { $ifNull: ["$inquiry.propertyType._id", false] }, then: { _id: "$inquiry.propertyType._id", name: "$inquiry.propertyType.name" }, else: null } },
+          },
+        },
+      ]),
+      // Stats — always run on the base match (no filters) so counts reflect all assignments
+      AssignedInquiry.aggregate([
+        { $match: { "assignedTo.id": userId } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      // Classification stats — join inquiry to get classification counts
+      AssignedInquiry.aggregate([
+        { $match: { "assignedTo.id": userId } },
+        {
+          $lookup: {
+            from:         "inquiries",
+            localField:   "inquiry",
+            foreignField: "_id",
+            as:           "inquiry",
+          },
+        },
+        { $unwind: { path: "$inquiry", preserveNullAndEmptyArrays: false } },
+        { $group: { _id: "$inquiry.inquiryClassification", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const total = countResult[0]?.total ?? 0;
+
+    const statsCounts = { active: 0, purchased: 0, hot: 0, warm: 0, cold: 0 };
+    statusStats.forEach(({ _id, count }) => { if (_id in statsCounts) statsCounts[_id] = count; });
+    classStats.forEach(({ _id, count })  => { if (_id in statsCounts) statsCounts[_id] = count; });
+
+    // ── Mask createdBy fields for non-purchased assignments ──────────────────
+    const masked = assignments.map((a) => {
+      if (a.status === "purchased" || !a.inquiry?.createdBy) return a;
+      return {
+        ...a,
+        inquiry: {
+          ...a.inquiry,
+          createdBy: {
+            ...a.inquiry.createdBy,
+            id:     "****",
+            name:   "****",
+            mobile: "****",
+            role:   "****",
+          },
+        },
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      count:   assignments.length,
-      data:    assignments,
+      data: {
+        assignments: masked,
+        pagination:  { total, page, limit, totalPages: Math.ceil(total / limit) },
+        stats:       statsCounts,
+      },
     });
   } catch (error) {
     console.error("Error fetching assigned inquiries:", error);
@@ -248,4 +386,74 @@ const getAssignedInquiries = async (req, res) => {
   }
 };
 
-module.exports = { createInquiry, runCronAssignment, getAssignedInquiries };
+/**
+ * Get all inquiries created by the logged-in user
+ * GET /api/mixed/inquiries/my?page=1&limit=10
+ * Returns paginated Inquiry records where createdBy.id matches the logged-in user
+ */
+const getMyInquiries = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.max(1, parseInt(req.query.limit) || 10);
+    const skip   = (page - 1) * limit;
+
+    const filter = { "createdBy.id": userId };
+    if (req.query.purposeId)        filter.listingType             = req.query.purposeId;
+    if (req.query.categoryId)       filter.propertyCategory        = req.query.categoryId;
+    if (req.query.typeId)           filter.propertyType            = req.query.typeId;
+    if (req.query.status)           filter.status                  = req.query.status;
+    if (req.query.classification)   filter.inquiryClassification   = req.query.classification;
+    if (req.query.search) {
+      const regex = new RegExp(req.query.search, "i");
+      filter.$or = [
+        { preferredCity: regex },
+        { preferredArea: regex },
+      ];
+    }
+
+    const [inquiries, total, statusStats, classStats] = await Promise.all([
+      Inquiry.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("listingType",      "name")
+        .populate("propertyCategory", "name")
+        .populate("propertyType",     "name")
+        .lean(),
+      Inquiry.countDocuments(filter),
+      Inquiry.aggregate([
+        { $match: filter },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      Inquiry.aggregate([
+        { $match: filter },
+        { $group: { _id: "$inquiryClassification", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const statusCounts = { active: 0, expired: 0 };
+    statusStats.forEach(({ _id, count }) => { if (_id in statusCounts) statusCounts[_id] = count; });
+
+    const classCounts = { hot: 0, warm: 0, cold: 0 };
+    classStats.forEach(({ _id, count }) => { if (_id in classCounts) classCounts[_id] = count; });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        inquiries,
+        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        stats: { ...statusCounts, ...classCounts },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching user inquiries:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch inquiries",
+      error:   error.message,
+    });
+  }
+};
+
+module.exports = { createInquiry, runCronAssignment, getAssignedInquiries, getMyInquiries };

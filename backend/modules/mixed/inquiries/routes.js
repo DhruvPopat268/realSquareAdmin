@@ -1,5 +1,5 @@
 const express                    = require("express");
-const { createInquiry, runCronAssignment, getAssignedInquiries } = require("./controller");
+const { createInquiry, runCronAssignment, getAssignedInquiries, getMyInquiries } = require("./controller");
 const { userProtect }            = require("../../../middleware/userAuth");
 const { createInquiryValidator } = require("./validator");
 
@@ -16,6 +16,9 @@ const cronProtect = (req, res, next) => {
 
 // POST /api/mixed/inquiries/create
 router.post("/create", userProtect, createInquiryValidator, createInquiry);
+
+// GET /api/mixed/inquiries/my
+router.get("/my", userProtect, getMyInquiries);
 
 // GET /api/mixed/inquiries/assigned
 router.get("/assigned", userProtect, getAssignedInquiries);

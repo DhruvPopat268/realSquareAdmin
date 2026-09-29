@@ -576,6 +576,13 @@ const getMe = async (req, res) => {
       canListProperty = await checkCanListProperty(req.user._id);
     }
 
+    const ASSIGNED_INQUIRY_ROLES = [
+      process.env.OWNER_ROLE_ID,
+      process.env.BROKER_ROLE_ID,
+      process.env.BUILDER_ROLE_ID,
+    ];
+    const haveAssignedInquiries = ASSIGNED_INQUIRY_ROLES.includes(req.user.role?._id?.toString());
+
     res.json({ 
       success: true, 
       data: { 
@@ -596,6 +603,7 @@ const getMe = async (req, res) => {
         isProfileCompleted,
         canListProperty,
         rejectedPropertiesCount,
+        haveAssignedInquiries,
       } 
     });
   } catch (err) {

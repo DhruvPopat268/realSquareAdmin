@@ -36,7 +36,7 @@ const inquirySchema = new mongoose.Schema(
     // Listing type (Buy/Rent/PG) - Reference to Purpose
     listingType: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Purpose",
+      ref: "PropertyPurpose",
       required: true,
     },
 
@@ -105,7 +105,6 @@ const inquirySchema = new mongoose.Schema(
     furnishingType: {
       type: String,
       enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"],
-      required: true,
     },
 
     // Inquiry classification (hot/warm/cold)

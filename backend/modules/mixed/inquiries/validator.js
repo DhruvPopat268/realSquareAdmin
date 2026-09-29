@@ -88,9 +88,9 @@ const createInquiryValidator = [
     .notEmpty().withMessage("plotArea.unit is required when plotArea is provided")
     .isIn(["sqft", "sqyd", "sqmt"]).withMessage("plotArea.unit must be sqft, sqyd, or sqmt"),
 
-  // ── furnishingType ──────────────────────────────────────────────────────────
+  // ── furnishingType (optional — not required for plots or PG) ───────────────
   body("furnishingType")
-    .notEmpty().withMessage("furnishingType is required")
+    .optional()
     .isIn(["Unfurnished", "Semi-Furnished", "Fully-Furnished"]).withMessage("furnishingType must be Unfurnished, Semi-Furnished, or Fully-Furnished"),
 
   // ── inquiryClassification ───────────────────────────────────────────────────
