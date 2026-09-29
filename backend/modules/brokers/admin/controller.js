@@ -32,14 +32,15 @@ const createBroker = async (req, res) => {
 
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     const brokerProfile = {
-      fullName, email, mobile,
       yearsOfExperience: yearsOfExperience ? Number(yearsOfExperience) : undefined,
       agencyName, bio,
-      profilePhoto: profilePhotoFile ? toUrl(profilePhotoFile.path) : undefined,
     };
 
     const broker = await SystemUser.create({
+      name: fullName,
+      email,
       mobile,
+      profilePhoto: profilePhotoFile ? toUrl(profilePhotoFile.path) : undefined,
       role: BROKER_ROLE_ID,
       isActive: true,
       brokerProfile,
@@ -58,16 +59,16 @@ const updateBroker = async (req, res) => {
     const { fullName, email, mobile, yearsOfExperience, agencyName, bio } = req.body;
 
     const updateData = {};
-    if (fullName          !== undefined) updateData["brokerProfile.fullName"]          = fullName;
-    if (email             !== undefined) updateData["brokerProfile.email"]             = email;
+    if (fullName          !== undefined) updateData["name"]                            = fullName;
+    if (email             !== undefined) updateData["email"]                           = email;
     if (agencyName        !== undefined) updateData["brokerProfile.agencyName"]        = agencyName;
     if (bio               !== undefined) updateData["brokerProfile.bio"]               = bio;
     if (yearsOfExperience !== undefined) updateData["brokerProfile.yearsOfExperience"] = Number(yearsOfExperience);
-    if (mobile            !== undefined) { updateData["mobile"] = mobile; updateData["brokerProfile.mobile"] = mobile; }
+    if (mobile            !== undefined) updateData["mobile"]                          = mobile;
 
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     if (profilePhotoFile)
-      updateData["brokerProfile.profilePhoto"] = toUrl(profilePhotoFile.path);
+      updateData["profilePhoto"] = toUrl(profilePhotoFile.path);
 
     const broker = await SystemUser.findByIdAndUpdate(
       id,

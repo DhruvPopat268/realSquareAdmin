@@ -17,17 +17,14 @@ const getCustomers = async (req, res) => {
 const updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, email, bio, location, mobile } = req.body;
+    const { name, email, bio, location, mobile } = req.body;
 
     const updateData = {};
-    if (fullName !== undefined) updateData["customerProfile.fullName"] = fullName;
-    if (email     !== undefined) updateData["customerProfile.email"]    = email;
-    if (bio       !== undefined) updateData["customerProfile.bio"]      = bio;
-    if (location  !== undefined) updateData["customerProfile.location"] = location;
-    if (mobile    !== undefined) {
-      updateData["mobile"]                  = mobile;
-      updateData["customerProfile.mobile"]  = mobile;
-    }
+    if (name     !== undefined) updateData["name"]                    = name;
+    if (email    !== undefined) updateData["email"]                   = email;
+    if (mobile   !== undefined) updateData["mobile"]                  = mobile;
+    if (bio      !== undefined) updateData["customerProfile.bio"]     = bio;
+    if (location !== undefined) updateData["customerProfile.location"] = location;
     const customer = await SystemUser.findByIdAndUpdate(
       id,
       { $set: updateData },

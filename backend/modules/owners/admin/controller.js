@@ -26,9 +26,9 @@ const updateOwner = async (req, res) => {
     const { fullName, email, mobile, bizName, bizType, bizGst, bizEmail, bizMobile, bizWebsite } = req.body;
 
     const updateData = {};
-    if (fullName   !== undefined) updateData["ownerProfile.fullName"]                        = fullName;
-    if (email      !== undefined) updateData["ownerProfile.email"]                           = email;
-    if (mobile     !== undefined) { updateData["mobile"] = mobile; updateData["ownerProfile.mobile"] = mobile; }
+    if (fullName   !== undefined) updateData["name"]                                         = fullName;
+    if (email      !== undefined) updateData["email"]                                        = email;
+    if (mobile     !== undefined) updateData["mobile"]                                       = mobile;
     if (bizName    !== undefined) updateData["ownerProfile.businessDetails.name"]            = bizName;
     if (bizType    !== undefined) updateData["ownerProfile.businessDetails.type"]            = bizType;
     if (bizGst     !== undefined) updateData["ownerProfile.businessDetails.gstNumber"]       = bizGst;

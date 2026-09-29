@@ -31,18 +31,18 @@ export default function AgentsBrokersPage() {
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const [viewTarget, setViewTarget] = useState<Broker | null>(null);
-  const [viewOpen, setViewOpen]     = useState(false);
+  const [viewTarget, setViewTarget]     = useState<Broker | null>(null);
+  const [viewOpen, setViewOpen]         = useState(false);
 
-  const [editTarget, setEditTarget]   = useState<Broker | null>(null);
-  const [editOpen, setEditOpen]       = useState(false);
-  const [isCreating, setIsCreating]   = useState(false);
-  const [editForm, setEditForm]       = useState(INIT_FORM);
-  const [editErrors, setEditErrors]   = useState<Partial<typeof INIT_FORM>>({});
-  const [photoFile, setPhotoFile]     = useState<File | null>(null);
+  const [editTarget, setEditTarget]     = useState<Broker | null>(null);
+  const [editOpen, setEditOpen]         = useState(false);
+  const [isCreating, setIsCreating]     = useState(false);
+  const [editForm, setEditForm]         = useState(INIT_FORM);
+  const [editErrors, setEditErrors]     = useState<Partial<typeof INIT_FORM>>({});
+  const [photoFile, setPhotoFile]       = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
-  const photoRef = useRef<HTMLInputElement>(null);
-  const [submitting, setSubmitting]   = useState(false);
+  const photoRef                        = useRef<HTMLInputElement>(null);
+  const [submitting, setSubmitting]     = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<Broker | null>(null);
   const [deleteOpen, setDeleteOpen]     = useState(false);
@@ -71,16 +71,16 @@ export default function AgentsBrokersPage() {
     setIsCreating(false);
     setEditTarget(b);
     setEditForm({
-      fullName:          b.brokerProfile?.fullName          || "",
-      email:             b.brokerProfile?.email             || "",
-      mobile:            b.mobile                           || "",
-      agencyName:        b.brokerProfile?.agencyName        || "",
+      fullName:          b.name                                        || "",
+      email:             b.email                                       || "",
+      mobile:            b.mobile                                      || "",
+      agencyName:        b.brokerProfile?.agencyName                   || "",
       yearsOfExperience: b.brokerProfile?.yearsOfExperience?.toString() || "",
-      bio:               b.brokerProfile?.bio               || "",
+      bio:               b.brokerProfile?.bio                          || "",
     });
     setEditErrors({});
     setPhotoFile(null);
-    setPhotoPreview(b.brokerProfile?.profilePhoto || "");
+    setPhotoPreview(b.profilePhoto || "");
     setEditOpen(true);
   }
 
@@ -159,8 +159,8 @@ export default function AgentsBrokersPage() {
     const q = search.trim().toLowerCase();
     if (!q) return data;
     return data.filter((b) =>
-      b.brokerProfile?.fullName?.toLowerCase().includes(q) ||
-      b.brokerProfile?.email?.toLowerCase().includes(q) ||
+      b.name?.toLowerCase().includes(q) ||
+      b.email?.toLowerCase().includes(q) ||
       b.mobile?.includes(q)
     );
   }, [data, search]);
@@ -208,6 +208,7 @@ export default function AgentsBrokersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mobile</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Agency Name</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Experience (yrs)</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Auto Approval</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Login</th>
@@ -217,67 +218,47 @@ export default function AgentsBrokersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={13} className="py-16"><Spinner fullPage={false} size="md" label="Loading brokers..." /></td></tr>
+              <tr><td colSpan={14} className="py-16"><Spinner fullPage={false} size="md" label="Loading brokers..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={13} className="text-center text-muted-foreground py-16">No brokers found</td></tr>
+              <tr><td colSpan={14} className="text-center text-muted-foreground py-16">No brokers found</td></tr>
             ) : paged.map((b, i) => (
               <tr key={b._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
                   <div className="flex items-center gap-1">
-                    <button disabled onClick={() => openView(b)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => openEdit(b)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => openDelete(b)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <button disabled onClick={() => openView(b)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed"><Eye className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => openEdit(b)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => openDelete(b)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{(page - 1) * pageSize + i + 1}</td>
                 <td className="px-4 py-3">
-                  {b.brokerProfile?.profilePhoto
-                    ? <img src={b.brokerProfile.profilePhoto} alt="profile" className="h-8 w-8 rounded-full object-cover border" />
-                    : <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>
-                  }
+                  {b.profilePhoto
+                    ? <img src={b.profilePhoto} alt="profile" className="h-8 w-8 rounded-full object-cover border" />
+                    : <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>}
                 </td>
-                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{b.brokerProfile?.fullName || "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground">{b.brokerProfile?.email || "—"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{b.name || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{b.email || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{b.mobile || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{b.brokerProfile?.agencyName || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground text-center">{b.brokerProfile?.yearsOfExperience ?? "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground text-xs">{b.enquiryCities?.length ? b.enquiryCities.join(", ") : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Switch checked={b.isActive} onCheckedChange={() => handleToggleStatus(b)} className="scale-90" />
-                    <span className={`text-xs font-medium ${b.isActive ? "text-green-600" : "text-muted-foreground"}`}>
-                      {b.isActive ? "Yes" : "No"}
-                    </span>
+                    <span className={`text-xs font-medium ${b.isActive ? "text-green-600" : "text-muted-foreground"}`}>{b.isActive ? "Yes" : "No"}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Switch checked={b.autoApprovalProperties} onCheckedChange={() => handleToggleAutoApproval(b)} className="scale-90" />
-                    <span className={`text-xs font-medium ${b.autoApprovalProperties ? "text-green-600" : "text-muted-foreground"}`}>
-                      {b.autoApprovalProperties ? "Yes" : "No"}
-                    </span>
+                    <span className={`text-xs font-medium ${b.autoApprovalProperties ? "text-green-600" : "text-muted-foreground"}`}>{b.autoApprovalProperties ? "Yes" : "No"}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  {b.lastLogin ? (
-                    <>
-                      <p className="text-sm text-foreground">{fmtDate(b.lastLogin).date}</p>
-                      <p className="text-xs text-muted-foreground">{fmtDate(b.lastLogin).time}</p>
-                    </>
-                  ) : <span className="text-xs text-muted-foreground">—</span>}
+                  {b.lastLogin ? (<><p className="text-sm text-foreground">{fmtDate(b.lastLogin).date}</p><p className="text-xs text-muted-foreground">{fmtDate(b.lastLogin).time}</p></>) : <span className="text-xs text-muted-foreground">—</span>}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  {b.lastActivity ? (
-                    <>
-                      <p className="text-sm text-foreground">{fmtDate(b.lastActivity).date}</p>
-                      <p className="text-xs text-muted-foreground">{fmtDate(b.lastActivity).time}</p>
-                    </>
-                  ) : <span className="text-xs text-muted-foreground">—</span>}
+                  {b.lastActivity ? (<><p className="text-sm text-foreground">{fmtDate(b.lastActivity).date}</p><p className="text-xs text-muted-foreground">{fmtDate(b.lastActivity).time}</p></>) : <span className="text-xs text-muted-foreground">—</span>}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <p className="text-sm text-foreground">{fmtDate(b.createdAt).date}</p>
@@ -292,32 +273,20 @@ export default function AgentsBrokersPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span>
-            Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} entries
-          </span>
+          <span>Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} entries</span>
           <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded-md border bg-background px-2 text-xs">
             {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
           </select>
         </div>
         <div className="flex items-center gap-1">
-          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
+          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
           {Array.from({ length: totalPages }, (_, i) => i + 1)
             .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-            .reduce<(number | "...")[]>((acc, p, i, arr) => {
-              if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
-              acc.push(p);
-              return acc;
-            }, [])
-            .map((p, i) => p === "..." ? (
-              <span key={`e-${i}`} className="px-1">···</span>
-            ) : (
+            .reduce<(number | "...")[]>((acc, p, i, arr) => { if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("..."); acc.push(p); return acc; }, [])
+            .map((p, i) => p === "..." ? <span key={`e-${i}`} className="px-1">···</span> : (
               <button key={p} onClick={() => setPage(p as number)} className={`h-8 w-8 rounded-md border text-sm font-medium transition-colors ${page === p ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}>{p}</button>
             ))}
-          <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage((p) => p + 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted">
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage((p) => p + 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"><ChevronRight className="h-4 w-4" /></button>
         </div>
       </div>
 
@@ -327,24 +296,21 @@ export default function AgentsBrokersPage() {
           <DialogHeader><DialogTitle>Broker Details</DialogTitle></DialogHeader>
           {viewTarget && (
             <div className="space-y-3 py-2 text-sm">
-              {viewTarget.brokerProfile?.profilePhoto && (
-                <img src={viewTarget.brokerProfile.profilePhoto} alt="profile" className="h-16 w-16 rounded-full object-cover border" />
-              )}
+              {viewTarget.profilePhoto && <img src={viewTarget.profilePhoto} alt="profile" className="h-16 w-16 rounded-full object-cover border" />}
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <span className="text-muted-foreground">Name</span><span className="font-medium">{viewTarget.brokerProfile?.fullName || "—"}</span>
-                <span className="text-muted-foreground">Email</span><span>{viewTarget.brokerProfile?.email || "—"}</span>
+                <span className="text-muted-foreground">Name</span><span className="font-medium">{viewTarget.name || "—"}</span>
+                <span className="text-muted-foreground">Email</span><span>{viewTarget.email || "—"}</span>
                 <span className="text-muted-foreground">Mobile</span><span>{viewTarget.mobile || "—"}</span>
                 <span className="text-muted-foreground">Agency</span><span>{viewTarget.brokerProfile?.agencyName || "—"}</span>
                 <span className="text-muted-foreground">Experience</span><span>{viewTarget.brokerProfile?.yearsOfExperience != null ? `${viewTarget.brokerProfile.yearsOfExperience} yrs` : "—"}</span>
                 <span className="text-muted-foreground">Bio</span><span>{viewTarget.brokerProfile?.bio || "—"}</span>
+                <span className="text-muted-foreground">Enquiry Cities</span><span>{viewTarget.enquiryCities?.length ? viewTarget.enquiryCities.join(", ") : "—"}</span>
                 <span className="text-muted-foreground">Is Active</span>
                 <span className={viewTarget.isActive ? "text-green-600 font-medium" : "text-muted-foreground"}>{viewTarget.isActive ? "Yes" : "No"}</span>
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -357,10 +323,7 @@ export default function AgentsBrokersPage() {
               <Label>Profile Photo</Label>
               <div className="flex items-center gap-3">
                 <div className="h-14 w-14 rounded-full border bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                  {photoPreview
-                    ? <img src={photoPreview} alt="photo" className="h-full w-full object-cover" />
-                    : <span className="text-xs text-muted-foreground">No photo</span>
-                  }
+                  {photoPreview ? <img src={photoPreview} alt="photo" className="h-full w-full object-cover" /> : <span className="text-xs text-muted-foreground">No photo</span>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => photoRef.current?.click()}>
@@ -372,18 +335,7 @@ export default function AgentsBrokersPage() {
                     </button>
                   )}
                 </div>
-                <input
-                  ref={photoRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setPhotoFile(file);
-                    setPhotoPreview(URL.createObjectURL(file));
-                  }}
-                />
+                <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; setPhotoFile(f); setPhotoPreview(URL.createObjectURL(f)); }} />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -420,12 +372,12 @@ export default function AgentsBrokersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm Dialog */}
+      {/* Delete Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete Broker</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground py-2">
-            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.brokerProfile?.fullName || deleteTarget?.mobile}</span>? This action cannot be undone.
+            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name || deleteTarget?.mobile}</span>? This action cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>

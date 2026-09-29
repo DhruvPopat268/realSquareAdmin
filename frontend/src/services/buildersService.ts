@@ -2,18 +2,18 @@ import api from "@/lib/axiosInterceptor";
 
 export interface Builder {
   _id: string;
+  name: string;
+  email: string;
   mobile: string;
+  profilePhoto?: string;
   isActive: boolean;
   autoApprovalProperties: boolean;
+  enquiryCities: string[];
   lastLogin: string | null;
   lastActivity: string | null;
   createdAt: string;
   updatedAt: string;
   builderProfile: {
-    name: string;
-    email: string;
-    mobile: string;
-    profilePhoto?: string;
     gstNumber?: string;
     cinNumber?: string;
     foundedYear?: number;

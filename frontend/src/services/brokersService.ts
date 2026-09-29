@@ -2,18 +2,18 @@ import api from "@/lib/axiosInterceptor";
 
 export interface Broker {
   _id: string;
+  name: string;
+  email: string;
   mobile: string;
+  profilePhoto?: string;
   isActive: boolean;
   autoApprovalProperties: boolean;
+  enquiryCities: string[];
   lastLogin: string | null;
   lastActivity: string | null;
   createdAt: string;
   updatedAt: string;
   brokerProfile: {
-    fullName: string;
-    email: string;
-    mobile: string;
-    profilePhoto?: string;
     yearsOfExperience?: number;
     agencyName?: string;
     bio?: string;

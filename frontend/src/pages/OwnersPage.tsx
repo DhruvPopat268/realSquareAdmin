@@ -13,10 +13,10 @@ import Spinner from "@/components/Spinner";
 const PAGE_SIZES = [10, 25, 50];
 
 const BUSINESS_TYPES = [
-  { value: "private_owner",                  label: "Private Owner" },
-  { value: "real_estate_investment_trust",   label: "Real Estate Investment Trust" },
-  { value: "property_management_group",      label: "Property Management Group" },
-  { value: "family_office",                  label: "Family Office" },
+  { value: "private_owner",                label: "Private Owner" },
+  { value: "real_estate_investment_trust", label: "Real Estate Investment Trust" },
+  { value: "property_management_group",    label: "Property Management Group" },
+  { value: "family_office",               label: "Family Office" },
 ];
 
 function fmtDate(dateStr: string) {
@@ -39,17 +39,17 @@ export default function OwnersPage() {
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const [viewTarget, setViewTarget] = useState<Owner | null>(null);
-  const [viewOpen, setViewOpen]     = useState(false);
+  const [viewTarget, setViewTarget]     = useState<Owner | null>(null);
+  const [viewOpen, setViewOpen]         = useState(false);
 
-  const [editTarget, setEditTarget] = useState<Owner | null>(null);
-  const [editOpen, setEditOpen]     = useState(false);
-  const [editForm, setEditForm]     = useState(INIT_EDIT);
-  const [editErrors, setEditErrors] = useState<Partial<typeof INIT_EDIT>>({});
-  const [logoFile, setLogoFile]     = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState("");
-  const logoRef = useRef<HTMLInputElement>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [editTarget, setEditTarget]     = useState<Owner | null>(null);
+  const [editOpen, setEditOpen]         = useState(false);
+  const [editForm, setEditForm]         = useState(INIT_EDIT);
+  const [editErrors, setEditErrors]     = useState<Partial<typeof INIT_EDIT>>({});
+  const [logoFile, setLogoFile]         = useState<File | null>(null);
+  const [logoPreview, setLogoPreview]   = useState("");
+  const logoRef                         = useRef<HTMLInputElement>(null);
+  const [submitting, setSubmitting]     = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<Owner | null>(null);
   const [deleteOpen, setDeleteOpen]     = useState(false);
@@ -67,8 +67,8 @@ export default function OwnersPage() {
   function openEdit(o: Owner) {
     setEditTarget(o);
     setEditForm({
-      fullName:   o.ownerProfile?.fullName                      || "",
-      email:      o.ownerProfile?.email                         || "",
+      fullName:   o.name                                        || "",
+      email:      o.email                                       || "",
       mobile:     o.mobile                                      || "",
       bizName:    o.ownerProfile?.businessDetails?.name         || "",
       bizType:    o.ownerProfile?.businessDetails?.type         || "",
@@ -108,21 +108,20 @@ export default function OwnersPage() {
   async function handleEdit() {
     const errs: Partial<typeof INIT_EDIT> = {};
     if (!editForm.fullName.trim()) errs.fullName = "Name is required";
-    if (!editForm.email.trim())    errs.email    = "Email is required";
     if (Object.keys(errs).length) { setEditErrors(errs); return; }
 
     setSubmitting(true);
     try {
       const fd = new FormData();
       fd.append("fullName",  editForm.fullName.trim());
-      fd.append("email",     editForm.email.trim());
-      if (editForm.mobile.trim())     fd.append("mobile",     editForm.mobile.trim());
-      if (editForm.bizName.trim())    fd.append("bizName",    editForm.bizName.trim());
-      if (editForm.bizType)           fd.append("bizType",    editForm.bizType);
-      if (editForm.bizGst.trim())     fd.append("bizGst",     editForm.bizGst.trim());
-      if (editForm.bizEmail.trim())   fd.append("bizEmail",   editForm.bizEmail.trim());
-      if (editForm.bizMobile.trim())  fd.append("bizMobile",  editForm.bizMobile.trim());
-      if (editForm.bizWebsite.trim()) fd.append("bizWebsite", editForm.bizWebsite.trim());
+      if (editForm.email.trim())      fd.append("email",     editForm.email.trim());
+      if (editForm.mobile.trim())     fd.append("mobile",    editForm.mobile.trim());
+      if (editForm.bizName.trim())    fd.append("bizName",   editForm.bizName.trim());
+      if (editForm.bizType)           fd.append("bizType",   editForm.bizType);
+      if (editForm.bizGst.trim())     fd.append("bizGst",    editForm.bizGst.trim());
+      if (editForm.bizEmail.trim())   fd.append("bizEmail",  editForm.bizEmail.trim());
+      if (editForm.bizMobile.trim())  fd.append("bizMobile", editForm.bizMobile.trim());
+      if (editForm.bizWebsite.trim()) fd.append("bizWebsite",editForm.bizWebsite.trim());
       if (logoFile)                   fd.append("businessLogo", logoFile);
 
       const res = await ownersService.update(editTarget!._id, fd);
@@ -155,8 +154,8 @@ export default function OwnersPage() {
     const q = search.trim().toLowerCase();
     if (!q) return data;
     return data.filter((o) =>
-      o.ownerProfile?.fullName?.toLowerCase().includes(q) ||
-      o.ownerProfile?.email?.toLowerCase().includes(q) ||
+      o.name?.toLowerCase().includes(q) ||
+      o.email?.toLowerCase().includes(q) ||
       o.mobile?.includes(q)
     );
   }, [data, search]);
@@ -205,6 +204,7 @@ export default function OwnersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Business Name</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[180px]">Business Type</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[160px]">GST Number</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Auto Approval</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Login</th>
@@ -214,76 +214,53 @@ export default function OwnersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={15} className="py-16"><Spinner fullPage={false} size="md" label="Loading owners..." /></td></tr>
+              <tr><td colSpan={16} className="py-16"><Spinner fullPage={false} size="md" label="Loading owners..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={15} className="text-center text-muted-foreground py-16">No owners found</td></tr>
+              <tr><td colSpan={16} className="text-center text-muted-foreground py-16">No owners found</td></tr>
             ) : paged.map((o, i) => (
               <tr key={o._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
                   <div className="flex items-center gap-1">
-                    <button disabled onClick={() => openView(o)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => openEdit(o)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => openDelete(o)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <button disabled onClick={() => openView(o)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed"><Eye className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => openEdit(o)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => openDelete(o)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{(page - 1) * pageSize + i + 1}</td>
                 <td className="px-4 py-3">
-                  {o.ownerProfile?.profilePhoto
-                    ? <img src={o.ownerProfile.profilePhoto} alt="profile" className="h-8 w-8 rounded-full object-cover border" />
-                    : <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>
-                  }
+                  {o.profilePhoto
+                    ? <img src={o.profilePhoto} alt="profile" className="h-8 w-8 rounded-full object-cover border" />
+                    : <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>}
                 </td>
-                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{o.ownerProfile?.fullName || "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground">{o.ownerProfile?.email || "—"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{o.name || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{o.email || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{o.mobile || "—"}</td>
                 <td className="px-4 py-3">
                   {o.ownerProfile?.businessDetails?.logo
                     ? <img src={o.ownerProfile.businessDetails.logo} alt="logo" className="h-8 w-8 rounded object-cover border" />
-                    : <div className="h-8 w-8 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>
-                  }
+                    : <div className="h-8 w-8 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{o.ownerProfile?.businessDetails?.name || "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  {BUSINESS_TYPES.find((t) => t.value === o.ownerProfile?.businessDetails?.type)?.label || "—"}
-                </td>
+                <td className="px-4 py-3 text-muted-foreground">{BUSINESS_TYPES.find((t) => t.value === o.ownerProfile?.businessDetails?.type)?.label || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{o.ownerProfile?.businessDetails?.gstNumber || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground text-xs">{o.enquiryCities?.length ? o.enquiryCities.join(", ") : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Switch checked={o.isActive} onCheckedChange={() => handleToggleStatus(o)} className="scale-90" />
-                    <span className={`text-xs font-medium ${o.isActive ? "text-green-600" : "text-muted-foreground"}`}>
-                      {o.isActive ? "Yes" : "No"}
-                    </span>
+                    <span className={`text-xs font-medium ${o.isActive ? "text-green-600" : "text-muted-foreground"}`}>{o.isActive ? "Yes" : "No"}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Switch checked={o.autoApprovalProperties} onCheckedChange={() => handleToggleAutoApproval(o)} className="scale-90" />
-                    <span className={`text-xs font-medium ${o.autoApprovalProperties ? "text-green-600" : "text-muted-foreground"}`}>
-                      {o.autoApprovalProperties ? "Yes" : "No"}
-                    </span>
+                    <span className={`text-xs font-medium ${o.autoApprovalProperties ? "text-green-600" : "text-muted-foreground"}`}>{o.autoApprovalProperties ? "Yes" : "No"}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  {o.lastLogin ? (
-                    <>
-                      <p className="text-sm text-foreground">{fmtDate(o.lastLogin).date}</p>
-                      <p className="text-xs text-muted-foreground">{fmtDate(o.lastLogin).time}</p>
-                    </>
-                  ) : <span className="text-xs text-muted-foreground">—</span>}
+                  {o.lastLogin ? (<><p className="text-sm text-foreground">{fmtDate(o.lastLogin).date}</p><p className="text-xs text-muted-foreground">{fmtDate(o.lastLogin).time}</p></>) : <span className="text-xs text-muted-foreground">—</span>}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  {o.lastActivity ? (
-                    <>
-                      <p className="text-sm text-foreground">{fmtDate(o.lastActivity).date}</p>
-                      <p className="text-xs text-muted-foreground">{fmtDate(o.lastActivity).time}</p>
-                    </>
-                  ) : <span className="text-xs text-muted-foreground">—</span>}
+                  {o.lastActivity ? (<><p className="text-sm text-foreground">{fmtDate(o.lastActivity).date}</p><p className="text-xs text-muted-foreground">{fmtDate(o.lastActivity).time}</p></>) : <span className="text-xs text-muted-foreground">—</span>}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <p className="text-sm text-foreground">{fmtDate(o.createdAt).date}</p>
@@ -298,32 +275,20 @@ export default function OwnersPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span>
-            Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} entries
-          </span>
+          <span>Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} entries</span>
           <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded-md border bg-background px-2 text-xs">
             {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
           </select>
         </div>
         <div className="flex items-center gap-1">
-          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
+          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
           {Array.from({ length: totalPages }, (_, i) => i + 1)
             .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-            .reduce<(number | "...")[]>((acc, p, i, arr) => {
-              if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
-              acc.push(p);
-              return acc;
-            }, [])
-            .map((p, i) => p === "..." ? (
-              <span key={`e-${i}`} className="px-1">···</span>
-            ) : (
+            .reduce<(number | "...")[]>((acc, p, i, arr) => { if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("..."); acc.push(p); return acc; }, [])
+            .map((p, i) => p === "..." ? <span key={`e-${i}`} className="px-1">···</span> : (
               <button key={p} onClick={() => setPage(p as number)} className={`h-8 w-8 rounded-md border text-sm font-medium transition-colors ${page === p ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}>{p}</button>
             ))}
-          <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage((p) => p + 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted">
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage((p) => p + 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"><ChevronRight className="h-4 w-4" /></button>
         </div>
       </div>
 
@@ -333,23 +298,20 @@ export default function OwnersPage() {
           <DialogHeader><DialogTitle>Owner Details</DialogTitle></DialogHeader>
           {viewTarget && (
             <div className="space-y-3 py-2 text-sm">
-              {viewTarget.ownerProfile?.profilePhoto && (
-                <img src={viewTarget.ownerProfile.profilePhoto} alt="profile" className="h-16 w-16 rounded-full object-cover border" />
-              )}
+              {viewTarget.profilePhoto && <img src={viewTarget.profilePhoto} alt="profile" className="h-16 w-16 rounded-full object-cover border" />}
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <span className="text-muted-foreground">Name</span><span className="font-medium">{viewTarget.ownerProfile?.fullName || "—"}</span>
-                <span className="text-muted-foreground">Email</span><span>{viewTarget.ownerProfile?.email || "—"}</span>
+                <span className="text-muted-foreground">Name</span><span className="font-medium">{viewTarget.name || "—"}</span>
+                <span className="text-muted-foreground">Email</span><span>{viewTarget.email || "—"}</span>
                 <span className="text-muted-foreground">Mobile</span><span>{viewTarget.mobile || "—"}</span>
                 <span className="text-muted-foreground">Business</span><span>{viewTarget.ownerProfile?.businessDetails?.name || "—"}</span>
                 <span className="text-muted-foreground">GST</span><span>{viewTarget.ownerProfile?.businessDetails?.gstNumber || "—"}</span>
+                <span className="text-muted-foreground">Enquiry Cities</span><span>{viewTarget.enquiryCities?.length ? viewTarget.enquiryCities.join(", ") : "—"}</span>
                 <span className="text-muted-foreground">Is Active</span>
                 <span className={viewTarget.isActive ? "text-green-600 font-medium" : "text-muted-foreground"}>{viewTarget.isActive ? "Yes" : "No"}</span>
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -364,9 +326,8 @@ export default function OwnersPage() {
               {editErrors.fullName && <p className="text-xs text-destructive">{editErrors.fullName}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>Email <span className="text-destructive">*</span></Label>
+              <Label>Email</Label>
               <Input type="email" value={editForm.email} onChange={(e) => setField("email", e.target.value)} placeholder="email@example.com" />
-              {editErrors.email && <p className="text-xs text-destructive">{editErrors.email}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Mobile</Label>
@@ -377,10 +338,7 @@ export default function OwnersPage() {
               <Label>Business Logo</Label>
               <div className="flex items-center gap-3">
                 <div className="h-14 w-14 rounded border bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                  {logoPreview
-                    ? <img src={logoPreview} alt="logo" className="h-full w-full object-cover" />
-                    : <span className="text-xs text-muted-foreground">No logo</span>
-                  }
+                  {logoPreview ? <img src={logoPreview} alt="logo" className="h-full w-full object-cover" /> : <span className="text-xs text-muted-foreground">No logo</span>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => logoRef.current?.click()}>
@@ -392,18 +350,7 @@ export default function OwnersPage() {
                     </button>
                   )}
                 </div>
-                <input
-                  ref={logoRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setLogoFile(file);
-                    setLogoPreview(URL.createObjectURL(file));
-                  }}
-                />
+                <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; setLogoFile(f); setLogoPreview(URL.createObjectURL(f)); }} />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -422,9 +369,7 @@ export default function OwnersPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-                  {BUSINESS_TYPES.map((t) => (
-                    <DropdownMenuItem key={t.value} onClick={() => setField("bizType", t.value)}>{t.label}</DropdownMenuItem>
-                  ))}
+                  {BUSINESS_TYPES.map((t) => <DropdownMenuItem key={t.value} onClick={() => setField("bizType", t.value)}>{t.label}</DropdownMenuItem>)}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -452,12 +397,12 @@ export default function OwnersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm Dialog */}
+      {/* Delete Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete Owner</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground py-2">
-            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.ownerProfile?.fullName || deleteTarget?.mobile}</span>? This action cannot be undone.
+            Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name || deleteTarget?.mobile}</span>? This action cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>

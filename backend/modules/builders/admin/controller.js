@@ -32,16 +32,17 @@ const createBuilder = async (req, res) => {
 
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     const builderProfile = {
-      name, email, mobile,
       gstNumber,
       cinNumber,
       foundedYear:            foundedYear            ? Number(foundedYear)            : undefined,
       totalProjectsDelivered: totalProjectsDelivered ? Number(totalProjectsDelivered) : undefined,
-      profilePhoto: profilePhotoFile ? toUrl(profilePhotoFile.path) : undefined,
     };
 
     const builder = await SystemUser.create({
       mobile,
+      name,
+      email,
+      profilePhoto: profilePhotoFile ? toUrl(profilePhotoFile.path) : undefined,
       role: BUILDER_ROLE_ID,
       isActive: true,
       builderProfile,
@@ -60,17 +61,17 @@ const updateBuilder = async (req, res) => {
     const { name, email, mobile, gstNumber, cinNumber, foundedYear, totalProjectsDelivered } = req.body;
 
     const updateData = {};
-    if (name                   !== undefined) updateData["builderProfile.name"]                   = name;
-    if (email                  !== undefined) updateData["builderProfile.email"]                  = email;
+    if (name                   !== undefined) updateData["name"]                                  = name;
+    if (email                  !== undefined) updateData["email"]                                 = email;
+    if (mobile                 !== undefined) updateData["mobile"]                                = mobile;
     if (gstNumber              !== undefined) updateData["builderProfile.gstNumber"]              = gstNumber;
     if (cinNumber              !== undefined) updateData["builderProfile.cinNumber"]              = cinNumber;
     if (foundedYear            !== undefined) updateData["builderProfile.foundedYear"]            = Number(foundedYear);
     if (totalProjectsDelivered !== undefined) updateData["builderProfile.totalProjectsDelivered"] = Number(totalProjectsDelivered);
-    if (mobile                 !== undefined) { updateData["mobile"] = mobile; updateData["builderProfile.mobile"] = mobile; }
 
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     if (profilePhotoFile)
-      updateData["builderProfile.profilePhoto"] = toUrl(profilePhotoFile.path);
+      updateData["profilePhoto"] = toUrl(profilePhotoFile.path);
 
     const builder = await SystemUser.findByIdAndUpdate(
       id,
