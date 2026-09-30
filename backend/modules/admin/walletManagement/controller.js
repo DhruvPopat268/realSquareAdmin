@@ -16,7 +16,7 @@ const getPaymentTransactions = async (req, res) => {
     const [wallet, transactions, total] = await Promise.all([
       AdminWallet.findOne(),
       PaymentTransaction.find(filter)
-        .populate("user", "mobile ownerProfile.fullName brokerProfile.fullName builderProfile.name")
+        .populate("user", "mobile name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),

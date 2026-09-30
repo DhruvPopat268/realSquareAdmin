@@ -2,7 +2,7 @@ import api from "@/lib/axiosInterceptor";
 
 export interface ListingPurchasedPlan {
   _id: string;
-  user: { _id: string; mobile: string; ownerProfile?: { fullName: string }; brokerProfile?: { fullName: string }; builderProfile?: { name: string } };
+  user: { _id: string; mobile: string; name?: string };
   userType: "Owner" | "Broker" | "Builder";
   plan: {
     name: string;

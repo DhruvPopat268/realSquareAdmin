@@ -22,25 +22,28 @@ const STATUS_COLORS: Record<string, string> = {
   Pending: "bg-yellow-100 text-yellow-700",
 };
 
-const CREDIT_REASONS = new Set(["PlanPurchase", "CoinsPurchase", "AdminCredit", "PlanUpgrade"]);
+const CREDIT_REASONS = new Set(["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "AdminCredit"]);
 
 function txnType(reason: string) {
   return CREDIT_REASONS.has(reason) ? "Credit" : "Debit";
 }
 
 const REASON_COLORS: Record<string, string> = {
-  PlanPurchase:  "bg-blue-100 text-blue-700",
-  CoinsPurchase: "bg-purple-100 text-purple-700",
-  Refund:        "bg-yellow-100 text-yellow-700",
-  AdminCredit:   "bg-green-100 text-green-700",
-  AdminDebit:    "bg-red-100 text-red-700",
+  ListingPlanPurchase:  "bg-blue-100 text-blue-700",
+  ListingPlanUpgrade:   "bg-indigo-100 text-indigo-700",
+  EnquiryPlanPurchase:  "bg-cyan-100 text-cyan-700",
+  EnquiryPlanUpgrade:   "bg-teal-100 text-teal-700",
+  CoinsPurchase:        "bg-purple-100 text-purple-700",
+  Refund:               "bg-yellow-100 text-yellow-700",
+  AdminCredit:          "bg-green-100 text-green-700",
+  AdminDebit:           "bg-red-100 text-red-700",
 };
 
 interface Query { page: number; limit: number; status: string; reason: string; userType: string; userId: string; }
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", reason: "", userType: "", userId: "" };
 
 function userName(u: PaymentTransaction["user"]) {
-  return u.ownerProfile?.fullName ?? u.brokerProfile?.fullName ?? u.builderProfile?.name ?? u.mobile;
+  return u.name ?? u.mobile;
 }
 
 export default function WalletTransactionsPage() {
@@ -160,7 +163,7 @@ export default function WalletTransactionsPage() {
           <SelectTrigger className="h-9 w-64 text-sm"><SelectValue placeholder="Select Reason" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Reasons</SelectItem>
-            {["PlanPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
+            {["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
               <SelectItem key={r} value={r}>{r}</SelectItem>
             ))}
           </SelectContent>

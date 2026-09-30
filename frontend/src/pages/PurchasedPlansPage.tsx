@@ -14,7 +14,7 @@ interface Query { page: number; limit: number; status: string; userType: string;
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", userType: "", userId: "" };
 
 function userName(u: ListingPurchasedPlan["user"]) {
-  return u.ownerProfile?.fullName ?? u.brokerProfile?.fullName ?? u.builderProfile?.name ?? u.mobile;
+  return u.name ?? u.mobile;
 }
 
 const STATUS_VARIANTS: Record<string, "default" | "destructive" | "secondary"> = {

@@ -14,7 +14,7 @@ const getListingPurchasedPlans = async (req, res) => {
 
     const [records, total, statsRaw] = await Promise.all([
       ListingPurchasedPlan.find(filter)
-        .populate("user", "mobile ownerProfile.fullName brokerProfile.fullName builderProfile.name")
+        .populate("user", "mobile name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),

@@ -14,7 +14,7 @@ interface Query { page: number; limit: number; type: string; reason: string; use
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, type: "", reason: "", userType: "", userId: "" };
 
 function userName(u: CoinsTransaction["user"]) {
-  return u.ownerProfile?.fullName ?? u.brokerProfile?.fullName ?? u.builderProfile?.name ?? u.mobile;
+  return u.name ?? u.mobile;
 }
 
 export default function CoinsTransactionsPage() {
@@ -137,7 +137,7 @@ export default function CoinsTransactionsPage() {
           <SelectTrigger className="h-9 w-64 text-sm"><SelectValue placeholder="Select Transaction Reason" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Reasons</SelectItem>
-            {["PlanPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
+            {["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
               <SelectItem key={r} value={r}>{r}</SelectItem>
             ))}
           </SelectContent>
