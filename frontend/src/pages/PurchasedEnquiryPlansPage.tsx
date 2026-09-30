@@ -1,0 +1,266 @@
+import { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileText, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Archive, Ban } from "lucide-react";
+import { enquiryPurchasedPlansService, type EnquiryPurchasedPlan } from "@/services/enquiryPurchasedPlansService";
+import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
+import { useToast } from "@/hooks/use-toast";
+import Spinner from "@/components/Spinner";
+
+const LIMITS = [10, 20, 50, 100];
+
+interface Query { page: number; limit: number; status: string; userType: string; userId: string; }
+const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", userType: "", userId: "" };
+
+function userName(u: EnquiryPurchasedPlan["user"]) {
+  return u.name ?? u.mobile;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  Active:    "bg-green-100 text-green-700",
+  Expired:   "bg-red-100 text-red-700",
+  Consumed:  "bg-yellow-100 text-yellow-700",
+  Cancelled: "bg-purple-100 text-purple-700",
+};
+
+export default function PurchasedEnquiryPlansPage() {
+  const { toast } = useToast();
+
+  const [plans, setPlans]           = useState<EnquiryPurchasedPlan[]>([]);
+  const [stats, setStats]           = useState({ active: 0, expired: 0, consumed: 0, cancelled: 0 });
+  const [loading, setLoading]       = useState(true);
+  const [total, setTotal]           = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+
+  const [pending, setPending] = useState<Query>(DEFAULT_QUERY);
+  const [query, setQuery]     = useState<Query>(DEFAULT_QUERY);
+
+  const hasFilters = query.status || query.userType || query.userId;
+
+  useEffect(() => {
+    systemUsersService.getActiveUsers()
+      .then((res) => setActiveUsers(res.data.data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        const params: Record<string, string | number> = { page: query.page, limit: query.limit };
+        if (query.status)   params.status   = query.status;
+        if (query.userType) params.userType = query.userType;
+        if (query.userId)   params.userId   = query.userId;
+
+        const res = await enquiryPurchasedPlansService.getAll(params);
+        setPlans(res.data.data);
+        setStats(res.data.stats);
+        setTotal(res.data.pagination.total);
+        setTotalPages(res.data.pagination.totalPages);
+      } catch {
+        toast({ variant: "destructive", title: "Failed to load enquiry purchased plans" });
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [query]);
+
+  function set(key: keyof Query, v: string) {
+    setPending((p) => ({ ...p, [key]: v === "all" ? "" : v }));
+  }
+
+  function applyFilters() { setQuery({ ...pending, page: 1 }); }
+  function clearFilters() { setPending(DEFAULT_QUERY); setQuery(DEFAULT_QUERY); }
+  function goToPage(p: number) { setQuery((q) => ({ ...q, page: p })); }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Purchased Enquiry Plans</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">All enquiry plan purchases by users.</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Active</p>
+            <p className="text-xl font-bold text-green-600">{stats.active.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+            <Clock className="h-5 w-5 text-red-500" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Expired</p>
+            <p className="text-xl font-bold text-red-500">{stats.expired.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Archive className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Consumed</p>
+            <p className="text-xl font-bold">{stats.consumed.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+            <Ban className="h-5 w-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Cancelled</p>
+            <p className="text-xl font-bold text-purple-600">{stats.cancelled.toLocaleString()}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Rows per page</span>
+          <Select value={String(query.limit)} onValueChange={(v) => setQuery((q) => ({ ...q, page: 1, limit: Number(v) }))}>
+            <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {LIMITS.map((l) => <SelectItem key={l} value={String(l)}>{l}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground">{total} record{total !== 1 ? "s" : ""}</p>
+        <div className="flex-1" />
+        <Select value={pending.status} onValueChange={(v) => set("status", v)}>
+          <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="Select Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            {["Active", "Expired", "Consumed", "Cancelled"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={pending.userType} onValueChange={(v) => set("userType", v)}>
+          <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="Select User Type" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All User Types</SelectItem>
+            {["Owner", "Broker", "Builder"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={pending.userId} onValueChange={(v) => set("userId", v)}>
+          <SelectTrigger className="h-9 w-56 text-sm"><SelectValue placeholder="Select User" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Users</SelectItem>
+            {activeUsers.map((u) => (
+              <SelectItem key={u._id} value={u._id}>
+                {u.name ?? u.mobile} — {u.roleName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
+        {hasFilters && (
+          <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={clearFilters}>
+            <X className="h-3.5 w-3.5" /> Clear
+          </Button>
+        )}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <Spinner fullPage={false} size="md" label="Loading enquiry purchased plans..." />
+      ) : plans.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-2">
+          <FileText className="h-8 w-8 opacity-30" />
+          <p className="text-base font-medium">No purchased enquiry plans found</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
+            <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
+              <tr>
+                <th className="px-5 py-3 text-left min-w-[50px]">#</th>
+                <th className="px-5 py-3 text-left min-w-[180px]">User</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">User Type</th>
+                <th className="px-5 py-3 text-left min-w-[160px]">Plan</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Plan Type</th>
+                <th className="px-5 py-3 text-left min-w-[150px]">Expiry Days</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Payment Method</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Paid Amount</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Paid Coins</th>
+                <th className="px-5 py-3 text-left min-w-[150px]">Enquiries</th>
+                <th className="px-5 py-3 text-left min-w-[160px]">Expiry</th>
+                <th className="px-5 py-3 text-left min-w-[120px]">Status</th>
+                <th className="px-5 py-3 text-left min-w-[160px]">Purchased At</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {plans.map((p, index) => {
+                const isFree      = p.plan.coins === 0 && p.plan.amount === 0;
+                const expiryLabel = p.plan.expiryInDays === -1 ? "Never Expires" : `${p.plan.expiryInDays} Days`;
+                return (
+                  <tr key={p._id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
+                    <td className="px-5 py-3">
+                      <p className="font-medium leading-tight">{userName(p.user)}</p>
+                      <p className="text-xs text-muted-foreground">{p.user.mobile}</p>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{p.userType}</td>
+                    <td className="px-5 py-3 font-medium">{p.plan.name}</td>
+                    <td className="px-5 py-3">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${isFree ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
+                        {isFree ? "Free" : "Paid"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{expiryLabel}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{p.paymentMethod}</td>
+                    <td className="px-5 py-3">{p.amountPaid > 0 ? `₹${p.amountPaid.toLocaleString()}` : "—"}</td>
+                    <td className="px-5 py-3">{p.coinsPaid > 0 ? p.coinsPaid.toLocaleString() : "—"}</td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {p.enquiriesUsed} / {p.plan.numberOfEnquiriesGiven === -1 ? "Unlimited" : p.plan.numberOfEnquiriesGiven}
+                    </td>
+                    <td className="px-5 py-3 text-xs">
+                      {p.expiryDate ? (
+                        <>
+                          <p>{new Date(p.expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
+                          <p className="text-muted-foreground">{new Date(p.expiryDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">Never</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge className={`text-xs ${STATUS_COLORS[p.status] ?? "bg-muted text-muted-foreground"}`}>
+                        {p.status}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3 text-xs">
+                      <p>{new Date(p.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
+                      <p className="text-muted-foreground">{new Date(p.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">Page {query.page} of {totalPages}</span>
+        <Button variant="outline" size="sm" disabled={query.page === 1} onClick={() => goToPage(query.page - 1)}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" disabled={query.page === totalPages} onClick={() => goToPage(query.page + 1)}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}

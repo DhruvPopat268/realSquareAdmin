@@ -33,6 +33,7 @@ import CoinsTransactionsPage from "./pages/CoinsTransactionsPage";
 import WalletTransactionsPage from "./pages/WalletTransactionsPage";
 import FreeListingPage from "./pages/FreeListingPage";
 import EnquiryPlansPage from "./pages/EnquiryPlansPage";
+import PurchasedEnquiryPlansPage from "./pages/PurchasedEnquiryPlansPage";
 import LeadEnquiryCoinsConfigPage from "./pages/LeadEnquiryCoinsConfigPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="/leads"                     element={<LeadsPage />} />
             <Route path="/enquiries"                 element={<EnquiriesPage />} />
             <Route path="/enquiry-plans"             element={<EnquiryPlansPage />} />
+            <Route path="/purchased-enquiry-plans"   element={<PurchasedEnquiryPlansPage />} />
             <Route path="/lead-enquiry-coins-config" element={<LeadEnquiryCoinsConfigPage />} />
 
             {/* System Users */}

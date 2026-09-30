@@ -131,6 +131,7 @@ const sections = [
       { type: "link", to: "/leads",                      icon: Users, label: "Leads" },
       { type: "link", to: "/enquiry-plans",              icon: Tag,   label: "Enquiry Plans" },
       { type: "link", to: "/lead-enquiry-coins-config",  icon: Coins, label: "Lead & Enquiry Coins Config" },
+      { type: "link", to: "/purchased-enquiry-plans",   icon: Tag,   label: "Purchased Enquiry Plans" },
     ],
   },
   {
