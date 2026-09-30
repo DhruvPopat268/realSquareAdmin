@@ -1,11 +1,11 @@
-const mongoose           = require("mongoose");
-const Razorpay           = require("razorpay");
-const Plan               = require("../../admin/plansManagement/model");
-const PaymentTransaction = require("../transactions/model");
-const AdminWallet        = require("../../admin/adminWallet/model");
-const UserCoinsWallet    = require("../userCoinsWallet/model");
-const CoinsTransaction   = require("../coinsTransactions/model");
-const ListingPurchasedPlan = require("./model");
+const mongoose              = require("mongoose");
+const Razorpay              = require("razorpay");
+const EnquiryPlan           = require("../../admin/enquiryPlansManagement/model");
+const PaymentTransaction    = require("../transactions/model");
+const AdminWallet           = require("../../admin/adminWallet/model");
+const UserCoinsWallet       = require("../userCoinsWallet/model");
+const CoinsTransaction      = require("../coinsTransactions/model");
+const EnquiryPurchasedPlan  = require("./model");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -18,8 +18,42 @@ const ROLE_USERTYPE_MAP = {
   [process.env.BUILDER_ROLE_ID]: "Builder",
 };
 
-// ── Create Razorpay Order for Plan Purchase ───────────────────────────────────
-const createPlanOrder = async (req, res) => {
+// ── Get Active Enquiry Plans for the user's role ──────────────────────────────
+const getActiveEnquiryPlans = async (req, res) => {
+  try {
+    const wantsUpgrade = req.query.userWantToUpgrade === "true";
+
+    const filter = { isActive: true, roles: req.userRole };
+    let plans = await EnquiryPlan.find(filter).select("-__v -roles -createdAt -updatedAt");
+
+    if (wantsUpgrade) {
+      const activePlan = await EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+      if (activePlan) {
+        plans = plans.map((p) => ({
+          ...p.toObject(),
+          currentPlan: p._id.toString() === activePlan.plan.planId.toString(),
+        }));
+      }
+    }
+
+    // distinct expiryInDays sorted: -1 first, then ascending
+    const allExpiryValues = plans.map((p) => (p.toObject ? p.toObject() : p).expiryInDays ?? p.expiryInDays);
+    const distinctExpiry  = [...new Set(allExpiryValues)]
+      .filter((v) => v != null)
+      .sort((a, b) => {
+        if (a === -1) return -1;
+        if (b === -1) return 1;
+        return a - b;
+      });
+
+    res.json({ success: true, data: plans, expiryTabs: distinctExpiry });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Create Razorpay Order for Enquiry Plan Purchase ───────────────────────────
+const createEnquiryPlanOrder = async (req, res) => {
   try {
     const { planId } = req.body;
     if (!planId)
@@ -29,7 +63,7 @@ const createPlanOrder = async (req, res) => {
     if (!userType)
       return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
 
-    const plan = await Plan.findById(planId);
+    const plan = await EnquiryPlan.findById(planId);
     if (!plan || !plan.isActive)
       return res.status(404).json({ success: false, message: "Plan not found or inactive" });
 
@@ -39,38 +73,34 @@ const createPlanOrder = async (req, res) => {
     if (!plan.roles.includes(req.userRole))
       return res.status(403).json({ success: false, message: "This plan is not available for your role" });
 
-    const existingActivePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
-    if (existingActivePlan)
-      return res.status(400).json({ success: false, message: "You already have an active plan" });
+    const existing = await EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    if (existing)
+      return res.status(400).json({ success: false, message: "You already have an active enquiry plan" });
 
-    const purchaseAmount = plan.amount;
-
-    // create razorpay order (amount in paise)
     const razorpayOrder = await razorpay.orders.create({
-      amount:   purchaseAmount * 100,
+      amount:   plan.amount * 100,
       currency: "INR",
-      receipt:  `p_${req.user._id.toString().slice(-8)}_${Date.now().toString().slice(-8)}`,
+      receipt:  `eq_${req.user._id.toString().slice(-8)}_${Date.now().toString().slice(-8)}`,
       notes: {
         userId:   req.user._id.toString(),
         userType,
         planId:   plan._id.toString(),
+        type:     "enquiry",
       },
     });
 
-    // fetch admin wallet balance for snapshot
     const adminWallet   = await AdminWallet.findOne();
     const balanceBefore = adminWallet?.currentBalance ?? 0;
 
-    // create paymentTransaction with Pending status
     const transaction = await PaymentTransaction.create({
       user:            req.user._id,
       userType,
-      reason:          "ListingPlanPurchase",
+      reason:          "EnquiryPlanPurchase",
       razorpayOrderId: razorpayOrder.id,
-      amount:          purchaseAmount,
+      amount:          plan.amount,
       currency:        "INR",
       balanceBefore,
-      balanceAfter:    balanceBefore + purchaseAmount,
+      balanceAfter:    balanceBefore + plan.amount,
       status:          "Pending",
     });
 
@@ -82,21 +112,21 @@ const createPlanOrder = async (req, res) => {
         currency:      razorpayOrder.currency,
         transactionId: transaction._id,
         plan: {
-          name:                    plan.name,
-          numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-          expiryInDays:            plan.expiryInDays,
-          amount:                  plan.amount,
+          name:                   plan.name,
+          numberOfEnquiriesGiven: plan.numberOfEnquiriesGiven,
+          expiryInDays:           plan.expiryInDays,
+          amount:                 plan.amount,
         },
       },
     });
   } catch (err) {
-    console.error("createPlanOrder error:", err);
+    console.error("createEnquiryPlanOrder error:", err);
     res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
   }
 };
 
-// ── Create Razorpay Order for Plan Upgrade (Online) ─────────────────────────
-const upgradePlanOrder = async (req, res) => {
+// ── Create Razorpay Order for Enquiry Plan Upgrade (Online) ───────────────────
+const upgradeEnquiryPlanOrder = async (req, res) => {
   try {
     const { planId } = req.body;
     if (!planId)
@@ -106,11 +136,11 @@ const upgradePlanOrder = async (req, res) => {
     if (!userType)
       return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
 
-    const activePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    const activePlan = await EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
     if (!activePlan)
-      return res.status(400).json({ success: false, message: "No active plan found to upgrade" });
+      return res.status(400).json({ success: false, message: "No active enquiry plan found to upgrade" });
 
-    const plan = await Plan.findById(planId);
+    const plan = await EnquiryPlan.findById(planId);
     if (!plan || !plan.isActive)
       return res.status(404).json({ success: false, message: "Plan not found or inactive" });
 
@@ -123,18 +153,17 @@ const upgradePlanOrder = async (req, res) => {
     if (activePlan.plan.planId.toString() === planId)
       return res.status(400).json({ success: false, message: "You already have this plan as your active plan" });
 
-    const purchaseAmount = plan.amount;
-
     const razorpayOrder = await razorpay.orders.create({
-      amount:   purchaseAmount * 100,
+      amount:   plan.amount * 100,
       currency: "INR",
-      receipt:  `u_${req.user._id.toString().slice(-8)}_${Date.now().toString().slice(-8)}`,
+      receipt:  `eu_${req.user._id.toString().slice(-8)}_${Date.now().toString().slice(-8)}`,
       notes: {
         userId:        req.user._id.toString(),
         userType,
         planId:        plan._id.toString(),
         activePlanId:  activePlan._id.toString(),
         isUpgrade:     "true",
+        type:          "enquiry",
       },
     });
 
@@ -144,12 +173,12 @@ const upgradePlanOrder = async (req, res) => {
     const transaction = await PaymentTransaction.create({
       user:            req.user._id,
       userType,
-      reason:          "ListingPlanUpgrade",
+      reason:          "EnquiryPlanUpgrade",
       razorpayOrderId: razorpayOrder.id,
-      amount:          purchaseAmount,
+      amount:          plan.amount,
       currency:        "INR",
       balanceBefore,
-      balanceAfter:    balanceBefore + purchaseAmount,
+      balanceAfter:    balanceBefore + plan.amount,
       status:          "Pending",
     });
 
@@ -162,21 +191,21 @@ const upgradePlanOrder = async (req, res) => {
         transactionId: transaction._id,
         activePlanId:  activePlan._id,
         plan: {
-          name:                    plan.name,
-          numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-          expiryInDays:            plan.expiryInDays,
-          amount:                  plan.amount,
+          name:                   plan.name,
+          numberOfEnquiriesGiven: plan.numberOfEnquiriesGiven,
+          expiryInDays:           plan.expiryInDays,
+          amount:                 plan.amount,
         },
       },
     });
   } catch (err) {
-    console.error("upgradePlanOrder error:", err);
+    console.error("upgradeEnquiryPlanOrder error:", err);
     res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
   }
 };
 
-// ── Cancel Plan Order ─────────────────────────────────────────────────────────
-const cancelPlanOrder = async (req, res) => {
+// ── Cancel Enquiry Plan Order ─────────────────────────────────────────────────
+const cancelEnquiryPlanOrder = async (req, res) => {
   try {
     const transaction = await PaymentTransaction.findById(req.params.transactionId);
     if (!transaction)
@@ -195,43 +224,8 @@ const cancelPlanOrder = async (req, res) => {
   }
 };
 
-// ── Get Active Plans for the user's role ─────────────────────────────────────
-const getActivePlans = async (req, res) => {
-  try {
-    const wantsUpgrade = req.query.userWantToUpgrade === "true";
-
-    const filter = { isActive: true, roles: req.userRole };
-
-    let plans = await Plan.find(filter).select("-__v -roles -createdAt -updatedAt");
-
-    if (wantsUpgrade) {
-      const activePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
-      if (activePlan) {
-        plans = plans.map((p) => ({
-          ...p.toObject(),
-          currentPlan: p._id.toString() === activePlan.plan.planId.toString(),
-        }));
-      }
-    }
-
-    // distinct expiryInDays values sorted: -1 first, then ascending
-    const allExpiryValues = plans.map((p) => (p.toObject ? p.toObject() : p).expiryInDays ?? p.expiryInDays);
-    const distinctExpiry  = [...new Set(allExpiryValues)]
-      .filter((v) => v != null)
-      .sort((a, b) => {
-        if (a === -1) return -1;
-        if (b === -1) return 1;
-        return a - b;
-      });
-
-    res.json({ success: true, data: plans, expiryTabs: distinctExpiry });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// ── Purchase Plan (Free or with Coins) ───────────────────────────────────────
-const purchasePlan = async (req, res) => {
+// ── Purchase Enquiry Plan (Free or with Coins) ────────────────────────────────
+const purchaseEnquiryPlan = async (req, res) => {
   try {
     const { planId } = req.body;
     if (!planId)
@@ -241,16 +235,16 @@ const purchasePlan = async (req, res) => {
     if (!userType)
       return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
 
-    const plan = await Plan.findById(planId);
+    const plan = await EnquiryPlan.findById(planId);
     if (!plan || !plan.isActive)
       return res.status(404).json({ success: false, message: "Plan not found or inactive" });
 
     if (!plan.roles.includes(req.userRole))
       return res.status(403).json({ success: false, message: "This plan is not available for your role" });
 
-    const existingActivePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
-    if (existingActivePlan)
-      return res.status(400).json({ success: false, message: "You already have an active plan" });
+    const existing = await EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    if (existing)
+      return res.status(400).json({ success: false, message: "You already have an active enquiry plan" });
 
     const expiryDurationDays = plan.expiryInDays ?? 0;
     const startDate          = new Date();
@@ -259,28 +253,28 @@ const purchasePlan = async (req, res) => {
       : new Date(new Date(startDate).setDate(startDate.getDate() + expiryDurationDays));
 
     const planSnapshot = {
-      planId:                  plan._id,
-      name:                    plan.name,
-      numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-      expiryInDays:            plan.expiryInDays,
-      coins:                   plan.coins,
-      amount:                  plan.amount,
+      planId:                 plan._id,
+      name:                   plan.name,
+      numberOfEnquiriesGiven: plan.numberOfEnquiriesGiven,
+      expiryInDays:           plan.expiryInDays,
+      coins:                  plan.coins,
+      amount:                 plan.amount,
     };
 
-    // ── Free Plan (no coins and no amount) ────────────────────────────────────
+    // ── Free Plan ─────────────────────────────────────────────────────────────
     if (!plan.coins && !plan.amount) {
-      const purchasedPlan = await ListingPurchasedPlan.create({
-        user:          req.user._id,
+      const purchased = await EnquiryPurchasedPlan.create({
+        user:               req.user._id,
         userType,
-        plan:          planSnapshot,
-        paymentMethod: "Free",
-        coinsPaid:     0,
+        plan:               planSnapshot,
+        paymentMethod:      "Free",
+        coinsPaid:          0,
         startDate,
         expiryDate,
         expiryDurationDays,
-        status:        "Active",
+        status:             "Active",
       });
-      return res.status(201).json({ success: true, data: purchasedPlan });
+      return res.status(201).json({ success: true, data: purchased });
     }
 
     // ── Paid Plan (Coins) ─────────────────────────────────────────────────────
@@ -299,34 +293,34 @@ const purchasePlan = async (req, res) => {
       userWallet.totalDebitedCoins += plan.coins;
       await userWallet.save({ session });
 
-      const purchasedPlan = new ListingPurchasedPlan({
-        user:          req.user._id,
+      const purchased = new EnquiryPurchasedPlan({
+        user:               req.user._id,
         userType,
-        plan:          planSnapshot,
-        paymentMethod: "Coins",
-        coinsPaid:     plan.coins,
+        plan:               planSnapshot,
+        paymentMethod:      "Coins",
+        coinsPaid:          plan.coins,
         startDate,
         expiryDate,
         expiryDurationDays,
-        status:        "Active",
+        status:             "Active",
       });
-      await purchasedPlan.save({ session });
+      await purchased.save({ session });
 
       const coinsTxn = new CoinsTransaction({
         user:          req.user._id,
         userType,
         type:          "Debit",
         coins:         plan.coins,
-        reason:        "ListingPlanPurchase",
-        refId:         purchasedPlan._id,
-        refModel:      "ListingPurchasedPlan",
+        reason:        "EnquiryPlanPurchase",
+        refId:         purchased._id,
+        refModel:      "EnquiryPurchasedPlan",
         balanceBefore: userWallet.currentBalance + plan.coins,
         balanceAfter:  userWallet.currentBalance,
       });
       await coinsTxn.save({ session });
 
       await session.commitTransaction();
-      res.status(201).json({ success: true, data: purchasedPlan });
+      res.status(201).json({ success: true, data: purchased });
     } catch (err) {
       await session.abortTransaction();
       throw err;
@@ -334,13 +328,13 @@ const purchasePlan = async (req, res) => {
       session.endSession();
     }
   } catch (err) {
-    console.error("purchasePlan error:", err);
+    console.error("purchaseEnquiryPlan error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── Upgrade Plan (Free or with Coins) ───────────────────────────────────────
-const upgradePlan = async (req, res) => {
+// ── Upgrade Enquiry Plan (Free or with Coins) ─────────────────────────────────
+const upgradeEnquiryPlan = async (req, res) => {
   try {
     const { planId } = req.body;
     if (!planId)
@@ -350,14 +344,14 @@ const upgradePlan = async (req, res) => {
     if (!userType)
       return res.status(403).json({ success: false, message: "Not authorized to purchase a plan" });
 
-    const activePlan = await ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
+    const activePlan = await EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" });
     if (!activePlan)
-      return res.status(400).json({ success: false, message: "No active plan found to upgrade" });
+      return res.status(400).json({ success: false, message: "No active enquiry plan found to upgrade" });
 
     if (activePlan.plan.planId.toString() === planId)
       return res.status(400).json({ success: false, message: "You already have this plan as your active plan" });
 
-    const plan = await Plan.findById(planId);
+    const plan = await EnquiryPlan.findById(planId);
     if (!plan || !plan.isActive)
       return res.status(404).json({ success: false, message: "Plan not found or inactive" });
 
@@ -373,12 +367,12 @@ const upgradePlan = async (req, res) => {
       : new Date(new Date(startDate).setDate(startDate.getDate() + expiryDurationDays));
 
     const planSnapshot = {
-      planId:                  plan._id,
-      name:                    plan.name,
-      numberOfPropertiesGiven: plan.numberOfPropertiesGiven,
-      expiryInDays:            plan.expiryInDays,
-      coins:                   plan.coins,
-      amount:                  plan.amount,
+      planId:                 plan._id,
+      name:                   plan.name,
+      numberOfEnquiriesGiven: plan.numberOfEnquiriesGiven,
+      expiryInDays:           plan.expiryInDays,
+      coins:                  plan.coins,
+      amount:                 plan.amount,
     };
 
     // ── Free Plan ─────────────────────────────────────────────────────────────
@@ -386,20 +380,20 @@ const upgradePlan = async (req, res) => {
       const session = await mongoose.startSession();
       session.startTransaction();
       try {
-        const newPlan = new ListingPurchasedPlan({
-          user:          req.user._id,
+        const newPlan = new EnquiryPurchasedPlan({
+          user:               req.user._id,
           userType,
-          plan:          planSnapshot,
-          paymentMethod: "Free",
-          coinsPaid:     0,
+          plan:               planSnapshot,
+          paymentMethod:      "Free",
+          coinsPaid:          0,
           startDate,
           expiryDate,
           expiryDurationDays,
-          status:        "Active",
+          status:             "Active",
         });
         await newPlan.save({ session });
 
-        activePlan.status       = "Cancelled";
+        activePlan.status        = "Cancelled";
         activePlan.changedPlanTo = newPlan._id;
         await activePlan.save({ session });
 
@@ -429,21 +423,21 @@ const upgradePlan = async (req, res) => {
       userWallet.totalDebitedCoins += plan.coins;
       await userWallet.save({ session });
 
-      const newPlan = new ListingPurchasedPlan({
-        user:          req.user._id,
+      const newPlan = new EnquiryPurchasedPlan({
+        user:               req.user._id,
         userType,
-        plan:          planSnapshot,
-        paymentMethod: "Coins",
-        coinsPaid:     plan.coins,
+        plan:               planSnapshot,
+        paymentMethod:      "Coins",
+        coinsPaid:          plan.coins,
         startDate,
         expiryDate,
         expiryDurationDays,
-        status:        "Active",
+        status:             "Active",
       });
       await newPlan.save({ session });
 
       activePlan.status        = "Cancelled";
-      activePlan.changedPlanTo  = newPlan._id;
+      activePlan.changedPlanTo = newPlan._id;
       await activePlan.save({ session });
 
       const coinsTxn = new CoinsTransaction({
@@ -451,9 +445,9 @@ const upgradePlan = async (req, res) => {
         userType,
         type:          "Debit",
         coins:         plan.coins,
-        reason:        "ListingPlanUpgrade",
+        reason:        "EnquiryPlanUpgrade",
         refId:         newPlan._id,
-        refModel:      "ListingPurchasedPlan",
+        refModel:      "EnquiryPurchasedPlan",
         balanceBefore: userWallet.currentBalance + plan.coins,
         balanceAfter:  userWallet.currentBalance,
       });
@@ -468,9 +462,16 @@ const upgradePlan = async (req, res) => {
       session.endSession();
     }
   } catch (err) {
-    console.error("upgradePlan error:", err);
+    console.error("upgradeEnquiryPlan error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-module.exports = { createPlanOrder, upgradePlanOrder, cancelPlanOrder, getActivePlans, purchasePlan, upgradePlan };
+module.exports = {
+  getActiveEnquiryPlans,
+  createEnquiryPlanOrder,
+  upgradeEnquiryPlanOrder,
+  cancelEnquiryPlanOrder,
+  purchaseEnquiryPlan,
+  upgradeEnquiryPlan,
+};

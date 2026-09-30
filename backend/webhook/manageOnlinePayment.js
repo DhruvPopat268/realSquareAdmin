@@ -2,9 +2,11 @@ const crypto             = require("crypto");
 const PaymentTransaction = require("../modules/mixed/transactions/model");
 
 const handlers = {
-  CoinsPurchase: require("./helpers/handleCoinsPurchase"),
-  PlanPurchase:  require("./helpers/handlePlanPurchase"),
-  PlanUpgrade:   require("./helpers/handlePlanUpgrade"),
+  CoinsPurchase:       require("./helpers/handleCoinsPurchase"),
+  ListingPlanPurchase: require("./helpers/handlePlanPurchase"),
+  ListingPlanUpgrade:  require("./helpers/handlePlanUpgrade"),
+  EnquiryPlanPurchase: require("./helpers/handleEnquiryPlanPurchase"),
+  EnquiryPlanUpgrade:  require("./helpers/handleEnquiryPlanUpgrade"),
 };
 
 const manageOnlinePayment = async (req, res) => {

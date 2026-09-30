@@ -84,7 +84,8 @@ modules/admin/<feature>/
 | Project Listing | `modules/mixed/projectListing/` |
 | Inquiries | `modules/mixed/inquiries/` |
 | RERA Verification | `modules/mixed/reraVerification/` |
-| Purchased Plans | `modules/mixed/purchasedPlans/` |
+| Listing Purchased Plans | `modules/mixed/purchasedPlans/` |
+| Enquiry Purchased Plans | `modules/mixed/enquiryPurchasedPlans/` |
 | Coins Transactions | `modules/mixed/coinsTransactions/` |
 | Transactions | `modules/mixed/transactions/` |
 | Purchase Coins | `modules/mixed/purchaseCoins/` |
@@ -98,6 +99,46 @@ All routes are prefixed with `/api`.
 - JWT token is stored in an HTTP-only cookie
 - `middleware/auth.js` protects admin routes
 - `middleware/userAuth.js` protects system user routes
+
+### Plans & Payments
+
+Two separate plan types exist — **Listing Plans** and **Enquiry Plans** — each with their own master data (admin-managed) and purchased plan records (user-owned).
+
+#### Listing Plans
+- Master data: `modules/admin/plansManagement/` → `ListingPlan` model
+- Purchase flow: `modules/mixed/purchasedPlans/` → `ListingPurchasedPlan` model
+- Routes: `GET /active-plans`, `POST /purchase`, `POST /change-plan`, `POST /create-order`, `POST /change-plan-order`, `PATCH /cancel/:transactionId`
+- Webhook handlers: `webhook/helpers/handlePlanPurchase.js`, `webhook/helpers/handlePlanUpgrade.js`
+- Transaction reasons: `"ListingPlanPurchase"`, `"ListingPlanUpgrade"`
+- Full flow documented in `modules/mixed/purchasedPlans/`
+
+#### Enquiry Plans
+- Master data: `modules/admin/enquiryPlansManagement/` → `EnquiryPlan` model
+- Purchase flow: `modules/mixed/enquiryPurchasedPlans/` → `EnquiryPurchasedPlan` model
+- Routes: `GET /active-plans`, `POST /purchase`, `POST /change-plan`, `POST /create-order`, `POST /change-plan-order`, `PATCH /cancel/:transactionId`
+- Webhook handlers: `webhook/helpers/handleEnquiryPlanPurchase.js`, `webhook/helpers/handleEnquiryPlanUpgrade.js`
+- Transaction reasons: `"EnquiryPlanPurchase"`, `"EnquiryPlanUpgrade"`
+- Full flow documented in `modules/mixed/enquiryPurchasedPlans/FLOW.md`
+
+#### Payment Transaction Reason Enum
+All `reason` values in `PaymentTransaction` and `CoinsTransaction`:
+
+| Reason | Description |
+|---|---|
+| `ListingPlanPurchase` | Online/coins purchase of a listing plan (no active plan) |
+| `ListingPlanUpgrade` | Online/coins change of an existing listing plan |
+| `EnquiryPlanPurchase` | Online/coins purchase of an enquiry plan (no active plan) |
+| `EnquiryPlanUpgrade` | Online/coins change of an existing enquiry plan |
+| `CoinsPurchase` | User buys coins via Razorpay |
+| `Refund` | Admin-issued refund |
+| `AdminCredit` | Manual admin credit |
+| `AdminDebit` | Manual admin debit |
+
+#### Webhook
+- Entry point: `webhook/manageOnlinePayment.js`
+- Verifies Razorpay HMAC-SHA256 signature
+- Routes `payment.captured` events by `txn.reason` to the appropriate handler
+- All handlers are idempotent (check `txn.status === "Success"` before processing)
 
 ---
 

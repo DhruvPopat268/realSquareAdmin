@@ -55,14 +55,14 @@ const handlePlanPurchase = async (txn, payment, purchaseAmount, signature) => {
     });
     await purchasedPlan.save({ session });
 
-    txn.razorpayPaymentId = payment.id;
-    txn.razorpaySignature = signature;
-    txn.status            = "Success";
-    txn.refId             = purchasedPlan._id;
-    txn.refModel          = "ListingPlan";
-    txn.balanceBefore     = adminWallet.currentBalance - purchaseAmount;
-    txn.balanceAfter      = adminWallet.currentBalance;
-    await txn.save({ session });
+      txn.razorpayPaymentId = payment.id;
+      txn.razorpaySignature = signature;
+      txn.status            = "Success";
+      txn.refId             = purchasedPlan._id;
+      txn.refModel          = "ListingPlan";
+      txn.balanceBefore     = adminWallet.currentBalance - purchaseAmount;
+      txn.balanceAfter      = adminWallet.currentBalance;
+      await txn.save({ session });
 
     await session.commitTransaction();
   } catch (err) {

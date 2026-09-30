@@ -1,10 +1,11 @@
-const SystemUser        = require("./systemUsers.model");
-const SystemUserSession = require("./systemUsers.session.model");
-const SystemUserOtp     = require("./systemUsers.otp.model");
-const UserCoinsWallet   = require("./mixed/userCoinsWallet/model");
+const SystemUser               = require("./systemUsers.model");
+const SystemUserSession        = require("./systemUsers.session.model");
+const SystemUserOtp            = require("./systemUsers.otp.model");
+const UserCoinsWallet          = require("./mixed/userCoinsWallet/model");
 const ListingPurchasedPlan     = require("./mixed/purchasedPlans/model");
-const PropertyListing   = require("./mixed/propertyListing/model");
-const FreeListingConfig = require("./admin/freeListingManagement/model");
+const EnquiryPurchasedPlan     = require("./mixed/enquiryPurchasedPlans/model");
+const PropertyListing          = require("./mixed/propertyListing/model");
+const FreeListingConfig        = require("./admin/freeListingManagement/model");
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 
@@ -525,9 +526,10 @@ const getMe = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const [wallet, purchased, hasListings, rejectedPropertiesCount] = await Promise.all([
+    const [wallet, purchased, purchasedEnquiry, hasListings, rejectedPropertiesCount] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
       ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
+      EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
       PropertyListing.exists({ "listedBy.id": req.user._id }),
       PropertyListing.countDocuments({ "listedBy.id": req.user._id, status: "Rejected" }),
     ]);
@@ -539,6 +541,16 @@ const getMe = async (req, res) => {
         numberOfPropertiesGiven: purchased.plan.numberOfPropertiesGiven,
         propertiesUsed:          purchased.propertiesUsed,
         expiryDate:              purchased.expiryDate ? toIST(purchased.expiryDate) : null,
+      };
+    }
+
+    let activeEnquiryPlan = null;
+    if (purchasedEnquiry) {
+      activeEnquiryPlan = {
+        name:                   purchasedEnquiry.plan.name,
+        numberOfEnquiriesGiven: purchasedEnquiry.plan.numberOfEnquiriesGiven,
+        enquiriesUsed:          purchasedEnquiry.enquiriesUsed,
+        expiryDate:             purchasedEnquiry.expiryDate ? toIST(purchasedEnquiry.expiryDate) : null,
       };
     }
 
@@ -583,6 +595,15 @@ const getMe = async (req, res) => {
     ];
     const haveAssignedInquiries = ASSIGNED_INQUIRY_ROLES.includes(req.user.role?._id?.toString());
 
+    const PLAN_ROLES = [
+      process.env.OWNER_ROLE_ID,
+      process.env.BROKER_ROLE_ID,
+      process.env.BUILDER_ROLE_ID,
+    ];
+    const userRoleId = req.user.role?._id?.toString();
+    const showListingPlan  = PLAN_ROLES.includes(userRoleId);
+    const showEnquiryPlan  = PLAN_ROLES.includes(userRoleId);
+
     res.json({ 
       success: true, 
       data: { 
@@ -599,6 +620,9 @@ const getMe = async (req, res) => {
         enquiryCities: req.user.enquiryCities ?? [],
         coinsBalance: wallet?.currentBalance ?? 0, 
         activePlan,
+        activeEnquiryPlan,
+        showListingPlan,
+        showEnquiryPlan,
         myPropertyListingAllowed: !!hasListings,
         isProfileCompleted,
         canListProperty,
