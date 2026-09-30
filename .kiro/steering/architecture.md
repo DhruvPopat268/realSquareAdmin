@@ -70,6 +70,7 @@ modules/admin/<feature>/
 | Enquiry Plans | `modules/admin/enquiryPlansManagement/` |
 | Free Listing | `modules/admin/freeListingManagement/` |
 | Purchased Plans | `modules/admin/purchasedPlans/` |
+| Enquiry Purchased Plans | `modules/admin/enquiryPurchasedPlans/` |
 | Coins Offers | `modules/admin/coinsOffersManagement/` |
 | Coins Transactions | `modules/admin/coinsTransactions/` |
 | Wallet Management | `modules/admin/walletManagement/` |
@@ -197,7 +198,8 @@ frontend/src/
 | `EnquiriesPage.tsx` | Enquiry management |
 | `PlansPage.tsx` | Subscription plans management |
 | `EnquiryPlansPage.tsx` | Enquiry-specific plans |
-| `PurchasedPlansPage.tsx` | Purchased plan records |
+| `PurchasedPlansPage.tsx` | Purchased listing plan records |
+| `PurchasedEnquiryPlansPage.tsx` | Purchased enquiry plan records |
 | `FreeListingPage.tsx` | Free listing config |
 | `CoinsOffersPage.tsx` | Coins offer management |
 | `CoinsTransactionsPage.tsx` | Coins transaction history |
