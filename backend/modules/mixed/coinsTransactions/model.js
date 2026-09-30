@@ -8,12 +8,12 @@ const coinsTransactionSchema = new mongoose.Schema(
     coins:       { type: Number, required: true },
     reason:      {
       type: String,
-      enum: ["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"],
+      enum: ["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "InquiryPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"],
       required: true,
     },
     // reference to the related document (purchasedPlan or transaction)
     refId:       { type: mongoose.Schema.Types.ObjectId, refPath: "refModel" },
-    refModel:    { type: String, enum: ["ListingPurchasedPlan", "EnquiryPurchasedPlan", "PaymentTransaction"] },
+    refModel:    { type: String, enum: ["ListingPurchasedPlan", "EnquiryPurchasedPlan", "AssignedInquiry", "PaymentTransaction"] },
     // snapshot of the coins offer used at purchase time (if any)
     coinsOffer:  {
       offerId:     { type: mongoose.Schema.Types.ObjectId, ref: "CoinsOffer" },

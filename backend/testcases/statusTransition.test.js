@@ -22,10 +22,10 @@ const app     = require("../server");
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 // Admin panel token (super-admin session)
-const ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMzkwNmI3NzkzMzcxOWNhN2UwZWI3NyIsInR5cGUiOiJhZG1pbiIsImlhdCI6MTc5MDE1MDgwOSwiZXhwIjoxNzkwNzU1NjA5fQ.7jDqeXQhbZ-0myj2B16I9qIM8eVIsp2RGZ1fvZMFCaE";
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 
 // Customer/owner user token (listedBy.id = 6a4664e8cdafad1bdf585e60)
-const USER_TOKEN  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNDY2NGU4Y2RhZmFkMWJkZjU4NWU2MCIsImlhdCI6MTc5MDE1MDg2OSwiZXhwIjoxNzkwNzU1NjY5fQ.e_XVjjRIXiPFiylQt7KHK949X_urMCx1qGR7ak22AVw";
+const USER_TOKEN  = process.env.USER_TOKEN;
 
 // ─── Listing IDs (real docs from DB — listedBy.id: 6a4664e8cdafad1bdf585e60) ─
 const IDS = {

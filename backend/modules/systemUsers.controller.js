@@ -6,6 +6,7 @@ const ListingPurchasedPlan     = require("./mixed/purchasedPlans/model");
 const EnquiryPurchasedPlan     = require("./mixed/enquiryPurchasedPlans/model");
 const PropertyListing          = require("./mixed/propertyListing/model");
 const FreeListingConfig        = require("./admin/freeListingManagement/model");
+const LeadEnquiryCoinsConfig   = require("./admin/leadEnquiryCoinsConfig/model");
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 
@@ -526,12 +527,13 @@ const getMe = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const [wallet, purchased, purchasedEnquiry, hasListings, rejectedPropertiesCount] = await Promise.all([
+    const [wallet, purchased, purchasedEnquiry, hasListings, rejectedPropertiesCount, leadEnquiryCoinsConfig] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
       ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
       EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
       PropertyListing.exists({ "listedBy.id": req.user._id }),
       PropertyListing.countDocuments({ "listedBy.id": req.user._id, status: "Rejected" }),
+      LeadEnquiryCoinsConfig.findOne({ _configKey: "singleton" }).select("coinsPerEnquiry").lean(),
     ]);
 
     let activePlan = null;
@@ -619,6 +621,7 @@ const getMe = async (req, res) => {
         builderProfile: req.user.builderProfile,
         enquiryCities: req.user.enquiryCities ?? [],
         coinsBalance: wallet?.currentBalance ?? 0, 
+        coinsPerEnquiry: leadEnquiryCoinsConfig?.coinsPerEnquiry ?? 0,
         activePlan,
         activeEnquiryPlan,
         showListingPlan,

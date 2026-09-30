@@ -100,6 +100,7 @@ All routes are prefixed with `/api`.
 - JWT token is stored in an HTTP-only cookie
 - `middleware/auth.js` protects admin routes
 - `middleware/userAuth.js` protects system user routes
+- `GET /api/system-users/me` returns the authenticated system user's profile, wallet and active plans, plus `coinsPerEnquiry` from the singleton `LeadEnquiryCoinsConfig` (defaults to `0` when no config exists).
 
 ### Plans & Payments
 
@@ -121,6 +122,14 @@ Two separate plan types exist — **Listing Plans** and **Enquiry Plans** — ea
 - Transaction reasons: `"EnquiryPlanPurchase"`, `"EnquiryPlanUpgrade"`
 - Full flow documented in `modules/mixed/enquiryPurchasedPlans/FLOW.md`
 
+#### Assigned Inquiry Purchase
+- `PATCH /api/mixed/inquiries/:assignmentId/purchase` accepts `purchasedVia: "plan" | "coins"`.
+- Plan purchases consume one credit from the user's active enquiry plan; coin purchases debit the configured `coinsPerEnquiry` amount and create an `InquiryPurchase` coin transaction.
+- Purchased assignments store `status: "purchased"`, `purchasedAt`, and `purchasedVia`.
+- Inquiry and status-transition integration tests read `USER_TOKEN`, `ADMIN_TOKEN`, and (for customer-only cases) `CUSTOMER_TOKEN` from the ignored backend `.env` file; no bearer tokens are embedded in those test sources.
+- Request validation, authentication, plan and coin purchase, already-purchased, and missing assignment cases are covered in `modules/mixed/inquiries/inquiry.test.js`; plan and coin fixtures assert successful purchase when active or the duplicate response when already purchased.
+- When a backend controller or API endpoint changes, update its related test file(s) to reflect the new behavior and response shape; add tests in the established test location when no related coverage exists.
+
 #### Payment Transaction Reason Enum
 All `reason` values in `PaymentTransaction` and `CoinsTransaction`:
 
@@ -130,6 +139,7 @@ All `reason` values in `PaymentTransaction` and `CoinsTransaction`:
 | `ListingPlanUpgrade` | Online/coins change of an existing listing plan |
 | `EnquiryPlanPurchase` | Online/coins purchase of an enquiry plan (no active plan) |
 | `EnquiryPlanUpgrade` | Online/coins change of an existing enquiry plan |
+| `InquiryPurchase` | Coins spent to unlock an assigned inquiry |
 | `CoinsPurchase` | User buys coins via Razorpay |
 | `Refund` | Admin-issued refund |
 | `AdminCredit` | Manual admin credit |

@@ -1,7 +1,18 @@
-const { Types } = require("mongoose");
+const mongoose = require("mongoose");
+const { Types } = mongoose;
 const { Inquiry }          = require("./model");
 const { AssignedInquiry }  = require("./assignedInquiriesModel");
 const SystemUser           = require("../../systemUsers.model");
+const EnquiryPurchasedPlan  = require("../enquiryPurchasedPlans/model");
+const UserCoinsWallet       = require("../userCoinsWallet/model");
+const CoinsTransaction      = require("../coinsTransactions/model");
+const LeadEnquiryCoinsConfig = require("../../admin/leadEnquiryCoinsConfig/model");
+
+const ROLE_USERTYPE_MAP = {
+  [process.env.OWNER_ROLE_ID]: "Owner",
+  [process.env.BROKER_ROLE_ID]: "Broker",
+  [process.env.BUILDER_ROLE_ID]: "Builder",
+};
 
 // Ensure these models are registered before populate runs
 require("../../admin/propertyPurposes/model");
@@ -456,4 +467,131 @@ const getMyInquiries = async (req, res) => {
   }
 };
 
-module.exports = { createInquiry, runCronAssignment, getAssignedInquiries, getMyInquiries };
+/**
+ * Purchase an assigned inquiry with one active enquiry-plan credit or coins.
+ * PATCH /api/mixed/inquiries/:assignmentId/purchase
+ * Body: { purchasedVia: "plan" | "coins" }
+ */
+const purchaseAssignedInquiry = async (req, res) => {
+  const purchasedVia = req.body?.purchasedVia;
+  if (!["plan", "coins"].includes(purchasedVia)) {
+    return res.status(400).json({ success: false, message: 'purchasedVia must be "plan" or "coins"' });
+  }
+
+  const userType = ROLE_USERTYPE_MAP[req.userRole];
+  if (!userType) {
+    return res.status(403).json({ success: false, message: "Only owners, brokers, and builders can purchase assigned inquiries" });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const assignment = await AssignedInquiry.findOne({
+      _id: req.params.assignmentId,
+      "assignedTo.id": req.user._id,
+    }).session(session);
+
+    if (!assignment) {
+      const error = new Error("Assigned inquiry not found");
+      error.status = 404;
+      throw error;
+    }
+    if (assignment.status === "purchased") {
+      const error = new Error("This inquiry has already been purchased");
+      error.status = 409;
+      throw error;
+    }
+
+    let purchaseDetails = {};
+
+    if (purchasedVia === "plan") {
+      const plan = await EnquiryPurchasedPlan.findOne({
+        user: req.user._id,
+        status: "Active",
+      }).session(session);
+
+      if (!plan || (plan.expiryDate && plan.expiryDate <= new Date())) {
+        const error = new Error("No active enquiry plan with available credits was found");
+        error.status = 400;
+        throw error;
+      }
+      if (plan.plan.numberOfEnquiriesGiven !== -1 && plan.enquiriesUsed >= plan.plan.numberOfEnquiriesGiven) {
+        const error = new Error("Your enquiry plan has no remaining credits");
+        error.status = 400;
+        throw error;
+      }
+
+      // Compare the usage count so concurrent purchases cannot spend one credit twice.
+      const updatedPlan = await EnquiryPurchasedPlan.findOneAndUpdate(
+        { _id: plan._id, status: "Active", enquiriesUsed: plan.enquiriesUsed },
+        { $inc: { enquiriesUsed: 1 } },
+        { new: true, session }
+      );
+      if (!updatedPlan) {
+        const error = new Error("Your enquiry plan changed during purchase. Please try again");
+        error.status = 409;
+        throw error;
+      }
+      purchaseDetails.enquiriesUsed = updatedPlan.enquiriesUsed;
+    } else {
+      const coinsConfig = await LeadEnquiryCoinsConfig.findOne({ _configKey: "singleton" })
+        .select("coinsPerEnquiry")
+        .session(session);
+      const coinsRequired = coinsConfig?.coinsPerEnquiry ?? 0;
+      if (coinsRequired <= 0) {
+        const error = new Error("Coin purchase is not currently configured");
+        error.status = 400;
+        throw error;
+      }
+
+      const wallet = await UserCoinsWallet.findOneAndUpdate(
+        { user: req.user._id, currentBalance: { $gte: coinsRequired } },
+        { $inc: { currentBalance: -coinsRequired, totalDebitedCoins: coinsRequired } },
+        { new: true, session }
+      );
+      if (!wallet) {
+        const error = new Error("Insufficient coins balance");
+        error.status = 400;
+        throw error;
+      }
+
+      await CoinsTransaction.create([{
+        user: req.user._id,
+        userType,
+        type: "Debit",
+        coins: coinsRequired,
+        reason: "InquiryPurchase",
+        refId: assignment._id,
+        refModel: "AssignedInquiry",
+        balanceBefore: wallet.currentBalance + coinsRequired,
+        balanceAfter: wallet.currentBalance,
+        note: "Coins spent to unlock an assigned inquiry",
+      }], { session });
+      purchaseDetails.coinsBalance = wallet.currentBalance;
+    }
+
+    assignment.status = "purchased";
+    assignment.purchasedAt = new Date();
+    assignment.purchasedVia = purchasedVia;
+    await assignment.save({ session });
+
+    await session.commitTransaction();
+    return res.status(200).json({
+      success: true,
+      message: "Inquiry purchased successfully",
+      data: { assignment, purchasedVia, ...purchaseDetails },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Error purchasing assigned inquiry:", error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.status ? error.message : "Failed to purchase inquiry",
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+module.exports = { createInquiry, runCronAssignment, getAssignedInquiries, getMyInquiries, purchaseAssignedInquiry };

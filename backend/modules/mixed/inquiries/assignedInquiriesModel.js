@@ -45,6 +45,12 @@ const assignedInquiriesSchema = new mongoose.Schema(
       type: Date,
     },
 
+    // Payment source used to unlock the inquiry
+    purchasedVia: {
+      type: String,
+      enum: ["coins", "plan"],
+    },
+
     // Status of the assignment
     status: {
       type: String,

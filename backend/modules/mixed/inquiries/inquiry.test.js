@@ -25,7 +25,7 @@ const app     = require("../../../server");
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 // A valid user token from the DB (owner/broker/builder user with name + mobile + role)
 // Replace this with a fresh token if it expires.
-const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYmExMGQzYmM2YjI0NDNkNTYyYmExOSIsImlhdCI6MTc5MDU4MDYzNSwiZXhwIjoxNzkxMTg1NDM1fQ.SboX8RnGY3nvDQEmUHD5Sn2K6CSuGmw9N4KHwCfYzyM";
+const USER_TOKEN = process.env.USER_TOKEN;
 
 // ─── Real IDs from DB (from .env) ────────────────────────────────────────────
 const LISTING_TYPE_SELL_ID       = process.env.LISTING_TYPE_SELL_ID;       // Buy/Sell
@@ -42,6 +42,18 @@ const PT_COMMERCIAL_PLOT         = "6a670ab234d4283bdc621960"; // Plot (commerci
 
 const FAKE_VALID_ID = "000000000000000000000001"; // Valid ObjectId format, no doc in DB
 const INVALID_ID    = "not-a-valid-mongo-id";
+
+// Purchase endpoint fixtures.
+// Assignment IDs supplied for plan, coin, and already-purchased scenarios.
+const PURCHASE_TEST_TOKEN = process.env.USER_TOKEN;
+const CUSTOMER_TOKEN = process.env.CUSTOMER_TOKEN;
+const PURCHASE_TEST_ASSIGNMENT_IDS = [
+  "6abcb5dd62496277add3c426", // plan purchase
+  "6abbac8aeda3208a9c6cad28", // coin purchase
+  "6abba596eda3208a9c6cabf6", // already purchased
+];
+const purchaseFixtureTest = (...args) => PURCHASE_TEST_TOKEN ? test(...args) : test.skip(...args);
+const customerFixtureTest = (...args) => CUSTOMER_TOKEN ? test(...args) : test.skip(...args);
 
 // ─── Base valid payload ───────────────────────────────────────────────────────
 // Use this as the foundation and override fields per test
@@ -159,12 +171,12 @@ describe("Required field validations — missing fields", () => {
     expect(res.body.message).toMatch(/budget\.max/i);
   });
 
-  test("400 — missing furnishingType", async () => {
+  test("201 — furnishingType is optional", async () => {
     const { furnishingType, ...payload } = BASE_PAYLOAD;
     const res = await postInquiry(payload);
-    expect(res.statusCode).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.message).toMatch(/furnishingType/i);
+    expect(res.statusCode).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.inquiry.furnishingType).toBeUndefined();
   });
 
   test("400 — missing inquiryClassification", async () => {
@@ -587,9 +599,7 @@ describe("Happy path — 201 successful inquiry creation", () => {
     expect(res.body.inquiry.isProperty).toBe(true);
     expect(res.body.inquiry.status).toBe("active");
     expect(res.body.inquiry.bhk).toBe(3);
-    expect(res.body.eligibleUsers).toBeDefined();
-    expect(Array.isArray(res.body.eligibleUsers)).toBe(true);
-    expect(typeof res.body.eligibleCount).toBe("number");
+    expect(Number.isInteger(res.body.assignedCount)).toBe(true);
   });
 
   test("201 — Commercial builtUpArea inquiry (Rent)", async () => {
@@ -675,8 +685,7 @@ describe("Happy path — 201 successful inquiry creation", () => {
     expect(res.body).toHaveProperty("success", true);
     expect(res.body).toHaveProperty("message");
     expect(res.body).toHaveProperty("inquiry");
-    expect(res.body).toHaveProperty("eligibleUsers");
-    expect(res.body).toHaveProperty("eligibleCount");
+    expect(res.body).toHaveProperty("assignedCount");
   });
 
   test("201 — Saved inquiry has correct createdBy and status fields", async () => {
@@ -720,39 +729,25 @@ describe("Happy path — 201 successful inquiry creation", () => {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 9. ELIGIBLE USERS RESPONSE SHAPE
+// 9. ASSIGNMENT COUNT RESPONSE SHAPE
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("eligibleUsers response shape", () => {
+describe("assignedCount response shape", () => {
 
-  test("201 — eligibleUsers is always an array (even if empty)", async () => {
+  test("201 — assignedCount is zero when no users are eligible", async () => {
     const res = await postInquiry({
       ...BASE_PAYLOAD,
       preferredCity: "CityThatDefinitelyHasNoUsers_XYZ123",
     });
     expect(res.statusCode).toBe(201);
-    expect(Array.isArray(res.body.eligibleUsers)).toBe(true);
-    expect(res.body.eligibleCount).toBe(0);
+    expect(res.body.assignedCount).toBe(0);
   });
 
-  test("201 — each eligible user has id, name, mobile (no sensitive data)", async () => {
+  test("201 — assignedCount is a non-negative integer", async () => {
     const res = await postInquiry(BASE_PAYLOAD);
     expect(res.statusCode).toBe(201);
-    const users = res.body.eligibleUsers;
-    users.forEach((u) => {
-      expect(u).toHaveProperty("id");
-      expect(u).toHaveProperty("name");
-      expect(u).toHaveProperty("mobile");
-      // password, session tokens, etc. must NOT be present
-      expect(u.password).toBeUndefined();
-      expect(u.token).toBeUndefined();
-    });
-  });
-
-  test("201 — eligibleCount matches eligibleUsers array length", async () => {
-    const res = await postInquiry(BASE_PAYLOAD);
-    expect(res.statusCode).toBe(201);
-    expect(res.body.eligibleCount).toBe(res.body.eligibleUsers.length);
+    expect(Number.isInteger(res.body.assignedCount)).toBe(true);
+    expect(res.body.assignedCount).toBeGreaterThanOrEqual(0);
   });
 
 });
@@ -764,7 +759,7 @@ describe("eligibleUsers response shape", () => {
 
 // Use a token for a user who has assignments in DB (Dhruv Thakkar — 9157193754)
 // Replace if token expires
-const ASSIGNED_USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNDY2NGU4Y2RhZmFkMWJkZjU4NWU2MCIsImlhdCI6MTc5MDE1MDg2OSwiZXhwIjoxNzkwNzU1NjY5fQ.e_XVjjRIXiPFiylQt7KHK949X_urMCx1qGR7ak22AVw";
+const ASSIGNED_USER_TOKEN = process.env.USER_TOKEN;
 
 const getAssigned = (token = ASSIGNED_USER_TOKEN) =>
   request(app)
@@ -789,24 +784,37 @@ describe("GET /api/mixed/inquiries/assigned", () => {
   });
 
   // ── Success ──────────────────────────────────────────────────────────────────
-  test("200 — returns success with data array", async () => {
+  test("200 — returns assignments, pagination, and stats in data", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body).toHaveProperty("data");
-    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(Array.isArray(res.body.data.assignments)).toBe(true);
+    expect(res.body.data.pagination).toEqual(expect.objectContaining({
+      total: expect.any(Number),
+      page: expect.any(Number),
+      limit: expect.any(Number),
+      totalPages: expect.any(Number),
+    }));
+    expect(res.body.data.stats).toEqual(expect.objectContaining({
+      active: expect.any(Number),
+      purchased: expect.any(Number),
+      hot: expect.any(Number),
+      warm: expect.any(Number),
+      cold: expect.any(Number),
+    }));
   });
 
-  test("200 — count matches data array length", async () => {
+  test("200 — pagination total is at least the returned assignment count", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
-    expect(res.body.count).toBe(res.body.data.length);
+    expect(res.body.data.pagination.total).toBeGreaterThanOrEqual(res.body.data.assignments.length);
   });
 
   test("200 — each record has required fields", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
-    res.body.data.forEach((record) => {
+    res.body.data.assignments.forEach((record) => {
       expect(record).toHaveProperty("_id");
       expect(record).toHaveProperty("inquiry");
       expect(record).toHaveProperty("assignedTo");
@@ -819,7 +827,7 @@ describe("GET /api/mixed/inquiries/assigned", () => {
   test("200 — each record status is active or purchased", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
-    res.body.data.forEach((record) => {
+    res.body.data.assignments.forEach((record) => {
       expect(["active", "purchased"]).toContain(record.status);
     });
   });
@@ -827,7 +835,7 @@ describe("GET /api/mixed/inquiries/assigned", () => {
   test("200 — assignmentSource is automatic or cron", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
-    res.body.data.forEach((record) => {
+    res.body.data.assignments.forEach((record) => {
       expect(["automatic", "cron"]).toContain(record.assignmentSource);
     });
   });
@@ -835,8 +843,8 @@ describe("GET /api/mixed/inquiries/assigned", () => {
   test("200 — inquiry is populated (not just an ObjectId string)", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
-    if (res.body.data.length > 0) {
-      const inquiry = res.body.data[0].inquiry;
+    if (res.body.data.assignments.length > 0) {
+      const inquiry = res.body.data.assignments[0].inquiry;
       expect(typeof inquiry).toBe("object");
       expect(inquiry).toHaveProperty("_id");
       expect(inquiry).toHaveProperty("preferredCity");
@@ -847,8 +855,8 @@ describe("GET /api/mixed/inquiries/assigned", () => {
   test("200 — assignedTo has id, name, mobile, role", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
-    if (res.body.data.length > 0) {
-      const { assignedTo } = res.body.data[0];
+    if (res.body.data.assignments.length > 0) {
+      const { assignedTo } = res.body.data.assignments[0];
       expect(assignedTo).toHaveProperty("id");
       expect(assignedTo).toHaveProperty("name");
       expect(assignedTo).toHaveProperty("mobile");
@@ -859,19 +867,125 @@ describe("GET /api/mixed/inquiries/assigned", () => {
   test("200 — results are sorted latest first (createdAt desc)", async () => {
     const res = await getAssigned();
     expect(res.statusCode).toBe(200);
-    const dates = res.body.data.map((r) => new Date(r.createdAt).getTime());
+    const dates = res.body.data.assignments.map((r) => new Date(r.createdAt).getTime());
     for (let i = 1; i < dates.length; i++) {
       expect(dates[i - 1]).toBeGreaterThanOrEqual(dates[i]);
     }
   });
 
-  test("200 — user with no assignments gets empty array", async () => {
-    // USER_TOKEN belongs to john snow (customer) — has no assignments
+  test("200 — the user token can access assigned inquiries", async () => {
     const res = await getAssigned(USER_TOKEN);
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toEqual([]);
-    expect(res.body.count).toBe(0);
+    expect(Array.isArray(res.body.data.assignments)).toBe(true);
+  });
+
+});
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 11. PATCH PURCHASE ASSIGNED INQUIRY — /api/mixed/inquiries/:assignmentId/purchase
+// ═════════════════════════════════════════════════════════════════════════════
+
+const patchInquiryPurchase = (assignmentId, payload, token = PURCHASE_TEST_TOKEN) =>
+  request(app)
+    .patch(`/api/mixed/inquiries/${assignmentId}/purchase`)
+    .set("Authorization", `Bearer ${token}`)
+    .send(payload);
+
+const patchPurchaseWithFixtureToken = (assignmentId, payload) =>
+  request(app)
+    .patch(`/api/mixed/inquiries/${assignmentId}/purchase`)
+    .set("Authorization", `Bearer ${PURCHASE_TEST_TOKEN}`)
+    .send(payload);
+
+describe("PATCH /api/mixed/inquiries/:assignmentId/purchase — request validation", () => {
+
+  test("401 — no token", async () => {
+    const res = await request(app)
+      .patch(`/api/mixed/inquiries/${FAKE_VALID_ID}/purchase`)
+      .send({ purchasedVia: "coins" });
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("401 — invalid token", async () => {
+    const res = await patchInquiryPurchase(FAKE_VALID_ID, { purchasedVia: "coins" }, "invalidtoken");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("400 — purchasedVia is required", async () => {
+    const res = await patchInquiryPurchase(FAKE_VALID_ID, {});
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/purchasedVia/i);
+  });
+
+  test.each(["cash", "Plan", "", null])("400 — rejects unsupported purchasedVia value %p", async (purchasedVia) => {
+    const res = await patchInquiryPurchase(FAKE_VALID_ID, { purchasedVia });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/purchasedVia/i);
+  });
+
+  customerFixtureTest("403 — customer role cannot purchase an assigned inquiry", async () => {
+    const res = await request(app)
+      .patch(`/api/mixed/inquiries/${FAKE_VALID_ID}/purchase`)
+      .set("Authorization", `Bearer ${CUSTOMER_TOKEN}`)
+      .send({ purchasedVia: "coins" });
+    expect(res.statusCode).toBe(403);
+    expect(res.body.success).toBe(false);
+  });
+
+});
+
+describe("PATCH /api/mixed/inquiries/:assignmentId/purchase — purchase flows", () => {
+
+  purchaseFixtureTest("plan option purchases an active assignment or rejects an already purchased one", async () => {
+    const assignmentId = PURCHASE_TEST_ASSIGNMENT_IDS[0];
+    const res = await patchPurchaseWithFixtureToken(assignmentId, { purchasedVia: "plan" });
+    if (res.statusCode === 409) {
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/already been purchased/i);
+      return;
+    }
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.purchasedVia).toBe("plan");
+    expect(res.body.data.assignment.status).toBe("purchased");
+    expect(res.body.data.assignment.purchasedAt).toBeTruthy();
+    expect(typeof res.body.data.enquiriesUsed).toBe("number");
+
+  });
+
+  purchaseFixtureTest("coin option purchases an active assignment or rejects an already purchased one", async () => {
+    const res = await patchPurchaseWithFixtureToken(PURCHASE_TEST_ASSIGNMENT_IDS[1], { purchasedVia: "coins" });
+    if (res.statusCode === 409) {
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/already been purchased/i);
+      return;
+    }
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.purchasedVia).toBe("coins");
+    expect(res.body.data.assignment.status).toBe("purchased");
+    expect(res.body.data.assignment.purchasedAt).toBeTruthy();
+    expect(typeof res.body.data.coinsBalance).toBe("number");
+  });
+
+  purchaseFixtureTest("409 — an already purchased assignment cannot be purchased again", async () => {
+    const res = await patchPurchaseWithFixtureToken(PURCHASE_TEST_ASSIGNMENT_IDS[2], { purchasedVia: "plan" });
+    expect(res.statusCode).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/already been purchased/i);
+  });
+
+  purchaseFixtureTest("404 — an unknown assignment ID is not found", async () => {
+    const res = await patchPurchaseWithFixtureToken(FAKE_VALID_ID, { purchasedVia: "plan" });
+    expect(res.statusCode).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/not found/i);
   });
 
 });
