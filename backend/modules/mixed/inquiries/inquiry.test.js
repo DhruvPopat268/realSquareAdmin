@@ -884,46 +884,60 @@ describe("GET /api/mixed/inquiries/assigned", () => {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 11. PATCH PURCHASE ASSIGNED INQUIRY — /api/mixed/inquiries/:assignmentId/purchase
+// 11. PATCH PURCHASE ASSIGNED INQUIRY — /api/mixed/inquiries/purchase
 // ═════════════════════════════════════════════════════════════════════════════
 
-const patchInquiryPurchase = (assignmentId, payload, token = PURCHASE_TEST_TOKEN) =>
+const patchInquiryPurchase = (payload, token = PURCHASE_TEST_TOKEN) =>
   request(app)
-    .patch(`/api/mixed/inquiries/${assignmentId}/purchase`)
+    .patch("/api/mixed/inquiries/purchase")
     .set("Authorization", `Bearer ${token}`)
     .send(payload);
 
-const patchPurchaseWithFixtureToken = (assignmentId, payload) =>
+const patchPurchaseWithFixtureToken = (payload) =>
   request(app)
-    .patch(`/api/mixed/inquiries/${assignmentId}/purchase`)
+    .patch("/api/mixed/inquiries/purchase")
     .set("Authorization", `Bearer ${PURCHASE_TEST_TOKEN}`)
     .send(payload);
 
-describe("PATCH /api/mixed/inquiries/:assignmentId/purchase — request validation", () => {
+describe("PATCH /api/mixed/inquiries/purchase — request validation", () => {
 
   test("401 — no token", async () => {
     const res = await request(app)
-      .patch(`/api/mixed/inquiries/${FAKE_VALID_ID}/purchase`)
-      .send({ purchasedVia: "coins" });
+      .patch("/api/mixed/inquiries/purchase")
+      .send({ assignmentId: FAKE_VALID_ID, purchasedVia: "coins" });
     expect(res.statusCode).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
   test("401 — invalid token", async () => {
-    const res = await patchInquiryPurchase(FAKE_VALID_ID, { purchasedVia: "coins" }, "invalidtoken");
+    const res = await patchInquiryPurchase({ assignmentId: FAKE_VALID_ID, purchasedVia: "coins" }, "invalidtoken");
     expect(res.statusCode).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
   test("400 — purchasedVia is required", async () => {
-    const res = await patchInquiryPurchase(FAKE_VALID_ID, {});
+    const res = await patchInquiryPurchase({ assignmentId: FAKE_VALID_ID });
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/purchasedVia/i);
   });
 
+  test("400 — assignmentId is required in the body", async () => {
+    const res = await patchInquiryPurchase({ purchasedVia: "coins" });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/assignmentId/i);
+  });
+
+  test("400 — rejects an invalid assignmentId", async () => {
+    const res = await patchInquiryPurchase({ assignmentId: INVALID_ID, purchasedVia: "coins" });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/assignmentId/i);
+  });
+
   test.each(["cash", "Plan", "", null])("400 — rejects unsupported purchasedVia value %p", async (purchasedVia) => {
-    const res = await patchInquiryPurchase(FAKE_VALID_ID, { purchasedVia });
+    const res = await patchInquiryPurchase({ assignmentId: FAKE_VALID_ID, purchasedVia });
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/purchasedVia/i);
@@ -931,20 +945,20 @@ describe("PATCH /api/mixed/inquiries/:assignmentId/purchase — request validati
 
   customerFixtureTest("403 — customer role cannot purchase an assigned inquiry", async () => {
     const res = await request(app)
-      .patch(`/api/mixed/inquiries/${FAKE_VALID_ID}/purchase`)
+      .patch("/api/mixed/inquiries/purchase")
       .set("Authorization", `Bearer ${CUSTOMER_TOKEN}`)
-      .send({ purchasedVia: "coins" });
+      .send({ assignmentId: FAKE_VALID_ID, purchasedVia: "coins" });
     expect(res.statusCode).toBe(403);
     expect(res.body.success).toBe(false);
   });
 
 });
 
-describe("PATCH /api/mixed/inquiries/:assignmentId/purchase — purchase flows", () => {
+describe("PATCH /api/mixed/inquiries/purchase — purchase flows", () => {
 
   purchaseFixtureTest("plan option purchases an active assignment or rejects an already purchased one", async () => {
     const assignmentId = PURCHASE_TEST_ASSIGNMENT_IDS[0];
-    const res = await patchPurchaseWithFixtureToken(assignmentId, { purchasedVia: "plan" });
+    const res = await patchPurchaseWithFixtureToken({ assignmentId, purchasedVia: "plan" });
     if (res.statusCode === 409) {
       expect(res.body.success).toBe(false);
       expect(res.body.message).toMatch(/already been purchased/i);
@@ -960,7 +974,8 @@ describe("PATCH /api/mixed/inquiries/:assignmentId/purchase — purchase flows",
   });
 
   purchaseFixtureTest("coin option purchases an active assignment or rejects an already purchased one", async () => {
-    const res = await patchPurchaseWithFixtureToken(PURCHASE_TEST_ASSIGNMENT_IDS[1], { purchasedVia: "coins" });
+    const assignmentId = PURCHASE_TEST_ASSIGNMENT_IDS[1];
+    const res = await patchPurchaseWithFixtureToken({ assignmentId, purchasedVia: "coins" });
     if (res.statusCode === 409) {
       expect(res.body.success).toBe(false);
       expect(res.body.message).toMatch(/already been purchased/i);
@@ -975,14 +990,15 @@ describe("PATCH /api/mixed/inquiries/:assignmentId/purchase — purchase flows",
   });
 
   purchaseFixtureTest("409 — an already purchased assignment cannot be purchased again", async () => {
-    const res = await patchPurchaseWithFixtureToken(PURCHASE_TEST_ASSIGNMENT_IDS[2], { purchasedVia: "plan" });
+    const assignmentId = PURCHASE_TEST_ASSIGNMENT_IDS[2];
+    const res = await patchPurchaseWithFixtureToken({ assignmentId, purchasedVia: "plan" });
     expect(res.statusCode).toBe(409);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/already been purchased/i);
   });
 
   purchaseFixtureTest("404 — an unknown assignment ID is not found", async () => {
-    const res = await patchPurchaseWithFixtureToken(FAKE_VALID_ID, { purchasedVia: "plan" });
+    const res = await patchPurchaseWithFixtureToken({ assignmentId: FAKE_VALID_ID, purchasedVia: "plan" });
     expect(res.statusCode).toBe(404);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/not found/i);

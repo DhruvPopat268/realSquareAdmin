@@ -123,7 +123,7 @@ Two separate plan types exist — **Listing Plans** and **Enquiry Plans** — ea
 - Full flow documented in `modules/mixed/enquiryPurchasedPlans/FLOW.md`
 
 #### Assigned Inquiry Purchase
-- `PATCH /api/mixed/inquiries/:assignmentId/purchase` accepts `purchasedVia: "plan" | "coins"`.
+- `PATCH /api/mixed/inquiries/purchase` accepts `assignmentId` and `purchasedVia: "plan" | "coins"` in the request body.
 - Plan purchases consume one credit from the user's active enquiry plan; coin purchases debit the configured `coinsPerEnquiry` amount and create an `InquiryPurchase` coin transaction.
 - Purchased assignments store `status: "purchased"`, `purchasedAt`, and `purchasedVia`.
 - Inquiry and status-transition integration tests read `USER_TOKEN`, `ADMIN_TOKEN`, and (for customer-only cases) `CUSTOMER_TOKEN` from the ignored backend `.env` file; no bearer tokens are embedded in those test sources.

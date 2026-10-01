@@ -469,11 +469,15 @@ const getMyInquiries = async (req, res) => {
 
 /**
  * Purchase an assigned inquiry with one active enquiry-plan credit or coins.
- * PATCH /api/mixed/inquiries/:assignmentId/purchase
- * Body: { purchasedVia: "plan" | "coins" }
+ * PATCH /api/mixed/inquiries/purchase
+ * Body: { assignmentId, purchasedVia: "plan" | "coins" }
  */
 const purchaseAssignedInquiry = async (req, res) => {
+  const assignmentId = req.body?.assignmentId;
   const purchasedVia = req.body?.purchasedVia;
+  if (!mongoose.isValidObjectId(assignmentId)) {
+    return res.status(400).json({ success: false, message: "assignmentId must be a valid ID" });
+  }
   if (!["plan", "coins"].includes(purchasedVia)) {
     return res.status(400).json({ success: false, message: 'purchasedVia must be "plan" or "coins"' });
   }
@@ -488,7 +492,7 @@ const purchaseAssignedInquiry = async (req, res) => {
 
   try {
     const assignment = await AssignedInquiry.findOne({
-      _id: req.params.assignmentId,
+      _id: assignmentId,
       "assignedTo.id": req.user._id,
     }).session(session);
 

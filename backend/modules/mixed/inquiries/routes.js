@@ -23,8 +23,8 @@ router.get("/my", userProtect, getMyInquiries);
 // GET /api/mixed/inquiries/assigned
 router.get("/assigned", userProtect, getAssignedInquiries);
 
-// PATCH /api/mixed/inquiries/:assignmentId/purchase
-router.patch("/:assignmentId/purchase", userProtect, purchaseAssignedInquiry);
+// PATCH /api/mixed/inquiries/purchase
+router.patch("/purchase", userProtect, purchaseAssignedInquiry);
 
 // GET /api/mixed/inquiries/cron-assign
 router.get("/cron-assign", cronProtect, runCronAssignment);
