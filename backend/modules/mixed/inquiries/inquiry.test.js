@@ -21,11 +21,14 @@
 require("dotenv").config();
 const request = require("supertest");
 const app     = require("../../../server");
+const { Inquiry } = require("./model");
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 // A valid user token from the DB (owner/broker/builder user with name + mobile + role)
 // Replace this with a fresh token if it expires.
 const USER_TOKEN = process.env.USER_TOKEN;
+const CRONJOB_SECRET = process.env.CRONJOB_SECRET;
+const cronFixtureTest = (...args) => CRONJOB_SECRET ? test(...args) : test.skip(...args);
 
 // ─── Real IDs from DB (from .env) ────────────────────────────────────────────
 const LISTING_TYPE_SELL_ID       = process.env.LISTING_TYPE_SELL_ID;       // Buy/Sell
@@ -1037,4 +1040,43 @@ describe("PATCH /api/mixed/inquiries/purchase — purchase flows", () => {
     expect(res.body.message).toMatch(/not found/i);
   });
 
+});
+
+describe("GET /api/mixed/inquiries/cron-expire", () => {
+  test("401 — rejects requests without the cron secret", async () => {
+    const res = await request(app).get("/api/mixed/inquiries/cron-expire");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("401 — rejects an invalid cron secret", async () => {
+    const res = await request(app)
+      .get("/api/mixed/inquiries/cron-expire")
+      .set("x-cron-secret", "invalid-cron-secret");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  cronFixtureTest("200 — expires active inquiries whose follow-up date is before today's UTC date", async () => {
+    const updateSpy = jest.spyOn(Inquiry, "updateMany").mockResolvedValue({ matchedCount: 3, modifiedCount: 3 });
+    try {
+      const res = await request(app)
+        .get("/api/mixed/inquiries/cron-expire")
+        .set("x-cron-secret", CRONJOB_SECRET);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.expiredCount).toBe(3);
+      expect(res.body.data.checkedAt).toBeTruthy();
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      const [filter, update] = updateSpy.mock.calls[0];
+      expect(filter.status).toBe("active");
+      expect(filter.lastFollowUpDate.$lt).toBeInstanceOf(Date);
+      expect(filter.lastFollowUpDate.$lt.toISOString()).toMatch(/T00:00:00\.000Z$/);
+      expect(update).toEqual({ $set: { status: "expired" } });
+    } finally {
+      updateSpy.mockRestore();
+    }
+  });
 });

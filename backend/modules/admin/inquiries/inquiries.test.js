@@ -126,4 +126,28 @@ describe("GET /api/admin/inquiries/assigned/:inquiryId", () => {
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/inquiryId/i);
   });
+
+  adminFixtureTest("400 — rejects unsupported assignment status filters", async () => {
+    const inquiryId = new mongoose.Types.ObjectId();
+    const res = await adminGet(`/api/admin/inquiries/assigned/${inquiryId}?status=unknown`);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/status/i);
+  });
+
+  adminFixtureTest("200 — filters assignment records by active or purchased status", async () => {
+    const fixture = await AssignedInquiry.findOne({}).select("inquiry status").lean();
+    const inquiryId = fixture?.inquiry ?? new mongoose.Types.ObjectId();
+    const status = fixture?.status ?? "active";
+    const res = await adminGet(`/api/admin/inquiries/assigned/${inquiryId}?status=${status}&page=1&limit=5`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.every((assignment) => assignment.status === status)).toBe(true);
+    expect(res.body.pagination.total).toBeGreaterThanOrEqual(res.body.data.length);
+    expect(res.body.stats).toEqual(expect.objectContaining({
+      totalAssigned: expect.any(Number),
+      totalPurchased: expect.any(Number),
+    }));
+  });
 });

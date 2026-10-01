@@ -88,6 +88,6 @@ export interface AssignedInquiriesByInquiryResponse {
 export const inquiriesService = {
   getAll: (params?: AdminInquiryFilters) =>
     api.get<AdminInquiriesResponse>("/admin/inquiries", { params }),
-  getAssignmentsByInquiryId: (inquiryId: string, params?: { page?: number; limit?: number }) =>
+  getAssignmentsByInquiryId: (inquiryId: string, params?: { page?: number; limit?: number; status?: string }) =>
     api.get<AssignedInquiriesByInquiryResponse>(`/admin/inquiries/assigned/${inquiryId}`, { params }),
 };

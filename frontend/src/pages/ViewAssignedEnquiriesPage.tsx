@@ -42,6 +42,8 @@ export default function ViewAssignedEnquiriesPage() {
   const [stats, setStats] = useState({ totalAssigned: 0, totalPurchased: 0 });
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [status, setStatus] = useState("");
+  const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,11 +53,12 @@ export default function ViewAssignedEnquiriesPage() {
     setLoading(true);
     setError("");
 
-    inquiriesService.getAssignmentsByInquiryId(inquiryId, { page, limit })
+    inquiriesService.getAssignmentsByInquiryId(inquiryId, { page, limit, status: status || undefined })
       .then(({ data }) => {
         if (cancelled) return;
         setAssignments(data.data);
         setStats(data.stats);
+        setTotal(data.pagination.total);
         setTotalPages(data.pagination.totalPages);
       })
       .catch((requestError) => {
@@ -68,7 +71,7 @@ export default function ViewAssignedEnquiriesPage() {
       });
 
     return () => { cancelled = true; };
-  }, [inquiryId, page, limit]);
+  }, [inquiryId, page, limit, status]);
 
   return (
     <div className="space-y-6">
@@ -78,7 +81,6 @@ export default function ViewAssignedEnquiriesPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Assigned Enquiries</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Assignments for enquiry {inquiryId}</p>
         </div>
       </div>
 
@@ -113,7 +115,16 @@ export default function ViewAssignedEnquiriesPage() {
             </SelectContent>
           </Select>
         </div>
-        <p className="text-sm text-muted-foreground">{stats.totalAssigned} assignments</p>
+        <p className="text-sm text-muted-foreground">{total} assignments</p>
+        <div className="flex-1" />
+        <Select value={status || "all"} onValueChange={(value) => { setStatus(value === "all" ? "" : value); setPage(1); }}>
+          <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="purchased">Purchased</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="overflow-x-auto rounded-lg border bg-card">

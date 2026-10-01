@@ -259,8 +259,16 @@ const getAssignedInquiriesByInquiryId = async (req, res) => {
     }
 
     const { page, limit, skip } = getPagination(req.query);
-    const filter = { inquiry: inquiryId };
-    const [assignments, total, totalPurchased] = await Promise.all([
+    const inquiryFilter = { inquiry: inquiryId };
+    const filter = { ...inquiryFilter };
+    if (req.query.status) {
+      if (!["active", "purchased"].includes(req.query.status)) {
+        return res.status(400).json({ success: false, message: 'status must be "active" or "purchased"' });
+      }
+      filter.status = req.query.status;
+    }
+
+    const [assignments, total, totalAssigned, totalPurchased] = await Promise.all([
       AssignedInquiry.find(filter)
         .populate({ path: "assignedTo.role", model: SystemUserRole, select: "name" })
         .sort({ createdAt: -1 })
@@ -268,10 +276,11 @@ const getAssignedInquiriesByInquiryId = async (req, res) => {
         .limit(limit)
         .lean(),
       AssignedInquiry.countDocuments(filter),
-      AssignedInquiry.countDocuments({ ...filter, status: "purchased" }),
+      AssignedInquiry.countDocuments(inquiryFilter),
+      AssignedInquiry.countDocuments({ ...inquiryFilter, status: "purchased" }),
     ]);
     const stats = {
-      totalAssigned: total,
+      totalAssigned,
       totalPurchased,
     };
 

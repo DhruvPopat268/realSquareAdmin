@@ -1,5 +1,12 @@
 const express                    = require("express");
-const { createInquiry, runCronAssignment, getAssignedInquiries, getMyInquiries, purchaseAssignedInquiry } = require("./controller");
+const {
+  createInquiry,
+  runCronAssignment,
+  expireOldInquiries,
+  getAssignedInquiries,
+  getMyInquiries,
+  purchaseAssignedInquiry,
+} = require("./controller");
 const { userProtect }            = require("../../../middleware/userAuth");
 const { createInquiryValidator } = require("./validator");
 
@@ -28,5 +35,8 @@ router.patch("/purchase", userProtect, purchaseAssignedInquiry);
 
 // GET /api/mixed/inquiries/cron-assign
 router.get("/cron-assign", cronProtect, runCronAssignment);
+
+// GET /api/mixed/inquiries/cron-expire
+router.get("/cron-expire", cronProtect, expireOldInquiries);
 
 module.exports = router;

@@ -238,6 +238,40 @@ const runCronAssignment = async (req, res) => {
 };
 
 /**
+ * Cron job handler — GET /api/mixed/inquiries/cron-expire
+ * Marks active inquiries with a lastFollowUpDate before today's UTC date as expired.
+ */
+const expireOldInquiries = async (req, res) => {
+  try {
+    const checkedAt = new Date();
+    const currentDate = new Date(Date.UTC(
+      checkedAt.getUTCFullYear(),
+      checkedAt.getUTCMonth(),
+      checkedAt.getUTCDate()
+    ));
+    const result = await Inquiry.updateMany(
+      {
+        status: "active",
+        lastFollowUpDate: { $lt: currentDate },
+      },
+      { $set: { status: "expired" } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Expired inquiries updated successfully",
+      data: {
+        expiredCount: result.modifiedCount,
+        checkedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error expiring inquiries from cron:", error);
+    return res.status(500).json({ success: false, message: "Failed to expire inquiries" });
+  }
+};
+
+/**
  * Get all assigned inquiries for the logged-in user
  * GET /api/mixed/inquiries/assigned
  *
@@ -608,4 +642,11 @@ const purchaseAssignedInquiry = async (req, res) => {
   }
 };
 
-module.exports = { createInquiry, runCronAssignment, getAssignedInquiries, getMyInquiries, purchaseAssignedInquiry };
+module.exports = {
+  createInquiry,
+  runCronAssignment,
+  expireOldInquiries,
+  getAssignedInquiries,
+  getMyInquiries,
+  purchaseAssignedInquiry,
+};

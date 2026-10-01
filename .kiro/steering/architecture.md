@@ -100,9 +100,10 @@ All routes are prefixed with `/api`.
 - `GET /api/admin/inquiries/roles` returns active Customer, Broker, Builder, and Owner roles for enquiry filters.
 - `GET /api/admin/inquiries` returns paginated source records from `Inquiry`, one record per created inquiry.
 - `GET /api/admin/inquiries/assigned` returns paginated assignment records from `AssignedInquiry`, with each record's `inquiry` reference populated from `Inquiry` and its property-purpose/category/type references populated.
-- `GET /api/admin/inquiries/assigned/:inquiryId` returns paginated assignments for one source inquiry. The `inquiry` field remains an ID; `assignedTo.role` is populated from `SystemUserRole`. The response includes `totalAssigned` and `totalPurchased` stats.
+- `GET /api/admin/inquiries/assigned/:inquiryId` returns paginated assignments for one source inquiry and accepts `status=active|purchased`. The `inquiry` field remains an ID; `assignedTo.role` is populated from `SystemUserRole`. The response includes `totalAssigned` and `totalPurchased` stats across all assignments for that inquiry, regardless of the status filter.
 - Both endpoints are protected by the admin `protect` middleware and support query filters for their respective collection records.
 - `POST /api/mixed/inquiries/create` accepts only individual property enquiries (`isProperty: true`) and validates that purpose, category, and type IDs reference active master records; when both category and type are supplied, the type must belong to that category.
+- `GET /api/mixed/inquiries/cron-assign` and `GET /api/mixed/inquiries/cron-expire` are public cron endpoints protected by the `x-cron-secret` header, which must match `CRONJOB_SECRET` in the backend environment. The expiry job compares `lastFollowUpDate` with the start of the current UTC date, so inquiries remain active throughout their follow-up date; it returns the update count and check time.
 
 ### Auth Flow
 - Login uses OTP-based authentication
@@ -215,7 +216,7 @@ frontend/src/
 | `ProjectDetailPage.tsx` | Single project detail view |
 | `LeadsPage.tsx` | Lead management |
 | `EnquiriesPage.tsx` | Paginated admin enquiry list with URL-persisted filters and per-inquiry assignment counts; View opens the assigned enquiries page |
-| `ViewAssignedEnquiriesPage.tsx` | Paginated assignments for one enquiry using `GET /api/admin/inquiries/assigned/:inquiryId`, with assignment status/source and purchase details |
+| `ViewAssignedEnquiriesPage.tsx` | Paginated, status-filtered assignments for one enquiry using `GET /api/admin/inquiries/assigned/:inquiryId`, with assignment status/source and purchase details |
 | `PlansPage.tsx` | Subscription plans management |
 | `EnquiryPlansPage.tsx` | Enquiry-specific plans |
 | `PurchasedPlansPage.tsx` | Purchased listing plan records |
