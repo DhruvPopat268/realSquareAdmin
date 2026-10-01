@@ -22,11 +22,16 @@ require("dotenv").config();
 const request = require("supertest");
 const app     = require("../../../server");
 const { Inquiry } = require("./model");
+const { AssignedInquiry } = require("./assignedInquiriesModel");
+const EnquiryPurchasedPlan = require("../enquiryPurchasedPlans/model");
+const UserCoinsWallet = require("../userCoinsWallet/model");
+const CoinsTransaction = require("../coinsTransactions/model");
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 // A valid user token from the DB (owner/broker/builder user with name + mobile + role)
 // Replace this with a fresh token if it expires.
 const USER_TOKEN = process.env.USER_TOKEN;
+const userFixtureTest = (...args) => USER_TOKEN ? test(...args) : test.skip(...args);
 const CRONJOB_SECRET = process.env.CRONJOB_SECRET;
 const cronFixtureTest = (...args) => CRONJOB_SECRET ? test(...args) : test.skip(...args);
 
@@ -925,6 +930,88 @@ const patchInquiryPurchase = (payload, token = PURCHASE_TEST_TOKEN) =>
     .set("Authorization", `Bearer ${token}`)
     .send(payload);
 
+const patchMyInquiryStatus = (payload, token = USER_TOKEN) =>
+  request(app)
+    .patch("/api/mixed/inquiries/status")
+    .set("Authorization", `Bearer ${token}`)
+    .send(payload);
+
+describe("PATCH /api/mixed/inquiries/status", () => {
+  test("401 — requires user authentication", async () => {
+    const res = await request(app).patch("/api/mixed/inquiries/status").send({
+      inquiryId: FAKE_VALID_ID,
+      status: "inactive",
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  userFixtureTest("400 — accepts only inactive or completed", async () => {
+    const res = await patchMyInquiryStatus({ inquiryId: FAKE_VALID_ID, status: "active" });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/inactive.*completed/i);
+  });
+
+  userFixtureTest("400 — inquiryId is required and must be valid", async () => {
+    const missing = await patchMyInquiryStatus({ status: "inactive" });
+    expect(missing.statusCode).toBe(400);
+    const malformed = await patchMyInquiryStatus({ inquiryId: "bad-id", status: "inactive" });
+    expect(malformed.statusCode).toBe(400);
+  });
+
+  userFixtureTest("200 — creator can mark an active inquiry inactive without a reason", async () => {
+    const created = await postInquiry(BASE_PAYLOAD);
+    expect(created.statusCode).toBe(201);
+    const res = await patchMyInquiryStatus({ inquiryId: created.body.inquiry._id, status: "inactive" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.status).toBe("inactive");
+    expect(res.body.data.statusReason).toBeUndefined();
+  });
+
+  userFixtureTest("200 — creator can mark an active inquiry completed", async () => {
+    const created = await postInquiry(BASE_PAYLOAD);
+    expect(created.statusCode).toBe(201);
+    const res = await patchMyInquiryStatus({ inquiryId: created.body.inquiry._id, status: "completed" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.status).toBe("completed");
+  });
+
+  customerFixtureTest("404 — creator cannot update an inquiry owned by another user", async () => {
+    const created = await postInquiry(BASE_PAYLOAD);
+    expect(created.statusCode).toBe(201);
+    const res = await patchMyInquiryStatus(
+      { inquiryId: created.body.inquiry._id, status: "completed" },
+      CUSTOMER_TOKEN
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  userFixtureTest("409 — inactive is final and cannot later be changed to completed", async () => {
+    const created = await postInquiry(BASE_PAYLOAD);
+    expect(created.statusCode).toBe(201);
+    const inactive = await patchMyInquiryStatus({ inquiryId: created.body.inquiry._id, status: "inactive" });
+    expect(inactive.statusCode).toBe(200);
+    const res = await patchMyInquiryStatus({ inquiryId: created.body.inquiry._id, status: "completed" });
+    expect(res.statusCode).toBe(409);
+  });
+});
+
+describe("GET /api/mixed/inquiries/my — inquiry status values", () => {
+  userFixtureTest("200 — returns inactive and completed status counts and filters", async () => {
+    const res = await request(app)
+      .get("/api/mixed/inquiries/my?status=inactive")
+      .set("Authorization", `Bearer ${USER_TOKEN}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.stats).toEqual(expect.objectContaining({
+      active: expect.any(Number),
+      expired: expect.any(Number),
+      inactive: expect.any(Number),
+      completed: expect.any(Number),
+    }));
+    expect(res.body.data.inquiries.every((inquiry) => inquiry.status === "inactive")).toBe(true);
+  });
+});
+
 const patchPurchaseWithFixtureToken = (payload) =>
   request(app)
     .patch("/api/mixed/inquiries/purchase")
@@ -987,6 +1074,48 @@ describe("PATCH /api/mixed/inquiries/purchase — request validation", () => {
 });
 
 describe("PATCH /api/mixed/inquiries/purchase — purchase flows", () => {
+
+  const rejectUnavailableInquiryPurchase = async (inquiryStatus, purchasedVia) => {
+    const assignedInquiry = { inquiry: FAKE_VALID_ID, status: "active" };
+    const assignmentQuery = { session: jest.fn().mockResolvedValue(assignedInquiry) };
+    const inquiryQuery = {
+      select: jest.fn().mockReturnThis(),
+      session: jest.fn().mockResolvedValue({ status: inquiryStatus }),
+    };
+    const assignmentFindSpy = jest.spyOn(AssignedInquiry, "findOne").mockReturnValue(assignmentQuery);
+    const inquiryFindSpy = jest.spyOn(Inquiry, "findById").mockReturnValue(inquiryQuery);
+    const planFindSpy = jest.spyOn(EnquiryPurchasedPlan, "findOne");
+    const walletUpdateSpy = jest.spyOn(UserCoinsWallet, "findOneAndUpdate");
+    const transactionCreateSpy = jest.spyOn(CoinsTransaction, "create");
+
+    try {
+      const res = await patchPurchaseWithFixtureToken({
+        assignmentId: FAKE_VALID_ID,
+        purchasedVia,
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(new RegExp(`${inquiryStatus} and cannot be purchased`, "i"));
+      expect(planFindSpy).not.toHaveBeenCalled();
+      expect(walletUpdateSpy).not.toHaveBeenCalled();
+      expect(transactionCreateSpy).not.toHaveBeenCalled();
+    } finally {
+      assignmentFindSpy.mockRestore();
+      inquiryFindSpy.mockRestore();
+      planFindSpy.mockRestore();
+      walletUpdateSpy.mockRestore();
+      transactionCreateSpy.mockRestore();
+    }
+  };
+
+  ["expired", "inactive", "completed"].forEach((inquiryStatus) => {
+    ["plan", "coins"].forEach((purchasedVia) => {
+      purchaseFixtureTest(`409 — ${inquiryStatus} inquiry cannot be purchased via ${purchasedVia}`, async () => {
+        await rejectUnavailableInquiryPurchase(inquiryStatus, purchasedVia);
+      });
+    });
+  });
 
   purchaseFixtureTest("plan option purchases an active assignment or rejects an already purchased one", async () => {
     const assignmentId = PURCHASE_TEST_ASSIGNMENT_IDS[0];

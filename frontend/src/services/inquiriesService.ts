@@ -28,7 +28,7 @@ export interface AdminInquiry {
   lastFollowUpDate: string;
   remarks?: string;
   preferredCommunication: string[];
-  status: "active" | "expired";
+  status: "active" | "expired" | "inactive" | "completed";
   totalAssigned: number;
   totalPurchased: number;
   createdAt: string;
@@ -38,7 +38,7 @@ export interface AdminInquiry {
 export interface AdminInquiriesResponse {
   success: boolean;
   data: AdminInquiry[];
-  stats: { active: number; expired: number; hot: number; warm: number; cold: number };
+  stats: { active: number; expired: number; inactive: number; completed: number; hot: number; warm: number; cold: number };
   pagination: { total: number; page: number; limit: number; totalPages: number };
 }
 
@@ -88,6 +88,8 @@ export interface AssignedInquiriesByInquiryResponse {
 export const inquiriesService = {
   getAll: (params?: AdminInquiryFilters) =>
     api.get<AdminInquiriesResponse>("/admin/inquiries", { params }),
+  updateStatus: (payload: { inquiryId: string; status: "inactive" | "completed" }) =>
+    api.patch("/admin/inquiries/status", payload),
   getAssignmentsByInquiryId: (inquiryId: string, params?: { page?: number; limit?: number; status?: string }) =>
     api.get<AssignedInquiriesByInquiryResponse>(`/admin/inquiries/assigned/${inquiryId}`, { params }),
 };

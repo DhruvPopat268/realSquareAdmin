@@ -5,11 +5,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, CalendarDays, CheckCircle2, Clock3, Flame, Sun, Snowflake, Eye } from "lucide-react";
+import { ChevronDown, CalendarDays, CheckCircle2, Clock3, Flame, Sun, Snowflake, Eye, Ban } from "lucide-react";
 import { inquiriesService, type AdminInquiry, type AdminInquiryFilters } from "@/services/inquiriesService";
 import api from "@/lib/axiosInterceptor";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import Spinner from "@/components/Spinner";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface FilterOption { _id: string; name: string; }
 
@@ -37,6 +41,20 @@ const classificationStyle: Record<AdminInquiry["inquiryClassification"], string>
   hot: "bg-red-50 text-red-600",
   warm: "bg-amber-50 text-amber-700",
   cold: "bg-sky-50 text-sky-700",
+};
+
+const inquiryStatusLabel: Record<AdminInquiry["status"], string> = {
+  active: "Active",
+  expired: "Expired",
+  inactive: "Inactive",
+  completed: "Completed",
+};
+
+const inquiryStatusStyle: Record<AdminInquiry["status"], string> = {
+  active: "bg-green-50 text-green-700",
+  expired: "bg-slate-100 text-slate-600",
+  inactive: "bg-amber-50 text-amber-700",
+  completed: "bg-emerald-50 text-emerald-700",
 };
 
 function formatBudget(min: number, max: number) {
@@ -134,9 +152,12 @@ export default function EnquiriesPage() {
   const [enquiries, setEnquiries] = useState<AdminInquiry[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [stats, setStats] = useState({ active: 0, expired: 0, hot: 0, warm: 0, cold: 0 });
+  const [stats, setStats] = useState({ active: 0, expired: 0, inactive: 0, completed: 0, hot: 0, warm: 0, cold: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [statusUpdateError, setStatusUpdateError] = useState("");
+  const [statusConfirmation, setStatusConfirmation] = useState<{ inquiryId: string; status: "inactive" | "completed" } | null>(null);
 
   // Filter option lists
   const [purposes, setPurposes]           = useState<FilterOption[]>([]);
@@ -184,6 +205,21 @@ export default function EnquiriesPage() {
     query.categoryId || query.propertyTypeId || query.roleId || query.userId || query.search
     || query.fromDate || query.toDate
   );
+
+  const updateStatus = async (inquiryId: string, status: "inactive" | "completed") => {
+    setStatusUpdatingId(inquiryId);
+    setStatusUpdateError("");
+    try {
+      await inquiriesService.updateStatus({ inquiryId, status });
+      setQuery((current) => ({ ...current, page: 1 }));
+      return true;
+    } catch {
+      setStatusUpdateError("Could not update the enquiry status. Please try again.");
+      return false;
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -264,7 +300,7 @@ export default function EnquiriesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-7">
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           <div><p className="text-xs text-muted-foreground">Active</p><p className="text-xl font-bold text-green-600">{stats.active.toLocaleString()}</p></div>
@@ -272,6 +308,14 @@ export default function EnquiriesPage() {
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100"><Clock3 className="h-5 w-5 text-slate-600" /></div>
           <div><p className="text-xs text-muted-foreground">Expired</p><p className="text-xl font-bold text-slate-600">{stats.expired.toLocaleString()}</p></div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100"><Clock3 className="h-5 w-5 text-amber-700" /></div>
+          <div><p className="text-xs text-muted-foreground">Inactive</p><p className="text-xl font-bold text-amber-700">{stats.inactive.toLocaleString()}</p></div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100"><CheckCircle2 className="h-5 w-5 text-emerald-700" /></div>
+          <div><p className="text-xs text-muted-foreground">Completed</p><p className="text-xl font-bold text-emerald-700">{stats.completed.toLocaleString()}</p></div>
         </div>
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"><Flame className="h-5 w-5 text-red-600" /></div>
@@ -414,13 +458,15 @@ export default function EnquiriesPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
-              {pending.status ? (pending.status === "active" ? "Active" : "Expired") : "All Statuses"}
+              {pending.status ? inquiryStatusLabel[pending.status as AdminInquiry["status"]] ?? "Status" : "All Statuses"}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => set("status", "all")}>All Statuses</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("status", "active")}>Active</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("status", "inactive")}>Inactive</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("status", "completed")}>Completed</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("status", "expired")}>Expired</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -494,6 +540,7 @@ export default function EnquiriesPage() {
 
 
       <div className="rounded-lg border bg-card overflow-x-auto">
+        {statusUpdateError && <p className="px-4 py-2 text-sm text-destructive">{statusUpdateError}</p>}
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
@@ -536,6 +583,7 @@ export default function EnquiriesPage() {
             ) : enquiries.map((enquiry, index) => (
               <tr key={enquiry._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
                   <button
                     onClick={() => navigate(`/view-assigned-enquiries/${enquiry._id}`, {
                       state: { returnTo: `${location.pathname}${location.search}` },
@@ -546,6 +594,31 @@ export default function EnquiriesPage() {
                   >
                     <Eye className="h-3.5 w-3.5" />
                   </button>
+                  {enquiry.status === "active" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setStatusUpdateError(""); setStatusConfirmation({ inquiryId: enquiry._id, status: "inactive" }); }}
+                        disabled={statusUpdatingId === enquiry._id}
+                        className="rounded-md bg-amber-50 p-1.5 text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+                        title="Mark inactive"
+                        aria-label="Mark inquiry inactive"
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setStatusUpdateError(""); setStatusConfirmation({ inquiryId: enquiry._id, status: "completed" }); }}
+                        disabled={statusUpdatingId === enquiry._id}
+                        className="rounded-md bg-emerald-50 p-1.5 text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+                        title="Mark completed"
+                        aria-label="Mark inquiry completed"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
+                  </div>
                 </td>
                 {/* # */}
                 <td className="px-4 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
@@ -572,7 +645,7 @@ export default function EnquiriesPage() {
                 </td>
                 {/* Status */}
                 <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${enquiry.status === "active" ? "bg-green-50 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${inquiryStatusStyle[enquiry.status]}`}>
                     {enquiry.status}
                   </span>
                 </td>
@@ -632,6 +705,33 @@ export default function EnquiriesPage() {
           Next
         </Button>
       </div>
+      <AlertDialog open={Boolean(statusConfirmation)} onOpenChange={(open) => { if (!open && !statusUpdatingId) setStatusConfirmation(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Mark this enquiry {statusConfirmation?.status}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this enquiry as {statusConfirmation?.status}? This status update cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {statusUpdateError && <p className="text-sm font-medium text-destructive">{statusUpdateError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(statusUpdatingId)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(statusUpdatingId)}
+              onClick={async (event) => {
+                event.preventDefault();
+                if (!statusConfirmation) return;
+                const updated = await updateStatus(statusConfirmation.inquiryId, statusConfirmation.status);
+                if (updated) setStatusConfirmation(null);
+              }}
+            >
+              {statusUpdatingId ? "Updating…" : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

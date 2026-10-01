@@ -49,7 +49,12 @@ const getInquiries = async (req, res) => {
     const filter = {};
     const { page, limit, skip } = getPagination(req.query);
 
-    if (req.query.status) filter.status = req.query.status;
+    if (req.query.status) {
+      if (!["active", "expired", "inactive", "completed"].includes(req.query.status)) {
+        return res.status(400).json({ success: false, message: "Unsupported inquiry status filter" });
+      }
+      filter.status = req.query.status;
+    }
     if (req.query.classification) filter.inquiryClassification = req.query.classification;
 
     const hasFromDate = req.query.fromDate !== undefined;
@@ -148,6 +153,8 @@ const getInquiries = async (req, res) => {
             _id: null,
             active: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } },
             expired: { $sum: { $cond: [{ $eq: ["$status", "expired"] }, 1, 0] } },
+            inactive: { $sum: { $cond: [{ $eq: ["$status", "inactive"] }, 1, 0] } },
+            completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
             hot: { $sum: { $cond: [{ $eq: ["$inquiryClassification", "hot"] }, 1, 0] } },
             warm: { $sum: { $cond: [{ $eq: ["$inquiryClassification", "warm"] }, 1, 0] } },
             cold: { $sum: { $cond: [{ $eq: ["$inquiryClassification", "cold"] }, 1, 0] } },
@@ -178,8 +185,8 @@ const getInquiries = async (req, res) => {
       totalPurchased: assignmentStatsByInquiryId.get(String(inquiry._id))?.totalPurchased ?? 0,
     }));
 
-    const { active = 0, expired = 0, hot = 0, warm = 0, cold = 0 } = statsResult[0] || {};
-    const stats = { active, expired, hot, warm, cold };
+    const { active = 0, expired = 0, inactive = 0, completed = 0, hot = 0, warm = 0, cold = 0 } = statsResult[0] || {};
+    const stats = { active, expired, inactive, completed, hot, warm, cold };
 
     return res.status(200).json({
       success: true,
@@ -190,6 +197,36 @@ const getInquiries = async (req, res) => {
   } catch (error) {
     console.error("Error fetching admin inquiries:", error);
     return res.status(500).json({ success: false, message: "Failed to fetch inquiries" });
+  }
+};
+
+const updateInquiryStatus = async (req, res) => {
+  const { inquiryId, status } = req.body ?? {};
+  if (!mongoose.isValidObjectId(inquiryId)) {
+    return res.status(400).json({ success: false, message: "inquiryId must be a valid ID" });
+  }
+  if (!["inactive", "completed"].includes(status)) {
+    return res.status(400).json({ success: false, message: 'status must be "inactive" or "completed"' });
+  }
+
+  try {
+    const inquiry = await Inquiry.findOneAndUpdate(
+      { _id: inquiryId, status: "active" },
+      { $set: { status } },
+      { new: true, runValidators: true }
+    );
+    if (inquiry) {
+      return res.status(200).json({ success: true, message: "Inquiry status updated successfully", data: inquiry });
+    }
+
+    const existingInquiry = await Inquiry.findById(inquiryId).select("_id");
+    if (!existingInquiry) {
+      return res.status(404).json({ success: false, message: "Inquiry not found" });
+    }
+    return res.status(409).json({ success: false, message: "Only active inquiries can be updated" });
+  } catch (error) {
+    console.error("Error updating inquiry status from admin:", error);
+    return res.status(500).json({ success: false, message: "Failed to update inquiry status" });
   }
 };
 
@@ -297,4 +334,4 @@ const getAssignedInquiriesByInquiryId = async (req, res) => {
   }
 };
 
-module.exports = { getInquiries, getAssignedInquiries, getAssignedInquiriesByInquiryId, getInquiryRoles };
+module.exports = { getInquiries, updateInquiryStatus, getAssignedInquiries, getAssignedInquiriesByInquiryId, getInquiryRoles };

@@ -143,7 +143,7 @@ const inquirySchema = new mongoose.Schema(
     // Status tracking
     status: {
       type: String,
-      enum: ["active", "expired"],
+      enum: ["active", "expired", "inactive", "completed"],
       default: "active",
       required: true,
     },

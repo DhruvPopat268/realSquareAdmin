@@ -454,7 +454,12 @@ const getMyInquiries = async (req, res) => {
     if (req.query.purposeId)        filter.listingType             = req.query.purposeId;
     if (req.query.categoryId)       filter.propertyCategory        = req.query.categoryId;
     if (req.query.typeId)           filter.propertyType            = req.query.typeId;
-    if (req.query.status)           filter.status                  = req.query.status;
+    if (req.query.status) {
+      if (!["active", "expired", "inactive", "completed"].includes(req.query.status)) {
+        return res.status(400).json({ success: false, message: "Unsupported inquiry status filter" });
+      }
+      filter.status = req.query.status;
+    }
     if (req.query.classification)   filter.inquiryClassification   = req.query.classification;
     if (req.query.search) {
       const regex = new RegExp(req.query.search, "i");
@@ -484,7 +489,7 @@ const getMyInquiries = async (req, res) => {
       ]),
     ]);
 
-    const statusCounts = { active: 0, expired: 0 };
+    const statusCounts = { active: 0, expired: 0, inactive: 0, completed: 0 };
     statusStats.forEach(({ _id, count }) => { if (_id in statusCounts) statusCounts[_id] = count; });
 
     const classCounts = { hot: 0, warm: 0, cold: 0 };
@@ -505,6 +510,41 @@ const getMyInquiries = async (req, res) => {
       message: "Failed to fetch inquiries",
       error:   error.message,
     });
+  }
+};
+
+/**
+ * Let the creator close an active inquiry as inactive or completed.
+ * PATCH /api/mixed/inquiries/status
+ * Body: { inquiryId, status: "inactive" | "completed" }
+ */
+const updateMyInquiryStatus = async (req, res) => {
+  const { inquiryId, status } = req.body ?? {};
+  if (!mongoose.isValidObjectId(inquiryId)) {
+    return res.status(400).json({ success: false, message: "inquiryId must be a valid ID" });
+  }
+  if (!["inactive", "completed"].includes(status)) {
+    return res.status(400).json({ success: false, message: 'status must be "inactive" or "completed"' });
+  }
+
+  try {
+    const inquiry = await Inquiry.findOneAndUpdate(
+      { _id: inquiryId, "createdBy.id": req.user._id, status: "active" },
+      { $set: { status } },
+      { new: true, runValidators: true }
+    );
+    if (inquiry) {
+      return res.status(200).json({ success: true, message: "Inquiry status updated successfully", data: inquiry });
+    }
+
+    const ownedInquiry = await Inquiry.findOne({ _id: inquiryId, "createdBy.id": req.user._id }).select("_id");
+    if (!ownedInquiry) {
+      return res.status(404).json({ success: false, message: "Inquiry not found" });
+    }
+    return res.status(409).json({ success: false, message: "Only active inquiries can be updated" });
+  } catch (error) {
+    console.error("Error updating user inquiry status:", error);
+    return res.status(500).json({ success: false, message: "Failed to update inquiry status" });
   }
 };
 
@@ -544,6 +584,25 @@ const purchaseAssignedInquiry = async (req, res) => {
     }
     if (assignment.status === "purchased") {
       const error = new Error("This inquiry has already been purchased");
+      error.status = 409;
+      throw error;
+    }
+
+    const inquiry = await Inquiry.findById(assignment.inquiry)
+      .select("status")
+      .session(session);
+    if (!inquiry) {
+      const error = new Error("Inquiry not found");
+      error.status = 404;
+      throw error;
+    }
+    if (inquiry.status === "expired") {
+      const error = new Error("This inquiry has expired and cannot be purchased");
+      error.status = 409;
+      throw error;
+    }
+    if (inquiry.status !== "active") {
+      const error = new Error(`This inquiry is ${inquiry.status} and cannot be purchased`);
       error.status = 409;
       throw error;
     }
@@ -648,5 +707,6 @@ module.exports = {
   expireOldInquiries,
   getAssignedInquiries,
   getMyInquiries,
+  updateMyInquiryStatus,
   purchaseAssignedInquiry,
 };

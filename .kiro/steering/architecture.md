@@ -99,10 +99,12 @@ All routes are prefixed with `/api`.
 ### Admin Inquiry APIs
 - `GET /api/admin/inquiries/roles` returns active Customer, Broker, Builder, and Owner roles for enquiry filters.
 - `GET /api/admin/inquiries` returns paginated source records from `Inquiry`, one record per created inquiry.
+- `PATCH /api/admin/inquiries/status` accepts `{ inquiryId, status: "inactive" | "completed" }` and lets admins close an active inquiry; the Enquiries page uses the shared AlertDialog confirmation pattern before submitting, and status changes are final.
 - `GET /api/admin/inquiries/assigned` returns paginated assignment records from `AssignedInquiry`, with each record's `inquiry` reference populated from `Inquiry` and its property-purpose/category/type references populated.
 - `GET /api/admin/inquiries/assigned/:inquiryId` returns paginated assignments for one source inquiry and accepts `status=active|purchased`. The `inquiry` field remains an ID; `assignedTo.role` is populated from `SystemUserRole`. The response includes `totalAssigned` and `totalPurchased` stats across all assignments for that inquiry, regardless of the status filter.
 - Both endpoints are protected by the admin `protect` middleware and support query filters for their respective collection records.
 - `POST /api/mixed/inquiries/create` accepts only individual property enquiries (`isProperty: true`) and validates that purpose, category, and type IDs reference active master records; when both category and type are supplied, the type must belong to that category.
+- `PATCH /api/mixed/inquiries/status` accepts `{ inquiryId, status: "inactive" | "completed" }` and lets the creator close their own active inquiry; it does not accept or store a reason. Existing `active` and automatic `expired` states remain supported.
 - `GET /api/mixed/inquiries/cron-assign` and `GET /api/mixed/inquiries/cron-expire` are public cron endpoints protected by the `x-cron-secret` header, which must match `CRONJOB_SECRET` in the backend environment. The expiry job compares `lastFollowUpDate` with the start of the current UTC date, so inquiries remain active throughout their follow-up date; it returns the update count and check time.
 
 ### Auth Flow
@@ -134,10 +136,11 @@ Two separate plan types exist — **Listing Plans** and **Enquiry Plans** — ea
 
 #### Assigned Inquiry Purchase
 - `PATCH /api/mixed/inquiries/purchase` accepts `assignmentId` and `purchasedVia: "plan" | "coins"` in the request body.
+- The purchase endpoint checks the linked inquiry status before using a plan credit or coins; expired, inactive, and completed inquiries are rejected with HTTP 409. Existing purchased assignments remain accessible.
 - Plan purchases consume one credit from the user's active enquiry plan; coin purchases debit the configured `coinsPerEnquiry` amount and create an `InquiryPurchase` coin transaction.
 - Purchased assignments store `status: "purchased"`, `purchasedAt`, and `purchasedVia`; coin purchases also store `coinsUsed` with the exact amount deducted from the wallet.
 - Inquiry and status-transition integration tests read `USER_TOKEN`, `ADMIN_TOKEN`, and (for customer-only cases) `CUSTOMER_TOKEN` from the ignored backend `.env` file; no bearer tokens are embedded in those test sources.
-- Request validation, authentication, plan and coin purchase, already-purchased, and missing assignment cases are covered in `modules/mixed/inquiries/inquiry.test.js`; plan and coin fixtures assert successful purchase when active or the duplicate response when already purchased.
+- Request validation, authentication, creator/admin status changes, plan and coin purchase, closed inquiry, already-purchased, and missing assignment cases are covered in the established inquiry API test files; plan and coin fixtures assert successful purchase when active or the duplicate response when already purchased.
 - When a backend controller or API endpoint changes, update its related test file(s) to reflect the new behavior and response shape; add tests in the established test location when no related coverage exists.
 
 #### Payment Transaction Reason Enum
