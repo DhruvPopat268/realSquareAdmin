@@ -25,6 +25,13 @@ require("../../admin/propertyTypes/model");
  */
 const createInquiry = async (req, res) => {
   try {
+    if (req.body?.isProperty !== true) {
+      return res.status(400).json({
+        success: false,
+        message: "Only individual property enquiries are supported",
+      });
+    }
+
     const userId = req.user?._id;
     const user   = req.user;
 
@@ -538,6 +545,7 @@ const purchaseAssignedInquiry = async (req, res) => {
         throw error;
       }
       purchaseDetails.enquiriesUsed = updatedPlan.enquiriesUsed;
+      assignment.coinsUsed = undefined;
     } else {
       const coinsConfig = await LeadEnquiryCoinsConfig.findOne({ _configKey: "singleton" })
         .select("coinsPerEnquiry")
@@ -572,6 +580,8 @@ const purchaseAssignedInquiry = async (req, res) => {
         balanceAfter: wallet.currentBalance,
         note: "Coins spent to unlock an assigned inquiry",
       }], { session });
+      assignment.coinsUsed = coinsRequired;
+      purchaseDetails.coinsUsed = coinsRequired;
       purchaseDetails.coinsBalance = wallet.currentBalance;
     }
 

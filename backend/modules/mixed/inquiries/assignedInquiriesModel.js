@@ -51,6 +51,12 @@ const assignedInquiriesSchema = new mongoose.Schema(
       enum: ["coins", "plan"],
     },
 
+    // Number of coins deducted for this assignment; present only for coin purchases.
+    coinsUsed: {
+      type: Number,
+      min: 0,
+    },
+
     // Status of the assignment
     status: {
       type: String,

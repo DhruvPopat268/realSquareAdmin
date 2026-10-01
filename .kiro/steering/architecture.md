@@ -62,6 +62,7 @@ modules/admin/<feature>/
 | Auth (OTP login) | `modules/admin/auth/` |
 | System User Roles | `modules/admin/systemUsersRoles/` |
 | Property Listing | `modules/admin/propertyListing/` |
+| Inquiries & Assigned Inquiries | `modules/admin/inquiries/` |
 | Property Types | `modules/admin/propertyTypes/` |
 | Property Categories | `modules/admin/propertyCategories/` |
 | Property Purposes | `modules/admin/propertyPurposes/` |
@@ -95,6 +96,14 @@ modules/admin/<feature>/
 ### API Base URL
 All routes are prefixed with `/api`.
 
+### Admin Inquiry APIs
+- `GET /api/admin/inquiries/roles` returns active Customer, Broker, Builder, and Owner roles for enquiry filters.
+- `GET /api/admin/inquiries` returns paginated source records from `Inquiry`, one record per created inquiry.
+- `GET /api/admin/inquiries/assigned` returns paginated assignment records from `AssignedInquiry`, with each record's `inquiry` reference populated from `Inquiry` and its property-purpose/category/type references populated.
+- `GET /api/admin/inquiries/assigned/:inquiryId` returns paginated assignments for one source inquiry. The `inquiry` field remains an ID; `assignedTo.role` is populated from `SystemUserRole`. The response includes `totalAssigned` and `totalPurchased` stats.
+- Both endpoints are protected by the admin `protect` middleware and support query filters for their respective collection records.
+- `POST /api/mixed/inquiries/create` accepts only individual property enquiries (`isProperty: true`) and validates that purpose, category, and type IDs reference active master records; when both category and type are supplied, the type must belong to that category.
+
 ### Auth Flow
 - Login uses OTP-based authentication
 - JWT token is stored in an HTTP-only cookie
@@ -125,7 +134,7 @@ Two separate plan types exist — **Listing Plans** and **Enquiry Plans** — ea
 #### Assigned Inquiry Purchase
 - `PATCH /api/mixed/inquiries/purchase` accepts `assignmentId` and `purchasedVia: "plan" | "coins"` in the request body.
 - Plan purchases consume one credit from the user's active enquiry plan; coin purchases debit the configured `coinsPerEnquiry` amount and create an `InquiryPurchase` coin transaction.
-- Purchased assignments store `status: "purchased"`, `purchasedAt`, and `purchasedVia`.
+- Purchased assignments store `status: "purchased"`, `purchasedAt`, and `purchasedVia`; coin purchases also store `coinsUsed` with the exact amount deducted from the wallet.
 - Inquiry and status-transition integration tests read `USER_TOKEN`, `ADMIN_TOKEN`, and (for customer-only cases) `CUSTOMER_TOKEN` from the ignored backend `.env` file; no bearer tokens are embedded in those test sources.
 - Request validation, authentication, plan and coin purchase, already-purchased, and missing assignment cases are covered in `modules/mixed/inquiries/inquiry.test.js`; plan and coin fixtures assert successful purchase when active or the duplicate response when already purchased.
 - When a backend controller or API endpoint changes, update its related test file(s) to reflect the new behavior and response shape; add tests in the established test location when no related coverage exists.
@@ -205,7 +214,8 @@ frontend/src/
 | `ProjectsPage.tsx` | Project listings management |
 | `ProjectDetailPage.tsx` | Single project detail view |
 | `LeadsPage.tsx` | Lead management |
-| `EnquiriesPage.tsx` | Enquiry management |
+| `EnquiriesPage.tsx` | Paginated admin enquiry list with URL-persisted filters and per-inquiry assignment counts; View opens the assigned enquiries page |
+| `ViewAssignedEnquiriesPage.tsx` | Paginated assignments for one enquiry using `GET /api/admin/inquiries/assigned/:inquiryId`, with assignment status/source and purchase details |
 | `PlansPage.tsx` | Subscription plans management |
 | `EnquiryPlansPage.tsx` | Enquiry-specific plans |
 | `PurchasedPlansPage.tsx` | Purchased listing plan records |
@@ -260,7 +270,7 @@ export const getProperties = (params) => axiosInstance.get('/api/properties', { 
 export const updateProperty = (id, data) => axiosInstance.put(`/api/properties/${id}`, data);
 ```
 
-Key service files include `propertyListingService.ts` which exposes `getById(id)` for fetching a full property listing with all sub-documents (residentialDetails, plotDetails, pgDetails, commercialDetails, sellInfo, rentInfo).
+Key service files include `propertyListingService.ts` which exposes `getById(id)` for fetching a full property listing with all sub-documents (residentialDetails, plotDetails, pgDetails, commercialDetails, sellInfo, rentInfo), and `inquiriesService.ts` which fetches paginated admin enquiry records.
 
 ### Auth & Permissions
 - `ProfileContext.tsx` — stores logged-in admin profile globally

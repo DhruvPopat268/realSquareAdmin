@@ -19,6 +19,7 @@ import PropertyTypesPage from "./pages/PropertyTypesPage";
 import FurnishingsAmenitiesPage from "./pages/FurnishingsAmenitiesPage";
 import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
 import EnquiriesPage from "./pages/EnquiriesPage";
+import ViewAssignedEnquiriesPage from "./pages/ViewAssignedEnquiriesPage";
 import SystemUsersPage from "./pages/SystemUsersPage";
 import SystemUsersRolesPage from "./pages/SystemUsersRolesPage";
 import IncompleteProfilesPage from "./pages/IncompleteProfilesPage";
@@ -78,6 +79,7 @@ const App = () => (
             {/* Leads & Enquiries */}
             <Route path="/leads"                     element={<LeadsPage />} />
             <Route path="/enquiries"                 element={<EnquiriesPage />} />
+            <Route path="/view-assigned-enquiries/:inquiryId" element={<ViewAssignedEnquiriesPage />} />
             <Route path="/enquiry-plans"             element={<EnquiryPlansPage />} />
             <Route path="/purchased-enquiry-plans"   element={<PurchasedEnquiryPlansPage />} />
             <Route path="/lead-enquiry-coins-config" element={<LeadEnquiryCoinsConfigPage />} />

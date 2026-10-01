@@ -234,6 +234,13 @@ describe("Field type and format validations", () => {
     expect(res.body.message).toMatch(/listingType/i);
   });
 
+  test("400 — listingType is a valid ID but no purpose exists", async () => {
+    const res = await postInquiry({ ...BASE_PAYLOAD, listingType: FAKE_VALID_ID });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/listingType.*existing active property purpose/i);
+  });
+
   // ── propertyCategory ────────────────────────────────────────────────────────
   test("400 — propertyCategory is not a valid MongoId", async () => {
     const res = await postInquiry({ ...BASE_PAYLOAD, propertyCategory: INVALID_ID });
@@ -242,12 +249,34 @@ describe("Field type and format validations", () => {
     expect(res.body.message).toMatch(/propertyCategory/i);
   });
 
+  test("400 — propertyCategory is a valid ID but no category exists", async () => {
+    const { propertyType, ...payload } = BASE_PAYLOAD;
+    const res = await postInquiry({ ...payload, propertyCategory: FAKE_VALID_ID });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/propertyCategory.*existing active property category/i);
+  });
+
   // ── propertyType ────────────────────────────────────────────────────────────
   test("400 — propertyType is not a valid MongoId", async () => {
     const res = await postInquiry({ ...BASE_PAYLOAD, propertyType: INVALID_ID });
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/propertyType/i);
+  });
+
+  test("400 — propertyType is a valid ID but no type exists", async () => {
+    const res = await postInquiry({ ...BASE_PAYLOAD, propertyType: FAKE_VALID_ID });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/propertyType.*existing active property type/i);
+  });
+
+  test("400 — propertyType does not belong to the selected propertyCategory", async () => {
+    const res = await postInquiry({ ...BASE_PAYLOAD, propertyType: PT_COMMERCIAL_OFFICE });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/propertyType must belong to the selected propertyCategory/i);
   });
 
   // ── budget ──────────────────────────────────────────────────────────────────
@@ -663,7 +692,7 @@ describe("Happy path — 201 successful inquiry creation", () => {
     expect(res.body.inquiry.propertyType).toBeUndefined();
   });
 
-  test("201 — Project inquiry (isProperty = false, Builder role only)", async () => {
+  test("400 — Project inquiry is rejected because isProperty is false", async () => {
     const res = await postInquiry({
       isProperty:             false,
       listingType:            LISTING_TYPE_SELL_ID,
@@ -674,9 +703,9 @@ describe("Happy path — 201 successful inquiry creation", () => {
       lastFollowUpDate:       "2026-12-15T00:00:00.000Z",
       preferredCommunication: ["call"],
     });
-    expect(res.statusCode).toBe(201);
-    expect(res.body.success).toBe(true);
-    expect(res.body.inquiry.isProperty).toBe(false);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/only individual property enquiries are supported/i);
   });
 
   test("201 — Response shape has all expected top-level keys", async () => {
@@ -969,6 +998,7 @@ describe("PATCH /api/mixed/inquiries/purchase — purchase flows", () => {
     expect(res.body.data.purchasedVia).toBe("plan");
     expect(res.body.data.assignment.status).toBe("purchased");
     expect(res.body.data.assignment.purchasedAt).toBeTruthy();
+    expect(res.body.data.assignment.coinsUsed).toBeUndefined();
     expect(typeof res.body.data.enquiriesUsed).toBe("number");
 
   });
@@ -986,6 +1016,9 @@ describe("PATCH /api/mixed/inquiries/purchase — purchase flows", () => {
     expect(res.body.data.purchasedVia).toBe("coins");
     expect(res.body.data.assignment.status).toBe("purchased");
     expect(res.body.data.assignment.purchasedAt).toBeTruthy();
+    expect(typeof res.body.data.assignment.coinsUsed).toBe("number");
+    expect(res.body.data.assignment.coinsUsed).toBeGreaterThan(0);
+    expect(res.body.data.coinsUsed).toBe(res.body.data.assignment.coinsUsed);
     expect(typeof res.body.data.coinsBalance).toBe("number");
   });
 

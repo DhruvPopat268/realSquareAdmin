@@ -1,369 +1,637 @@
-import { useState, useMemo } from "react";
-import { Input } from "@/components/ui/input";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, ChevronDown, UserCheck, Download } from "lucide-react";
-import { toast } from "sonner";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown, CalendarDays, CheckCircle2, Clock3, Flame, Sun, Snowflake, Eye } from "lucide-react";
+import { inquiriesService, type AdminInquiry, type AdminInquiryFilters } from "@/services/inquiriesService";
+import api from "@/lib/axiosInterceptor";
+import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
+import Spinner from "@/components/Spinner";
 
-interface Enquiry {
-  id: number;
-  name: string;
-  initials: string;
-  phone: string;
-  email: string;
-  category: string;
-  propertyType: string;
-  purpose: string;
-  city: string;
-  area: string;
-  specificLocation: string;
-  budget?: string;
-  source: string;
-  createdAt: string;
-  convertedToLead?: boolean;
+interface FilterOption { _id: string; name: string; }
+
+function toDateInputValue(date?: Date) {
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-const ALL_ENQUIRIES: Enquiry[] = [
-  { id: 1,  name: "Shuja ibn Wahb",             initials: "SW", phone: "+91 98000 00001", email: "shuja@example.com",   category: "Residential", propertyType: "Apartment",                purpose: "Rent",           city: "Mumbai",    area: "Andheri West",  budget: "₹20K–₹35K/mo",   specificLocation: "Flat 4B, Sai Residency",   source: "Website",  createdAt: "3 Sep, 2024" },
-  { id: 2,  name: "Ammar ibn Yasir",            initials: "AM", phone: "+91 98000 00002", email: "ammar@example.com",   category: "Residential", propertyType: "Independent House / Villa", purpose: "Sell",           city: "Delhi",     area: "Any",           budget: "₹1.5Cr–₹2.5Cr",  specificLocation: "Any",                      source: "Referral", createdAt: "8 Sep, 2024" },
-  { id: 3,  name: "Abu Talha al-Ansari",        initials: "AT", phone: "+91 98000 00003", email: "abut@example.com",    category: "Commercial",  propertyType: "Office Space",             purpose: "Rent",           city: "Bangalore", area: "Koramangala",   budget: "₹80K–₹1.2L/mo",  specificLocation: "2nd Floor, Prestige Tech", source: "Portal",   createdAt: "9 Sep, 2024" },
-  { id: 4,  name: "Zayd ibn Harithah",          initials: "ZH", phone: "+91 98000 00004", email: "zayd@example.com",    category: "Residential", propertyType: "Private Room",             purpose: "PG / Co-living", city: "Pune",      area: "Kothrud",       budget: "₹8K–₹12K/mo",    specificLocation: "Any",                      source: "Website",  createdAt: "11 Sep, 2024" },
-  { id: 5,  name: "Ubadah ibn al-Samit",        initials: "UB", phone: "+91 98000 00005", email: "ubadah@example.com",  category: "Residential", propertyType: "Apartment",                purpose: "Sell",           city: "Hyderabad", area: "Any",           budget: "₹60L–₹90L",      specificLocation: "Any",                      source: "Walk-in",  createdAt: "30 Aug, 2024" },
-  { id: 6,  name: "Al-Arqam ibn Abi al-Arqam",  initials: "AL", phone: "+91 98000 00006", email: "alarqam@example.com", category: "Land / Plot", propertyType: "Commercial Plot",          purpose: "Sell",           city: "Chennai",   area: "OMR",           budget: "₹2Cr–₹4Cr",      specificLocation: "Plot No. 14, SIPCOT",      source: "Portal",   createdAt: "24 Aug, 2024" },
-  { id: 7,  name: "Miqdad ibn Aswad",           initials: "MI", phone: "+91 98000 00007", email: "miqdad@example.com",  category: "Commercial",  propertyType: "Warehouse / Godown",       purpose: "Rent",           city: "Mumbai",    area: "Bhiwandi",      budget: "₹1.5L–₹2.5L/mo", specificLocation: "Any",                      source: "Referral", createdAt: "21 Aug, 2024" },
-  { id: 8,  name: "Abu Bakr",                   initials: "AB", phone: "+91 98000 00008", email: "abubakr@example.com", category: "Residential", propertyType: "Apartment",                purpose: "Rent",           city: "Bangalore", area: "Any",           budget: "₹25K–₹40K/mo",   specificLocation: "Any",                      source: "Website",  createdAt: "14 Aug, 2024" },
-  { id: 9,  name: "Uthman ibn Hunaif",          initials: "UT", phone: "+91 98000 00009", email: "uthman@example.com",  category: "Residential", propertyType: "Builder Floor",            purpose: "Sell",           city: "Delhi",     area: "Dwarka",        budget: "₹80L–₹1.2Cr",    specificLocation: "House No. 23, Sector 5",   source: "Walk-in",  createdAt: "11 Aug, 2024" },
-  { id: 10, name: "Bilal ibn Rabah",            initials: "BI", phone: "+91 98000 00010", email: "bilal@example.com",   category: "Residential", propertyType: "Shared Room",              purpose: "PG / Co-living", city: "Pune",      area: "Viman Nagar",   budget: "₹6K–₹10K/mo",    specificLocation: "Any",                      source: "Portal",   createdAt: "5 Aug, 2024" },
-];
+function fromDateInputValue(value: string) {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
 
-const purposeStyle: Record<string, string> = {
-  "Sell":          "bg-blue-50 text-blue-600",
-  "Rent":          "bg-green-50 text-green-600",
-  "PG / Co-living":"bg-purple-50 text-purple-600",
+function formatRangeDate(date?: Date) {
+  return date?.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+const LIMITS = [10, 20, 50, 100];
+
+const classificationStyle: Record<AdminInquiry["inquiryClassification"], string> = {
+  hot: "bg-red-50 text-red-600",
+  warm: "bg-amber-50 text-amber-700",
+  cold: "bg-sky-50 text-sky-700",
 };
 
-function Avatar({ initials }: { initials: string }) {
-  const colors: Record<string, string> = {
-    S: "bg-blue-100 text-blue-600", A: "bg-orange-100 text-orange-600",
-    Z: "bg-purple-100 text-purple-600", U: "bg-teal-100 text-teal-600",
-    M: "bg-pink-100 text-pink-600", B: "bg-green-100 text-green-600",
-    H: "bg-indigo-100 text-indigo-600", T: "bg-red-100 text-red-600",
+function formatBudget(min: number, max: number) {
+  const format = (amount: number) => new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+  return `${format(min)} – ${format(max)}`;
+}
+
+function formatDate(value: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function referenceName(reference?: { name: string } | null) {
+  return reference?.name ?? "—";
+}
+
+interface Query {
+  page: number;
+  limit: number;
+  status: string;
+  classification: string;
+  isProperty: string;
+  purposeId: string;
+  categoryId: string;
+  propertyTypeId: string;
+  roleId: string;
+  userId: string;
+  search: string;
+  fromDate: string;
+  toDate: string;
+}
+
+const DEFAULT_QUERY: Query = {
+  page: 1, limit: 10,
+  status: "", classification: "", isProperty: "",
+  purposeId: "", categoryId: "", propertyTypeId: "",
+  roleId: "", userId: "", search: "", fromDate: "", toDate: "",
+};
+
+function queryFromSearchParams(params: URLSearchParams): Query {
+  const parsedPage = Number.parseInt(params.get("page") ?? "1", 10);
+  const parsedLimit = Number.parseInt(params.get("limit") ?? "10", 10);
+  const limit = LIMITS.includes(parsedLimit) ? parsedLimit : DEFAULT_QUERY.limit;
+
+  return {
+    ...DEFAULT_QUERY,
+    page: Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+    limit,
+    status: params.get("status") ?? "",
+    classification: params.get("classification") ?? "",
+    isProperty: params.get("isProperty") ?? "",
+    purposeId: params.get("purposeId") ?? "",
+    categoryId: params.get("categoryId") ?? "",
+    propertyTypeId: params.get("typeId") ?? "",
+    roleId: params.get("roleId") ?? "",
+    userId: params.get("userId") ?? "",
+    search: params.get("search") ?? "",
+    fromDate: params.get("fromDate") ?? "",
+    toDate: params.get("toDate") ?? "",
   };
-  return (
-    <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold ${colors[initials[0]] ?? "bg-gray-100 text-gray-600"}`}>
-      {initials}
-    </div>
-  );
+}
+
+function searchParamsFromQuery(query: Query) {
+  const params = new URLSearchParams({ page: String(query.page), limit: String(query.limit) });
+  const values: Array<[string, string]> = [
+    ["status", query.status],
+    ["classification", query.classification],
+    ["isProperty", query.isProperty],
+    ["purposeId", query.purposeId],
+    ["categoryId", query.categoryId],
+    ["typeId", query.propertyTypeId],
+    ["roleId", query.roleId],
+    ["userId", query.userId],
+    ["search", query.search.trim()],
+    ["fromDate", query.fromDate],
+    ["toDate", query.toDate],
+  ];
+  values.forEach(([key, value]) => { if (value) params.set(key, value); });
+  return params;
 }
 
 export default function EnquiriesPage() {
-  const [data, setData]                     = useState(ALL_ENQUIRIES);
-  const [search, setSearch]                 = useState("");
-  const [selected, setSelected]             = useState<number[]>([]);
-  const [purposeFilter, setPurposeFilter]   = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [query, setQuery] = useState<Query>(() => queryFromSearchParams(searchParams));
+  const [pending, setPending] = useState<Query>(query);
+  const [enquiries, setEnquiries] = useState<AdminInquiry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [stats, setStats] = useState({ active: 0, expired: 0, hot: 0, warm: 0, cold: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // convert dialog — array supports both single & bulk
-  const [convertTargets, setConvertTargets] = useState<Enquiry[]>([]);
+  // Filter option lists
+  const [purposes, setPurposes]           = useState<FilterOption[]>([]);
+  const [categories, setCategories]       = useState<FilterOption[]>([]);
+  const [propertyTypes, setPropertyTypes] = useState<FilterOption[]>([]);
+  const [roles, setRoles]                 = useState<FilterOption[]>([]);
+  const [activeUsers, setActiveUsers]     = useState<ActiveUser[]>([]);
+  const [userSearch, setUserSearch]       = useState("");
 
-  // single-convert fields
+  // Fetch inquiry filter options.
+  useEffect(() => {
+    Promise.all([
+      api.get("/admin/property-purposes?isActive=true"),
+      api.get("/admin/property-categories?isActive=true"),
+      api.get("/admin/inquiries/roles"),
+    ]).then(([purRes, catRes, rolesRes]) => {
+      if (purRes.data.success)   setPurposes(purRes.data.data);
+      if (catRes.data.success)   setCategories(catRes.data.data);
+      if (rolesRes.data.success) setRoles(rolesRes.data.data);
+    }).catch(() => {});
+  }, []);
 
-  // per-lead budget map: { [enquiryId]: budget string }
-  const [budgets, setBudgets]           = useState<Record<number, string>>({});
-  const [budgetErrors, setBudgetErrors] = useState<Record<number, string>>({});
+  // Fetch property types whenever pending category changes
+  useEffect(() => {
+    const params = new URLSearchParams({ isActive: "true" });
+    if (pending.categoryId) params.set("propertyCategory", pending.categoryId);
+    api.get(`/admin/property-types?${params.toString()}`)
+      .then((res) => { if (res.data.success) setPropertyTypes(res.data.data); })
+      .catch(() => {});
+  }, [pending.categoryId]);
 
-  // verifier fields (shared across single & bulk)
-  const [verifierName, setVerifierName]     = useState("");
-  const [verifierMobile, setVerifierMobile] = useState("");
-  const [verifierErrors, setVerifierErrors] = useState<{ name?: string; mobile?: string }>({});
+  // Fetch active users (with debounced search)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = userSearch.trim() ? { search: userSearch.trim() } : undefined;
+      systemUsersService.getActiveUsers(params)
+        .then((res) => { if (res.data.success) setActiveUsers(res.data.data); })
+        .catch(() => {});
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return data.filter((e) => {
-      const matchSearch   = e.name.toLowerCase().includes(q) || e.city.toLowerCase().includes(q) || e.propertyType.toLowerCase().includes(q) || e.area.toLowerCase().includes(q) || e.specificLocation.toLowerCase().includes(q);
-      const matchPurpose  = purposeFilter  === "All" || e.purpose  === purposeFilter;
-      const matchCategory = categoryFilter === "All" || e.category === categoryFilter;
-      return matchSearch && matchPurpose && matchCategory;
-    });
-  }, [data, search, purposeFilter, categoryFilter]);
+  const hasFilters = Boolean(
+    query.status || query.classification || query.isProperty || query.purposeId ||
+    query.categoryId || query.propertyTypeId || query.roleId || query.userId || query.search
+    || query.fromDate || query.toDate
+  );
 
-  const allChecked  = filtered.length > 0 && filtered.every((e) => selected.includes(e.id));
-  const someChecked = filtered.some((e) => selected.includes(e.id));
-  const toggleAll   = () => setSelected(allChecked ? selected.filter((id) => !filtered.find((e) => e.id === id)) : [...new Set([...selected, ...filtered.map((e) => e.id)])]);
-  const toggle      = (id: number) => setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
 
-  const bulkCount = selected.filter((id) => !data.find((e) => e.id === id)?.convertedToLead).length;
+    const params: AdminInquiryFilters = { page: query.page, limit: query.limit };
+    if (query.status)         params.status         = query.status;
+    if (query.classification) params.classification = query.classification;
+    if (query.isProperty)     params.isProperty     = query.isProperty;
+    if (query.purposeId)      params.purposeId      = query.purposeId;
+    if (query.categoryId)     params.categoryId     = query.categoryId;
+    if (query.propertyTypeId) params.typeId         = query.propertyTypeId;
+    if (query.roleId)         params.roleId         = query.roleId;
+    if (query.userId)         params.userId         = query.userId;
+    if (query.search.trim())  params.search         = query.search.trim();
+    if (query.fromDate)       params.fromDate       = query.fromDate;
+    if (query.toDate)         params.toDate         = query.toDate;
 
-  function openConvert(targets: Enquiry[]) {
-    setConvertTargets(targets);
-    setVerifierName("");
-    setVerifierMobile("");
-    setVerifierErrors({});
-    const init: Record<number, string> = {};
-    targets.forEach((e) => { init[e.id] = e.budget ?? ""; });
-    setBudgets(init);
-    setBudgetErrors({});
-  }
+    inquiriesService.getAll(params)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setEnquiries(data.data);
+        setTotal(data.pagination.total);
+        setTotalPages(data.pagination.totalPages);
+        setStats(data.stats);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not load enquiries. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-  function handleConvert() {
-    // validate per-lead budgets
-    const bErrs: Record<number, string> = {};
-    convertTargets.forEach((e) => {
-      if (!budgets[e.id]?.trim()) bErrs[e.id] = "Budget is required";
-    });
+    return () => { cancelled = true; };
+  }, [query]);
 
-    // validate verifier
-    const vErrs: { name?: string; mobile?: string } = {};
-    if (!verifierName.trim())   vErrs.name   = "Verifier name is required";
-    if (!verifierMobile.trim()) vErrs.mobile = "Verifier mobile is required";
-
-    if (convertTargets.length === 1) {
-      if (Object.keys(bErrs).length || Object.keys(vErrs).length) {
-        setBudgetErrors(bErrs);
-        setVerifierErrors(vErrs);
-        return;
-      }
-    } else {
-      if (Object.keys(bErrs).length || Object.keys(vErrs).length) {
-        setBudgetErrors(bErrs);
-        setVerifierErrors(vErrs);
-        return;
-      }
-    }
-
-    setData((prev) => prev.map((e) => {
-      const target = convertTargets.find((t) => t.id === e.id);
-      return target ? { ...e, convertedToLead: true, budget: budgets[e.id]?.trim() } : e;
+  function set(key: keyof Query, v: string) {
+    const value = v === "all" ? "" : v;
+    setPending((p) => ({
+      ...p,
+      [key]: value,
+      ...(key === "categoryId" ? { propertyTypeId: "" } : {}),
+      ...(key === "roleId" ? { userId: "" } : {}),
     }));
-
-    if (convertTargets.length === 1) {
-      toast.success(`${convertTargets[0].name} has been converted to a Lead.`);
-    } else {
-      setSelected((s) => s.filter((id) => !convertTargets.find((t) => t.id === id)));
-      toast.success(`${convertTargets.length} enquiries converted to Leads.`);
-    }
-    setConvertTargets([]);
   }
+
+  function applyFilters() {
+    setQuery({ ...pending, page: 1 });
+  }
+
+  function clearFilters() {
+    setPending(DEFAULT_QUERY);
+    setQuery(DEFAULT_QUERY);
+  }
+
+  function goToPage(p: number) {
+    setQuery((q) => ({ ...q, page: p }));
+  }
+
+  const selectedFromDate = fromDateInputValue(pending.fromDate);
+  const selectedToDate = fromDateInputValue(pending.toDate);
+
+  // Keep the applied filters and pagination in the URL for refresh and detail-page return navigation.
+  useEffect(() => {
+    const nextParams = searchParamsFromQuery(query);
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [query, searchParams, setSearchParams]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
         <h1 className="text-2xl font-bold text-foreground">Enquiries</h1>
-        <div className="flex items-center gap-2">
-          {bulkCount > 0 && (
-            <Button
-              size="sm"
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => openConvert(filtered.filter((e) => selected.includes(e.id) && !e.convertedToLead))}
-            >
-              <UserCheck className="h-3.5 w-3.5" /> Convert to Lead ({bulkCount})
-            </Button>
-          )}
-          <Button size="sm" variant="outline" className="gap-1.5" disabled>
-            <Download className="h-3.5 w-3.5" /> Export
-          </Button>
-          <Button size="sm" className="gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> Add Enquiry
-          </Button>
+        <p className="text-sm text-muted-foreground mt-0.5">All enquiries submitted by users.</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
+          <div><p className="text-xs text-muted-foreground">Active</p><p className="text-xl font-bold text-green-600">{stats.active.toLocaleString()}</p></div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100"><Clock3 className="h-5 w-5 text-slate-600" /></div>
+          <div><p className="text-xs text-muted-foreground">Expired</p><p className="text-xl font-bold text-slate-600">{stats.expired.toLocaleString()}</p></div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"><Flame className="h-5 w-5 text-red-600" /></div>
+          <div><p className="text-xs text-muted-foreground">Hot</p><p className="text-xl font-bold text-red-600">{stats.hot.toLocaleString()}</p></div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100"><Sun className="h-5 w-5 text-amber-600" /></div>
+          <div><p className="text-xs text-muted-foreground">Warm</p><p className="text-xl font-bold text-amber-600">{stats.warm.toLocaleString()}</p></div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100"><Snowflake className="h-5 w-5 text-sky-600" /></div>
+          <div><p className="text-xs text-muted-foreground">Cold</p><p className="text-xl font-bold text-sky-600">{stats.cold.toLocaleString()}</p></div>
         </div>
       </div>
 
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-xs text-muted-foreground font-medium">Created:</span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant={pending.fromDate ? "secondary" : "outline"} size="sm" className="h-8 gap-1.5 text-xs min-w-[140px] justify-start">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+              {formatRangeDate(selectedFromDate) ?? "From date"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+              mode="single"
+              selected={selectedFromDate}
+              disabled={selectedToDate ? { after: selectedToDate } : undefined}
+              onSelect={(date) => setPending((current) => ({ ...current, fromDate: toDateInputValue(date) }))}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant={pending.toDate ? "secondary" : "outline"} size="sm" className="h-8 gap-1.5 text-xs min-w-[140px] justify-start">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+              {formatRangeDate(selectedToDate) ?? "To date"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+              mode="single"
+              selected={selectedToDate}
+              disabled={selectedFromDate ? { before: selectedFromDate } : undefined}
+              onSelect={(date) => setPending((current) => ({ ...current, toDate: toDateInputValue(date) }))}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div className="space-y-2">
+      {/* Toolbar — first row */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Search enquiries..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 w-56 text-sm" />
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Rows per page</span>
+          <Select value={String(query.limit)} onValueChange={(v) => {
+            const limit = Number(v);
+            setQuery((q) => ({ ...q, page: 1, limit }));
+            setPending((p) => ({ ...p, limit }));
+          }}>
+            <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {LIMITS.map((l) => <SelectItem key={l} value={String(l)}>{l}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
+        <p className="text-sm text-muted-foreground">{total} enquir{total !== 1 ? "ies" : "y"}</p>
         <div className="flex-1" />
-        <p className="text-sm text-muted-foreground">{filtered.length} enquir{filtered.length !== 1 ? "ies" : "y"}</p>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Category: {categoryFilter} <ChevronDown className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.purposeId ? (purposes.find((p) => p._id === pending.purposeId)?.name ?? "All Purposes") : "All Purposes"}
+              <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {["All", "Residential", "Commercial", "Land / Plot"].map((c) => (
-              <DropdownMenuItem key={c} onClick={() => setCategoryFilter(c)}>{c === "All" ? "All Categories" : c}</DropdownMenuItem>
-            ))}
+            <DropdownMenuItem onClick={() => set("purposeId", "all")}>All Purposes</DropdownMenuItem>
+            {purposes.map((option) => <DropdownMenuItem key={option._id} onClick={() => set("purposeId", option._id)}>{option.name}</DropdownMenuItem>)}
           </DropdownMenuContent>
         </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Purpose: {purposeFilter} <ChevronDown className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.categoryId ? (categories.find((c) => c._id === pending.categoryId)?.name ?? "All Categories") : "All Categories"}
+              <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {["All", "Sell", "Rent", "PG / Co-living"].map((p) => (
-              <DropdownMenuItem key={p} onClick={() => setPurposeFilter(p)}>{p === "All" ? "All Purposes" : p}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("categoryId", "all")}>All Categories</DropdownMenuItem>
+            {categories.map((option) => <DropdownMenuItem key={option._id} onClick={() => set("categoryId", option._id)}>{option.name}</DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.propertyTypeId ? (propertyTypes.find((t) => t._id === pending.propertyTypeId)?.name ?? "All Types") : "All Types"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => set("propertyTypeId", "all")}>All Types</DropdownMenuItem>
+            {propertyTypes.map((option) => <DropdownMenuItem key={option._id} onClick={() => set("propertyTypeId", option._id)}>{option.name}</DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.classification ? `${pending.classification[0].toUpperCase()}${pending.classification.slice(1)}` : "All Classifications"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => set("classification", "all")}>All Classifications</DropdownMenuItem>
+            {(["hot", "warm", "cold"] as const).map((value) => (
+              <DropdownMenuItem key={value} onClick={() => set("classification", value)}>{value[0].toUpperCase()}{value.slice(1)}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Toolbar — second row */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <input
+          value={pending.search}
+          onChange={(event) => set("search", event.target.value)}
+          onKeyDown={(event) => { if (event.key === "Enter") applyFilters(); }}
+          placeholder="Search by city or area..."
+          aria-label="Search enquiries by city or area"
+          className="h-9 w-64 rounded-md border bg-background px-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
+        />
+        <div className="flex-1" />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.status ? (pending.status === "active" ? "Active" : "Expired") : "All Statuses"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => set("status", "all")}>All Statuses</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("status", "active")}>Active</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("status", "expired")}>Expired</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.isProperty ? (pending.isProperty === "true" ? "Individual Property" : "Project") : "All Enquiry Types"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => set("isProperty", "all")}>All Enquiry Types</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("isProperty", "true")}>Individual Property</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("isProperty", "false")}>Project</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.roleId ? (roles.find((r) => r._id === pending.roleId)?.name ?? "All Roles") : "All Roles"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => set("roleId", "all")}>All Roles</DropdownMenuItem>
+            {roles.map((option) => <DropdownMenuItem key={option._id} onClick={() => set("roleId", option._id)}>{option.name}</DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu onOpenChange={(open) => { if (!open) setUserSearch(""); }}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
+              {pending.userId
+                ? (activeUsers.find((u) => u._id === pending.userId)?.name ?? activeUsers.find((u) => u._id === pending.userId)?.mobile ?? "Selected User")
+                : "All Users"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <div className="px-2 py-1.5">
+              <input
+                autoFocus
+                value={userSearch}
+                onChange={(event) => setUserSearch(event.target.value)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                placeholder="Search by name..."
+                className="w-full rounded-md border px-2.5 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
+            <DropdownMenuItem onClick={() => set("userId", "all")}>All Users</DropdownMenuItem>
+            {activeUsers.map((user) => (
+              <DropdownMenuItem key={user._id} onClick={() => set("userId", user._id)}>
+                {user.name ?? user.mobile} — {user.roleName ?? ""}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
+        {hasFilters && (
+          <button onClick={clearFilters} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors underline underline-offset-2">
+            Clear all
+          </button>
+        )}
+      </div>
+
+      </div>
+
 
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
-              <th className="w-10 px-4 py-3">
-                <Checkbox checked={allChecked} data-state={someChecked && !allChecked ? "indeterminate" : undefined} onCheckedChange={toggleAll} />
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Action</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Customer Name</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Customer Contact Details</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Property Type</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[130px]">Purpose</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">City</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Area</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[140px]">Budget</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[130px]">Created Date</th>
-              <th className="w-10" />
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Actions</th>
+              <th className="px-4 py-3 text-left">#</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Created At</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Created By</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Role</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Total Assigned</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Total Purchased</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Classification</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Status</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Enquiry Type</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Purpose</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Category</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Property Type</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">City / Area</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Budget</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">BHK</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Built Up Area</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Plot Area</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Furnishing</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Communication</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Last Follow Up Date</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Remarks</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={10} className="text-center text-muted-foreground py-16">No enquiries found</td></tr>
-            ) : filtered.map((e) => (
-              <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-3"><Checkbox checked={selected.includes(e.id)} onCheckedChange={() => toggle(e.id)} /></td>
+            {loading ? (
+              <tr><td colSpan={22} className="py-16"><Spinner fullPage={false} size="md" label="Loading enquiries..." /></td></tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={22} className="py-16 text-center">
+                  <p className="mb-3 text-destructive">{error}</p>
+                  <Button variant="outline" size="sm" onClick={() => setQuery((q) => ({ ...q }))}>Retry</Button>
+                </td>
+              </tr>
+            ) : enquiries.length === 0 ? (
+              <tr><td colSpan={22} className="py-16 text-center text-muted-foreground">No enquiries found</td></tr>
+            ) : enquiries.map((enquiry, index) => (
+              <tr key={enquiry._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3">
-                  {!e.convertedToLead ? (
-                    <button onClick={() => openConvert([e])} className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-medium transition-colors">
-                      <UserCheck className="h-3.5 w-3.5" /> Convert
-                    </button>
-                  ) : (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 font-medium">Converted</span>
-                  )}
+                  <button
+                    onClick={() => navigate(`/view-assigned-enquiries/${enquiry._id}`, {
+                      state: { returnTo: `${location.pathname}${location.search}` },
+                    })}
+                    className="rounded-md bg-green-50 p-1.5 text-green-600 transition-colors hover:bg-green-100"
+                    title="View assigned enquiries"
+                    aria-label="View assigned enquiries"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar initials={e.initials} />
-                    <div>
-                      <p className="font-medium text-foreground">{e.name}</p>
-
-                    </div>
-                  </div>
+                {/* # */}
+                <td className="px-4 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
+                {/* Created At — date and time in Asia/Kolkata */}
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <p>{new Date(enquiry.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
+                  <p className="text-muted-foreground">{new Date(enquiry.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  <p>{e.phone}</p>
-                  <p className="text-xs">{e.email}</p>
+                {/* Created By — name + mobile below, no avatar */}
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <p className="font-medium text-foreground">{enquiry.createdBy?.name ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground">{enquiry.createdBy?.mobile ?? "—"}</p>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{e.category}</td>
-                <td className="px-4 py-3 text-muted-foreground">{e.propertyType}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${purposeStyle[e.purpose] ?? "bg-muted text-muted-foreground"}`}>{e.purpose}</span>
+                {/* Role */}
+                <td className="px-4 py-3 text-muted-foreground capitalize whitespace-nowrap">{enquiry.createdBy?.role?.name ?? "—"}</td>
+                {/* Assignment totals */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{enquiry.totalAssigned.toLocaleString()}</td>
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{enquiry.totalPurchased.toLocaleString()}</td>
+                {/* Classification */}
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${classificationStyle[enquiry.inquiryClassification]}`}>
+                    {enquiry.inquiryClassification}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{e.city}</td>
-                <td className="px-4 py-3 text-muted-foreground">{e.area}</td>
-                <td className="px-4 py-3 text-muted-foreground">{e.budget ?? <span className="italic text-muted-foreground/50 text-xs">—</span>}</td>
-                <td className="px-4 py-3 text-muted-foreground">{e.createdAt}</td>
+                {/* Status */}
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${enquiry.status === "active" ? "bg-green-50 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                    {enquiry.status}
+                  </span>
+                </td>
+                {/* Enquiry Type */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  {enquiry.isProperty ? "Individual Property" : "Project"}
+                </td>
+                {/* Purpose */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{referenceName(enquiry.listingType)}</td>
+                {/* Category */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{referenceName(enquiry.propertyCategory)}</td>
+                {/* Property Type */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{referenceName(enquiry.propertyType)}</td>
+                {/* City / Area */}
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <p className="text-foreground">{enquiry.preferredCity}</p>
+                  <p className="text-xs text-muted-foreground">{enquiry.preferredArea || "—"}</p>
+                </td>
+                {/* Budget */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatBudget(enquiry.budget.min, enquiry.budget.max)}</td>
+                {/* BHK */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  {enquiry.bhk != null ? enquiry.bhk : "—"}
+                </td>
+                {/* Built Up Area */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  {enquiry.builtUpArea?.value != null ? `${enquiry.builtUpArea.value} ${enquiry.builtUpArea.unit ?? ""}`.trim() : "—"}
+                </td>
+                {/* Plot Area */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  {enquiry.plotArea?.value != null ? `${enquiry.plotArea.value} ${enquiry.plotArea.unit ?? ""}`.trim() : "—"}
+                </td>
+                {/* Furnishing */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{enquiry.furnishingType ?? "—"}</td>
+                {/* Preferred Communication */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  {enquiry.preferredCommunication?.length ? enquiry.preferredCommunication.join(", ") : "—"}
+                </td>
+                {/* Last Follow Up Date */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(enquiry.lastFollowUpDate)}</td>
+                {/* Remarks */}
+                <td className="px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={enquiry.remarks ?? ""}>
+                  {enquiry.remarks || "—"}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      {/* Convert to Lead Dialog */}
-      <Dialog open={convertTargets.length > 0} onOpenChange={(o) => !o && setConvertTargets([])}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-emerald-600" /> Convert to Lead
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-1">
-            {convertTargets.length === 1 ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Confirm conversion of <span className="font-semibold text-foreground">{convertTargets[0].name}</span> to a Lead.
-                </p>
-                <div className="space-y-1.5">
-                  <Label htmlFor={`budget-${convertTargets[0].id}`}>Budget <span className="text-destructive">*</span></Label>
-                  <Input id={`budget-${convertTargets[0].id}`} placeholder="e.g. ₹50L – ₹80L"
-                    value={budgets[convertTargets[0].id] ?? ""}
-                    onChange={(e) => {
-                      setBudgets((b) => ({ ...b, [convertTargets[0].id]: e.target.value }));
-                      setBudgetErrors((er) => ({ ...er, [convertTargets[0].id]: "" }));
-                    }} />
-                  {budgetErrors[convertTargets[0].id] && <p className="text-xs text-destructive">{budgetErrors[convertTargets[0].id]}</p>}
-                </div>
-                <div className="pt-2 border-t space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Verified By</p>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="verifier-name">Verifier Name <span className="text-destructive">*</span></Label>
-                    <Input id="verifier-name" placeholder="Enter verifier's full name"
-                      value={verifierName}
-                      onChange={(e) => { setVerifierName(e.target.value); setVerifierErrors((er) => ({ ...er, name: undefined })); }} />
-                    {verifierErrors.name && <p className="text-xs text-destructive">{verifierErrors.name}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="verifier-mobile">Verifier Mobile No. <span className="text-destructive">*</span></Label>
-                    <Input id="verifier-mobile" placeholder="Enter verifier's mobile number"
-                      value={verifierMobile}
-                      onChange={(e) => { setVerifierMobile(e.target.value); setVerifierErrors((er) => ({ ...er, mobile: undefined })); }} />
-                    {verifierErrors.mobile && <p className="text-xs text-destructive">{verifierErrors.mobile}</p>}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Set a budget for each of the <span className="font-semibold text-foreground">{convertTargets.length} enquiries</span> being converted.
-                </p>
-                <div className="space-y-3">
-                  {convertTargets.map((e) => (
-                    <div key={e.id} className="space-y-1.5">
-                      <Label htmlFor={`budget-${e.id}`}>
-                        <span className="font-medium text-foreground">{e.name}</span>
-                        <span className="text-muted-foreground text-xs ml-1">({e.phone})</span>
-                        <span className="text-destructive ml-0.5">*</span>
-                      </Label>
-                      <Input id={`budget-${e.id}`} placeholder="e.g. ₹50L – ₹80L"
-                        value={budgets[e.id] ?? ""}
-                        onChange={(ev) => {
-                          setBudgets((b) => ({ ...b, [e.id]: ev.target.value }));
-                          setBudgetErrors((er) => ({ ...er, [e.id]: "" }));
-                        }} />
-                      {budgetErrors[e.id] && <p className="text-xs text-destructive">{budgetErrors[e.id]}</p>}
-                    </div>
-                  ))}
-                </div>
-                <div className="pt-2 border-t space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Verified By</p>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="verifier-name">Verifier Name <span className="text-destructive">*</span></Label>
-                    <Input id="verifier-name" placeholder="Enter verifier's full name"
-                      value={verifierName}
-                      onChange={(e) => { setVerifierName(e.target.value); setVerifierErrors((er) => ({ ...er, name: undefined })); }} />
-                    {verifierErrors.name && <p className="text-xs text-destructive">{verifierErrors.name}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="verifier-mobile">Verifier Mobile No. <span className="text-destructive">*</span></Label>
-                    <Input id="verifier-mobile" placeholder="Enter verifier's mobile number"
-                      value={verifierMobile}
-                      onChange={(e) => { setVerifierMobile(e.target.value); setVerifierErrors((er) => ({ ...er, mobile: undefined })); }} />
-                    {verifierErrors.mobile && <p className="text-xs text-destructive">{verifierErrors.mobile}</p>}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConvertTargets([])}>Cancel</Button>
-            <Button onClick={handleConvert} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
-              <UserCheck className="h-3.5 w-3.5" /> Convert to Lead
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">Page {query.page} of {Math.max(1, totalPages)}</span>
+        <Button variant="outline" size="sm" onClick={() => goToPage(query.page - 1)} disabled={loading || query.page <= 1}>
+          Previous
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => goToPage(query.page + 1)} disabled={loading || query.page >= totalPages}>
+          Next
+        </Button>
+      </div>
     </div>
   );
 }

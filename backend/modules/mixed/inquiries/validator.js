@@ -1,4 +1,7 @@
 const { body, validationResult } = require("express-validator");
+const PropertyPurpose = require("../../admin/propertyPurposes/model");
+const PropertyCategory = require("../../admin/propertyCategories/model");
+const PropertyType = require("../../admin/propertyTypes/model");
 
 // ── Reusable middleware to return first validation error ──────────────────────
 const validate = (req, res, next) => {
@@ -18,22 +21,48 @@ const createInquiryValidator = [
   // ── isProperty ──────────────────────────────────────────────────────────────
   body("isProperty")
     .notEmpty().withMessage("isProperty is required")
-    .isBoolean({ strict: true }).withMessage("isProperty must be a boolean"),
+    .isBoolean({ strict: true }).withMessage("isProperty must be a boolean")
+    .bail()
+    .custom((value) => {
+      if (value !== true) throw new Error("Only individual property enquiries are supported");
+      return true;
+    }),
 
   // ── listingType ─────────────────────────────────────────────────────────────
   body("listingType")
     .notEmpty().withMessage("listingType is required")
-    .isMongoId().withMessage("listingType must be a valid ID"),
+    .isMongoId().withMessage("listingType must be a valid ID")
+    .bail()
+    .custom(async (id) => {
+      const purpose = await PropertyPurpose.findOne({ _id: id, isActive: true }).select("_id").lean();
+      if (!purpose) throw new Error("listingType must reference an existing active property purpose");
+      return true;
+    }),
 
   // ── propertyCategory (optional) ─────────────────────────────────────────────
   body("propertyCategory")
     .optional()
-    .isMongoId().withMessage("propertyCategory must be a valid ID"),
+    .isMongoId().withMessage("propertyCategory must be a valid ID")
+    .bail()
+    .custom(async (id) => {
+      const category = await PropertyCategory.findOne({ _id: id, isActive: true }).select("_id").lean();
+      if (!category) throw new Error("propertyCategory must reference an existing active property category");
+      return true;
+    }),
 
   // ── propertyType (optional) ─────────────────────────────────────────────────
   body("propertyType")
     .optional()
-    .isMongoId().withMessage("propertyType must be a valid ID"),
+    .isMongoId().withMessage("propertyType must be a valid ID")
+    .bail()
+    .custom(async (id, { req }) => {
+      const propertyType = await PropertyType.findOne({ _id: id, isActive: true }).select("_id propertyCategory").lean();
+      if (!propertyType) throw new Error("propertyType must reference an existing active property type");
+      if (req.body.propertyCategory && propertyType.propertyCategory.toString().toLowerCase() !== String(req.body.propertyCategory).toLowerCase()) {
+        throw new Error("propertyType must belong to the selected propertyCategory");
+      }
+      return true;
+    }),
 
   // ── preferredCity ───────────────────────────────────────────────────────────
   body("preferredCity")
