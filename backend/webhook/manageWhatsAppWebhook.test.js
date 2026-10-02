@@ -12,6 +12,7 @@ const {
   getQuickReply,
   isValidSignature,
   processQuickReply,
+  verifyWhatsAppWebhook,
 } = require("./manageWhatsAppWebhook");
 
 const INQUIRY_ID = "6a0000000000000000000001";
@@ -25,6 +26,27 @@ const mockInquiryFind = (inquiry) => {
 
 describe("WhatsApp reply webhook helpers", () => {
   beforeEach(() => jest.clearAllMocks());
+
+  test("verifies Meta's callback URL using WHATSAPP_WEBHOOK_SECRET", () => {
+    process.env.WHATSAPP_WEBHOOK_SECRET = "test-verify-token";
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      type: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+    };
+
+    verifyWhatsAppWebhook({
+      query: {
+        "hub.mode": "subscribe",
+        "hub.verify_token": "test-verify-token",
+        "hub.challenge": "challenge-value",
+      },
+    }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.type).toHaveBeenCalledWith("text/plain");
+    expect(res.send).toHaveBeenCalledWith("challenge-value");
+  });
 
   test("accepts Meta's signed raw request body only when signature matches", () => {
     const rawBody = Buffer.from('{"object":"whatsapp_business_account"}');
