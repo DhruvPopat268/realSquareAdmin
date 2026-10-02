@@ -20,6 +20,8 @@
 
 require("dotenv").config();
 const request = require("supertest");
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const app     = require("../../../server");
 const { Inquiry } = require("./model");
 const { AssignedInquiry } = require("./assignedInquiriesModel");
@@ -798,10 +800,11 @@ describe("assignedCount response shape", () => {
 // Replace if token expires
 const ASSIGNED_USER_TOKEN = process.env.USER_TOKEN;
 
-const getAssigned = (token = ASSIGNED_USER_TOKEN) =>
+const getAssigned = (token = ASSIGNED_USER_TOKEN, query = {}) =>
   request(app)
     .get("/api/mixed/inquiries/assigned")
-    .set("Authorization", `Bearer ${token}`);
+    .set("Authorization", `Bearer ${token}`)
+    .query(query);
 
 describe("GET /api/mixed/inquiries/assigned", () => {
 
@@ -834,12 +837,16 @@ describe("GET /api/mixed/inquiries/assigned", () => {
       totalPages: expect.any(Number),
     }));
     expect(res.body.data.stats).toEqual(expect.objectContaining({
+      total: expect.any(Number),
       active: expect.any(Number),
       purchased: expect.any(Number),
       hot: expect.any(Number),
       warm: expect.any(Number),
       cold: expect.any(Number),
     }));
+    expect(res.body.data.stats.total).toBe(
+      res.body.data.stats.active + res.body.data.stats.purchased
+    );
   });
 
   test("200 — pagination total is at least the returned assignment count", async () => {
@@ -915,6 +922,73 @@ describe("GET /api/mixed/inquiries/assigned", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data.assignments)).toBe(true);
+  });
+
+  userFixtureTest("hides closed locked assignments, retains purchased ones, and excludes hidden records from stats", async () => {
+    const { id: decodedUserId } = jwt.verify(USER_TOKEN, process.env.USER_JWT_SECRET);
+    const userId = new mongoose.Types.ObjectId(decodedUserId);
+    const roleId = new mongoose.Types.ObjectId();
+    const uniqueCity = `closedInquiryVisibility${Date.now()}`;
+    const baselineResponse = await getAssigned(USER_TOKEN);
+    expect(baselineResponse.statusCode).toBe(200);
+    const baselineStats = baselineResponse.body.data.stats;
+    const inquiryIds = [];
+    const expectedVisibleAssignmentIds = [];
+
+    const cases = [
+      { inquiryStatus: "active", assignmentStatus: "active", visible: true },
+      { inquiryStatus: "expired", assignmentStatus: "active", visible: false },
+      { inquiryStatus: "inactive", assignmentStatus: "active", visible: false },
+      { inquiryStatus: "completed", assignmentStatus: "active", visible: false },
+      { inquiryStatus: "expired", assignmentStatus: "purchased", visible: true },
+      { inquiryStatus: "inactive", assignmentStatus: "purchased", visible: true },
+      { inquiryStatus: "completed", assignmentStatus: "purchased", visible: true },
+    ];
+
+    try {
+      for (const fixture of cases) {
+        const inquiry = await Inquiry.create({
+          createdBy: { id: userId, name: "Visibility Test Creator", mobile: "9000000000", role: roleId },
+          isProperty: true,
+          listingType: new mongoose.Types.ObjectId(),
+          preferredCity: uniqueCity,
+          budget: { min: 1000000, max: 2000000 },
+          inquiryClassification: "hot",
+          lastFollowUpDate: new Date("2026-12-01T00:00:00.000Z"),
+          preferredCommunication: ["call"],
+          status: fixture.inquiryStatus,
+        });
+        inquiryIds.push(inquiry._id);
+
+        const assignment = await AssignedInquiry.create({
+          inquiry: inquiry._id,
+          assignedTo: { id: userId, name: "Visibility Test Assignee", mobile: "9111111111", role: roleId },
+          status: fixture.assignmentStatus,
+          assignmentSource: "automatic",
+          ...(fixture.assignmentStatus === "purchased" && { purchasedAt: new Date(), purchasedVia: "plan" }),
+        });
+        if (fixture.visible) expectedVisibleAssignmentIds.push(String(assignment._id));
+      }
+
+      const filteredResponse = await getAssigned(USER_TOKEN, { search: uniqueCity, limit: 10 });
+      expect(filteredResponse.statusCode).toBe(200);
+      expect(filteredResponse.body.data.pagination.total).toBe(expectedVisibleAssignmentIds.length);
+      expect(filteredResponse.body.data.assignments.map(({ _id }) => String(_id)).sort())
+        .toEqual(expectedVisibleAssignmentIds.sort());
+
+      const statsResponse = await getAssigned(USER_TOKEN);
+      expect(statsResponse.statusCode).toBe(200);
+      expect(statsResponse.body.data.stats.active).toBe(baselineStats.active + 1);
+      expect(statsResponse.body.data.stats.purchased).toBe(baselineStats.purchased + 3);
+      expect(statsResponse.body.data.stats.total).toBe(baselineStats.total + 4);
+      expect(statsResponse.body.data.stats.hot).toBe(baselineStats.hot + 4);
+      expect(await AssignedInquiry.countDocuments({ inquiry: { $in: inquiryIds } })).toBe(cases.length);
+    } finally {
+      if (inquiryIds.length) {
+        await AssignedInquiry.deleteMany({ inquiry: { $in: inquiryIds } });
+        await Inquiry.deleteMany({ _id: { $in: inquiryIds } });
+      }
+    }
   });
 
 });
@@ -1003,11 +1077,13 @@ describe("GET /api/mixed/inquiries/my — inquiry status values", () => {
       .set("Authorization", `Bearer ${USER_TOKEN}`);
     expect(res.statusCode).toBe(200);
     expect(res.body.data.stats).toEqual(expect.objectContaining({
+      total: expect.any(Number),
       active: expect.any(Number),
       expired: expect.any(Number),
       inactive: expect.any(Number),
       completed: expect.any(Number),
     }));
+    expect(res.body.data.stats.total).toBe(res.body.data.pagination.total);
     expect(res.body.data.inquiries.every((inquiry) => inquiry.status === "inactive")).toBe(true);
   });
 });

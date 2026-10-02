@@ -105,6 +105,8 @@ All routes are prefixed with `/api`.
 - Both endpoints are protected by the admin `protect` middleware and support query filters for their respective collection records.
 - `POST /api/mixed/inquiries/create` accepts only individual property enquiries (`isProperty: true`) and validates that purpose, category, and type IDs reference active master records; when both category and type are supplied, the type must belong to that category.
 - `PATCH /api/mixed/inquiries/status` accepts `{ inquiryId, status: "inactive" | "completed" }` and lets the creator close their own active inquiry; it does not accept or store a reason. Existing `active` and automatic `expired` states remain supported.
+- `GET /api/mixed/inquiries/my` returns the creator's filtered inquiries and stats, including `total` equal to `pagination.total`.
+- `GET /api/mixed/inquiries/assigned` hides active/locked assignments whose linked inquiry is expired, inactive, or completed, but continues returning purchased assignments; its stats include `total` equal to visible active plus purchased counts, with assignment and classification stats using the same visible set. Assignment documents remain stored, so Admin historical assignment counts are unchanged.
 - `GET /api/mixed/inquiries/cron-assign` and `GET /api/mixed/inquiries/cron-expire` are public cron endpoints protected by the `x-cron-secret` header, which must match `CRONJOB_SECRET` in the backend environment. The expiry job compares `lastFollowUpDate` with the start of the current UTC date, so inquiries remain active throughout their follow-up date; it returns the update count and check time.
 
 ### Auth Flow

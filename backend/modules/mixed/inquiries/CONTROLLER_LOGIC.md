@@ -144,6 +144,22 @@ Uses the `createAssignments()` helper function:
 
 ---
 
+## Assigned Inquiry Retrieval - `/assigned`
+
+- Results are scoped to the authenticated user's `assignedTo.id`, then joined to their source inquiry before pagination.
+- Active/locked assignments are returned only while the inquiry is active. Purchased assignments remain visible even if the inquiry is expired, inactive, or completed.
+- `stats.total` equals the visible active plus purchased assignment count. Assignment status and classification stats count the same visible set; list filters do not change the overall stats.
+- Closed locked assignments are filtered from the response, not deleted, preserving assignment history and Admin totals.
+
+---
+
+## Creator Inquiry Retrieval - `/my`
+
+- Results are scoped to inquiries created by the authenticated user and use the requested filters for both pagination and stats.
+- `stats.total` equals the number of inquiries matching those filters, matching `pagination.total`.
+
+---
+
 ## Cron Assignment Controller - `/cron-assign`
 
 ### Purpose

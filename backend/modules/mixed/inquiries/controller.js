@@ -284,6 +284,9 @@ const expireOldInquiries = async (req, res) => {
  *   typeId         — inquiry propertyType ObjectId
  *   search         — searches preferredCity, preferredArea, createdBy.name, createdBy.mobile
  *                    (createdBy fields only visible for purchased assignments)
+ * Closed enquiries (expired, inactive, or completed) are hidden for active/locked
+ * assignments, while purchased assignments remain visible. stats.total counts
+ * the visible assignments and is independent of list filters.
  */
 const getAssignedInquiries = async (req, res) => {
   try {
@@ -292,9 +295,8 @@ const getAssignedInquiries = async (req, res) => {
     const limit  = Math.max(1, parseInt(req.query.limit) || 10);
     const skip   = (page - 1) * limit;
 
-    // ── Build the base match on AssignedInquiry ──────────────────────────────
+    // ── Base assignments for this user ────────────────────────────────────────
     const assignmentMatch = { "assignedTo.id": userId };
-    if (req.query.status) assignmentMatch.status = req.query.status;
 
     // ── Build the post-lookup match on the joined inquiry ────────────────────
     const inquiryMatch = {};
@@ -312,11 +314,7 @@ const getAssignedInquiries = async (req, res) => {
       ];
     }
 
-    const hasInquiryFilters = Object.keys(inquiryMatch).length > 0;
-
-    // ── Aggregation pipeline ─────────────────────────────────────────────────
-    const basePipeline = [
-      { $match: assignmentMatch },
+    const inquiryJoinPipeline = [
       {
         $lookup: {
           from:         "inquiries",
@@ -326,6 +324,28 @@ const getAssignedInquiries = async (req, res) => {
         },
       },
       { $unwind: { path: "$inquiry", preserveNullAndEmptyArrays: false } },
+      // Keep bought enquiries accessible after closure, but hide closed locked cards.
+      {
+        $match: {
+          $or: [
+            { status: "purchased" },
+            { status: "active", "inquiry.status": "active" },
+          ],
+        },
+      },
+    ];
+
+    // Stats describe the assignments visible to the user, regardless of list filters.
+    const visibleAssignmentsPipeline = [
+      { $match: assignmentMatch },
+      ...inquiryJoinPipeline,
+    ];
+
+    // List and pagination respect both assignment and inquiry filters.
+    const hasInquiryFilters = Object.keys(inquiryMatch).length > 0;
+    const basePipeline = [
+      { $match: { ...assignmentMatch, ...(req.query.status ? { status: req.query.status } : {}) } },
+      ...inquiryJoinPipeline,
       ...(hasInquiryFilters ? [{ $match: inquiryMatch }] : []),
     ];
 
@@ -375,32 +395,23 @@ const getAssignedInquiries = async (req, res) => {
           },
         },
       ]),
-      // Stats — always run on the base match (no filters) so counts reflect all assignments
       AssignedInquiry.aggregate([
-        { $match: { "assignedTo.id": userId } },
+        ...visibleAssignmentsPipeline,
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
-      // Classification stats — join inquiry to get classification counts
+      // Classification stats use the same visible assignment set.
       AssignedInquiry.aggregate([
-        { $match: { "assignedTo.id": userId } },
-        {
-          $lookup: {
-            from:         "inquiries",
-            localField:   "inquiry",
-            foreignField: "_id",
-            as:           "inquiry",
-          },
-        },
-        { $unwind: { path: "$inquiry", preserveNullAndEmptyArrays: false } },
+        ...visibleAssignmentsPipeline,
         { $group: { _id: "$inquiry.inquiryClassification", count: { $sum: 1 } } },
       ]),
     ]);
 
     const total = countResult[0]?.total ?? 0;
 
-    const statsCounts = { active: 0, purchased: 0, hot: 0, warm: 0, cold: 0 };
+    const statsCounts = { total: 0, active: 0, purchased: 0, hot: 0, warm: 0, cold: 0 };
     statusStats.forEach(({ _id, count }) => { if (_id in statsCounts) statsCounts[_id] = count; });
     classStats.forEach(({ _id, count })  => { if (_id in statsCounts) statsCounts[_id] = count; });
+    statsCounts.total = statsCounts.active + statsCounts.purchased;
 
     // ── Mask createdBy fields for non-purchased assignments ──────────────────
     const masked = assignments.map((a) => {
@@ -441,7 +452,8 @@ const getAssignedInquiries = async (req, res) => {
 /**
  * Get all inquiries created by the logged-in user
  * GET /api/mixed/inquiries/my?page=1&limit=10
- * Returns paginated Inquiry records where createdBy.id matches the logged-in user
+ * Returns paginated Inquiry records where createdBy.id matches the logged-in user;
+ * stats.total equals the filtered record count in pagination.total.
  */
 const getMyInquiries = async (req, res) => {
   try {
@@ -500,7 +512,7 @@ const getMyInquiries = async (req, res) => {
       data: {
         inquiries,
         pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
-        stats: { ...statusCounts, ...classCounts },
+        stats: { total, ...statusCounts, ...classCounts },
       },
     });
   } catch (error) {
