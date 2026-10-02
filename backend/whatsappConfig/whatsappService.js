@@ -18,8 +18,13 @@
  *   - Errors are logged but NOT thrown — caller is never blocked
  */
 
-const GRAPH_API_VERSION = "v19.0";
+const GRAPH_API_VERSION = "v26.0";
 const GRAPH_API_BASE    = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+
+const maskRecipient = (mobile) => {
+  const digits = normalizeIndianMobile(mobile);
+  return digits.length > 4 ? `${"*".repeat(digits.length - 4)}${digits.slice(-4)}` : "[invalid]";
+};
 
 /**
  * Normalize mobile to E.164 format for India (+91)
@@ -46,12 +51,19 @@ const sendWhatsApp = async (mobile, template, variables = {}) => {
     const ACCESS_TOKEN    = process.env.WHATSAPP_ACCESS_TOKEN;
 
     if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-      console.error("[WhatsApp] Missing WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN in env");
+      console.error(`[WhatsApp] Cannot send template "${template?.name ?? "unknown"}": missing WhatsApp environment configuration`);
       return false;
     }
 
     const to         = normalizeIndianMobile(mobile);
     const components = template.buildComponents(variables);
+
+    if (!to || to.length < 10) {
+      console.error(`[WhatsApp] Cannot send template "${template.name}": recipient number is missing or invalid`);
+      return false;
+    }
+
+    console.info(`[WhatsApp] Sending template "${template.name}" to ${maskRecipient(to)}`);
 
     const payload = {
       messaging_product: "whatsapp",
@@ -77,15 +89,24 @@ const sendWhatsApp = async (mobile, template, variables = {}) => {
     const json = await res.json();
 
     if (!res.ok) {
-      console.error(`[WhatsApp] Failed to send template "${template.name}" to ${to}:`, json?.error ?? json);
+      console.error(`[WhatsApp] Template "${template.name}" failed for ${maskRecipient(to)} (HTTP ${res.status}):`, {
+        code: json?.error?.code,
+        type: json?.error?.type,
+        message: json?.error?.message ?? "Unknown WhatsApp API error",
+        fbtrace_id: json?.error?.fbtrace_id,
+      });
       return false;
     }
 
-    console.log(`[WhatsApp] Sent "${template.name}" to ${to} — message id: ${json?.messages?.[0]?.id}`);
+    console.info(`[WhatsApp] Template "${template.name}" sent to ${maskRecipient(to)}`, {
+      messageId: json?.messages?.[0]?.id ?? null,
+    });
     return true;
 
   } catch (err) {
-    console.error(`[WhatsApp] Exception sending template "${template.name}" to ${mobile}:`, err.message);
+    console.error(`[WhatsApp] Exception sending template "${template?.name ?? "unknown"}" to ${maskRecipient(mobile)}`, {
+      message: err.message,
+    });
     return false;
   }
 };

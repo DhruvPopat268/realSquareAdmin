@@ -84,7 +84,13 @@ Creates a new inquiry from user input (frontend chatbot), automatically creates 
 - Set default status as "active"
 - Return created inquiry object
 
-### 5. Find Eligible Users
+### 5. Send WhatsApp Confirmation
+- After saving the inquiry, send the approved `property_inquiry_confirmation` (`en_US`) template to `createdBy.mobile` using the customer's name, purpose/category/type names, location, budget, and property details.
+- Optional category, property type, preferred area, BHK, area, and furnishing values use `NA` when missing; area uses built-up area first, then plot area, with its unit.
+- Confirm and Reject quick replies carry inquiry-specific payloads for future webhook handling. This flow only sends messages; it does not process replies.
+- WhatsApp send or template-data errors are logged and do not fail inquiry creation.
+
+### 6. Find Eligible Users
 Uses the `findEligibleUsers()` helper function:
 
 #### Criteria for Eligibility:
@@ -108,14 +114,14 @@ Uses the `findEligibleUsers()` helper function:
 **Step 5: Data Projection**
 - Return only: `_id` (as `id`), `name`, `mobile`, `role`
 
-### 6. Create AssignedInquiry Records
+### 7. Create AssignedInquiry Records
 Uses the `createAssignments()` helper function:
 - Maps each eligible user to an `AssignedInquiry` document
 - Sets `assignmentSource: "automatic"`
 - Uses `insertMany({ ordered: false })` — if any duplicate-key errors occur (unique index on `{inquiry, assignedTo.id}`), they are silently skipped and only successfully inserted records are counted
 - Returns the count of newly created assignment records
 
-### 7. Return Response
+### 8. Return Response
 - Return created inquiry object
 - Return `assignedCount` — number of `AssignedInquiry` records successfully created
 - Status: 201 (Created)

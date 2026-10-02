@@ -19,6 +19,9 @@
  */
 
 require("dotenv").config();
+jest.mock("../../../whatsappConfig/whatsappService", () => ({
+  sendWhatsApp: jest.fn().mockResolvedValue(true),
+}));
 const request = require("supertest");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
@@ -28,6 +31,8 @@ const { AssignedInquiry } = require("./assignedInquiriesModel");
 const EnquiryPurchasedPlan = require("../enquiryPurchasedPlans/model");
 const UserCoinsWallet = require("../userCoinsWallet/model");
 const CoinsTransaction = require("../coinsTransactions/model");
+const { sendWhatsApp } = require("../../../whatsappConfig/whatsappService");
+const { TEMPLATES } = require("../../../whatsappConfig/whatsappTemplates");
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 // A valid user token from the DB (owner/broker/builder user with name + mobile + role)
@@ -94,6 +99,81 @@ const postNoAuth = (payload) =>
   request(app)
     .post("/api/mixed/inquiries/create")
     .send(payload);
+
+describe("WhatsApp property inquiry confirmation template", () => {
+  test("builds body values in the approved order and includes both quick reply payloads", () => {
+    const inquiryId = "6a0000000000000000000001";
+    const values = {
+      createdByName: "Customer Name",
+      listingType: "Buy",
+      propertyCategory: "Residential",
+      propertyType: "Apartment",
+      location: "Banjara Hills, Hyderabad",
+      minimumBudget: "50,00,000",
+      maximumBudget: "1,00,00,000",
+      bhk: "3",
+      area: "1,200 sqft",
+      furnishingType: "Semi-Furnished",
+      companyName: "RealSquare Team",
+      inquiryId,
+    };
+    const components = TEMPLATES.PROPERTY_INQUIRY_CONFIRMATION.buildComponents(values);
+
+    expect(TEMPLATES.PROPERTY_INQUIRY_CONFIRMATION).toEqual(expect.objectContaining({
+      name: "property_inquiry_confirmation",
+      language: "en_US",
+    }));
+    expect(components[0].parameters.map(({ text }) => text)).toEqual([
+      "Customer Name", "Buy", "Residential", "Apartment", "Banjara Hills, Hyderabad",
+      "50,00,000", "1,00,00,000", "3", "1,200 sqft", "Semi-Furnished", "RealSquare Team",
+    ]);
+    expect(components.slice(1).map((component) => component.parameters[0].payload)).toEqual([
+      `inquiry_confirm:${inquiryId}`,
+      `inquiry_reject:${inquiryId}`,
+    ]);
+  });
+
+  userFixtureTest("sends confirmation to the creator with NA for optional inquiry fields", async () => {
+    sendWhatsApp.mockClear();
+    const {
+      propertyCategory,
+      propertyType,
+      preferredArea,
+      bhk,
+      furnishingType,
+      ...payloadWithoutOptionalFields
+    } = BASE_PAYLOAD;
+
+    const res = await postInquiry(payloadWithoutOptionalFields);
+
+    expect(res.statusCode).toBe(201);
+    expect(sendWhatsApp).toHaveBeenCalledTimes(1);
+    const [recipientMobile, template, values] = sendWhatsApp.mock.calls[0];
+    expect(recipientMobile).toBe(res.body.inquiry.createdBy.mobile);
+    expect(template).toBe(TEMPLATES.PROPERTY_INQUIRY_CONFIRMATION);
+    expect(values).toEqual(expect.objectContaining({
+      createdByName: res.body.inquiry.createdBy.name,
+      listingType: expect.any(String),
+      propertyCategory: "NA",
+      propertyType: "NA",
+      location: "NA, Hyderabad",
+      minimumBudget: "50,00,000",
+      maximumBudget: "1,00,00,000",
+      bhk: "NA",
+      area: "NA",
+      furnishingType: "NA",
+      companyName: "RealSquare Team",
+      inquiryId: res.body.inquiry._id,
+    }));
+  });
+
+  userFixtureTest("WhatsApp send failure does not fail inquiry creation", async () => {
+    sendWhatsApp.mockResolvedValueOnce(false);
+    const res = await postInquiry(BASE_PAYLOAD);
+    expect(res.statusCode).toBe(201);
+    expect(res.body.success).toBe(true);
+  });
+});
 
 
 // ═════════════════════════════════════════════════════════════════════════════
