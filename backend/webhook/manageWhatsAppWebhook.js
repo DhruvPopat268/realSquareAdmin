@@ -14,8 +14,13 @@ const verifyWhatsAppWebhook = (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
-  const expectedToken = process.env.WHATSAPP_WEBHOOK_SECRET
-    || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  const expectedToken = process.env.WHATSAPP_WEBHOOK_SECRET;
+
+  console.info("[WhatsApp Webhook] Verification request received", {
+    mode: mode ?? null,
+    verifyTokenProvided: Boolean(token),
+    challengeProvided: Boolean(challenge),
+  });
 
   if (!expectedToken) {
     console.error("[WhatsApp Webhook] WHATSAPP_WEBHOOK_SECRET is not configured");
@@ -27,7 +32,11 @@ const verifyWhatsAppWebhook = (req, res) => {
     return res.status(200).type("text/plain").send(challenge);
   }
 
-  console.warn("[WhatsApp Webhook] Meta callback URL verification was rejected");
+  console.warn("[WhatsApp Webhook] Meta callback URL verification was rejected", {
+    mode: mode ?? null,
+    verifyTokenMatched: token === expectedToken,
+    challengeProvided: Boolean(challenge),
+  });
   return res.sendStatus(403);
 };
 
