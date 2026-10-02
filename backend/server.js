@@ -6,6 +6,10 @@ const connectDB = require("./database/config");
 const { connectRedis } = require("./redis/config");
 const routes                = require("./routes/index");
 const { manageOnlinePayment } = require("./webhook/manageOnlinePayment");
+const {
+  verifyWhatsAppWebhook,
+  receiveWhatsAppWebhook,
+} = require("./webhook/manageWhatsAppWebhook");
 
 const app = express();
 
@@ -17,6 +21,8 @@ if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") c
 
 // ── Webhook (must be before express.json() to get raw body)
 app.post("/api/webhook", express.raw({ type: "application/json" }), manageOnlinePayment);
+app.get("/api/webhooks/whatsapp", verifyWhatsAppWebhook);
+app.post("/api/webhooks/whatsapp", express.raw({ type: "application/json" }), receiveWhatsAppWebhook);
 
 // ── Middleware
 const allowedOrigins = process.env.CLIENT_URL

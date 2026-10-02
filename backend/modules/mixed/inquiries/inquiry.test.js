@@ -108,13 +108,14 @@ describe("WhatsApp property inquiry confirmation template", () => {
       listingType: "Buy",
       propertyCategory: "Residential",
       propertyType: "Apartment",
-      location: "Banjara Hills, Hyderabad",
+      preferredArea: "Banjara Hills",
+      preferredCity: "Hyderabad",
       minimumBudget: "50,00,000",
       maximumBudget: "1,00,00,000",
       bhk: "3",
       area: "1,200 sqft",
       furnishingType: "Semi-Furnished",
-      companyName: "RealSquare Team",
+      companyName: "RealSquare",
       inquiryId,
     };
     const components = TEMPLATES.PROPERTY_INQUIRY_CONFIRMATION.buildComponents(values);
@@ -124,8 +125,8 @@ describe("WhatsApp property inquiry confirmation template", () => {
       language: "en_US",
     }));
     expect(components[0].parameters.map(({ text }) => text)).toEqual([
-      "Customer Name", "Buy", "Residential", "Apartment", "Banjara Hills, Hyderabad",
-      "50,00,000", "1,00,00,000", "3", "1,200 sqft", "Semi-Furnished", "RealSquare Team",
+      "Customer Name", "Buy", "Residential", "Apartment", "Banjara Hills", "Hyderabad",
+      "50,00,000", "1,00,00,000", "3", "1,200 sqft", "Semi-Furnished", "RealSquare",
     ]);
     expect(components.slice(1).map((component) => component.parameters[0].payload)).toEqual([
       `inquiry_confirm:${inquiryId}`,
@@ -156,13 +157,14 @@ describe("WhatsApp property inquiry confirmation template", () => {
       listingType: expect.any(String),
       propertyCategory: "NA",
       propertyType: "NA",
-      location: "NA, Hyderabad",
+      preferredArea: "NA",
+      preferredCity: "Hyderabad",
       minimumBudget: "50,00,000",
       maximumBudget: "1,00,00,000",
       bhk: "NA",
       area: "NA",
       furnishingType: "NA",
-      companyName: "RealSquare Team",
+      companyName: "RealSquare",
       inquiryId: res.body.inquiry._id,
     }));
   });

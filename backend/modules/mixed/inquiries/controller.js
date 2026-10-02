@@ -48,8 +48,6 @@ const sendInquiryConfirmation = async (inquiry) => {
         : null,
     ]);
 
-    const preferredArea = inquiryTemplateText(inquiry.preferredArea);
-    const preferredCity = inquiryTemplateText(inquiry.preferredCity);
     const area = inquiry.builtUpArea?.value != null
       ? formatTemplateArea(inquiry.builtUpArea)
       : inquiry.plotArea?.value != null
@@ -61,13 +59,15 @@ const sendInquiryConfirmation = async (inquiry) => {
       listingType: inquiryTemplateText(purpose?.name),
       propertyCategory: inquiryTemplateText(category?.name),
       propertyType: inquiryTemplateText(propertyType?.name),
-      location: `${preferredArea}, ${preferredCity}`,
+      preferredArea: inquiryTemplateText(inquiry.preferredArea),
+      preferredCity: inquiryTemplateText(inquiry.preferredCity),
       minimumBudget: formatTemplateAmount(inquiry.budget?.min),
       maximumBudget: formatTemplateAmount(inquiry.budget?.max),
       bhk: inquiryTemplateText(inquiry.bhk),
       area,
       furnishingType: inquiryTemplateText(inquiry.furnishingType),
-      companyName: "RealSquare Team",
+      // The approved template appends the static word "Team" after this placeholder.
+      companyName: "RealSquare",
       inquiryId: String(inquiry._id),
     };
 
