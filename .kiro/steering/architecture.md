@@ -111,6 +111,11 @@ All routes are prefixed with `/api`.
 - `GET /api/mixed/inquiries/cron-assign` and `GET /api/mixed/inquiries/cron-expire` are public cron endpoints protected by the `x-cron-secret` header, which must match `CRONJOB_SECRET` in the backend environment. The expiry job compares `lastFollowUpDate` with the start of the current UTC date, so inquiries remain active throughout their follow-up date; it returns the update count and check time.
 - `backend/whatsappConfig/whatsappTemplates.js` defines approved WhatsApp templates; `whatsappService.js` sends them using `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_ACCESS_TOKEN` via Graph API v26.0. `backend/webhook/manageWhatsAppWebhook.js` handles WhatsApp callback verification and signed reply events.
 
+### Property Listing Inactivity Crons
+- `GET /api/mixed/property-listings/cron-6-month-inactive` and `GET /api/mixed/property-listings/cron-1-year-inactive` require the `x-cron-secret` header to match `CRONJOB_SECRET`.
+- The six-month job marks listings older than 180 days by `updatedAt` as `Inactive` when their status is `Active`, `UnderReview`, or `Rejected`. It disables automatic `updatedAt` changes so the yearly cleanup still measures time since actual listing activity.
+- The one-year job processes eligible listings older than 365 days, including already-`Inactive` listings, removes local image files under `/var/www/storage/images`, and removes those local URLs from `media.images`. External media references are preserved. File failures leave the listing eligible for a later retry.
+
 ### Auth Flow
 - Login uses OTP-based authentication
 - JWT token is stored in an HTTP-only cookie

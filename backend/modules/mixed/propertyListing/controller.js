@@ -1,6 +1,9 @@
 const { validationResult } = require("express-validator");
 const mongoose           = require("mongoose");
+const fs                 = require("fs/promises");
+const path               = require("path");
 const PropertyListing    = require("./model");
+const { IMAGES_DIR }     = require("../../../utils/upload");
 const AutoApprovalConfig = require("../../admin/autoApprovalConfig/model");
 const PropertyCategory   = require("../../admin/propertyCategories/model");
 const PropertyPurpose    = require("../../admin/propertyPurposes/model");
@@ -10,6 +13,33 @@ const FreeListingConfig  = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser         = require("../../systemUsers.model");
 const { runReraVerification } = require("../reraVerification/controller");
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const AUTO_INACTIVE_STATUSES = ["Active", "UnderReview", "Rejected"];
+const YEARLY_CLEANUP_STATUSES = [...AUTO_INACTIVE_STATUSES, "Inactive"];
+
+const resolveStoredImagePath = (imageUrl) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL;
+    if (!backendUrl || typeof imageUrl !== "string") return null;
+
+    const backend = new URL(backendUrl);
+    const parsedImageUrl = new URL(imageUrl, backend);
+    const imagePathPrefix = "/storage/images/";
+    if (parsedImageUrl.origin !== backend.origin || !parsedImageUrl.pathname.startsWith(imagePathPrefix)) {
+      return null;
+    }
+
+    const filename = decodeURIComponent(parsedImageUrl.pathname.slice(imagePathPrefix.length));
+    if (!filename || filename !== path.basename(filename)) return null;
+
+    const resolvedImagesDir = path.resolve(IMAGES_DIR);
+    const resolvedImagePath = path.resolve(resolvedImagesDir, filename);
+    return path.dirname(resolvedImagePath) === resolvedImagesDir ? resolvedImagePath : null;
+  } catch {
+    return null;
+  }
+};
 
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
@@ -897,6 +927,135 @@ const appendMedia = async (req, res) => {
   }
 };
 
+// ── GET /property-listings/cron-6-month-inactive ──────────────────────────────
+const get6MonthInactiveProperties = async (_req, res) => {
+  try {
+    const checkedAt = new Date();
+    const cutoffDate = new Date(checkedAt.getTime() - 180 * DAY_IN_MS);
+    const result = await PropertyListing.updateMany(
+      {
+        status: { $in: AUTO_INACTIVE_STATUSES },
+        updatedAt: { $lt: cutoffDate },
+      },
+      { $set: { status: "Inactive" } },
+      // Keep the owner's last update time so the one-year media cleanup can
+      // still measure from actual activity instead of this automated status change.
+      { timestamps: false }
+    );
+
+    console.info(`[Property Listing Cron] Six-month job inactivated ${result.modifiedCount} listing(s)`);
+    return res.status(200).json({
+      success: true,
+      message: "Six-month inactive listings updated successfully",
+      data: {
+        inactivatedCount: result.modifiedCount,
+        matchedCount: result.matchedCount,
+        cutoffDate,
+        checkedAt,
+      },
+    });
+  } catch (error) {
+    console.error("[Property Listing Cron] Six-month inactive job failed:", error);
+    return res.status(500).json({ success: false, message: "Failed to update six-month inactive listings" });
+  }
+};
+
+// ── GET /property-listings/cron-1-year-inactive ──────────────────────────────
+const get1YearInactiveProperties = async (_req, res) => {
+  try {
+    const checkedAt = new Date();
+    const cutoffDate = new Date(checkedAt.getTime() - 365 * DAY_IN_MS);
+    const staleListings = PropertyListing.find({
+      status: { $in: YEARLY_CLEANUP_STATUSES },
+      updatedAt: { $lt: cutoffDate },
+    }).cursor();
+
+    let checkedCount = 0;
+    let inactivatedCount = 0;
+    let deletedFileCount = 0;
+    let missingFileCount = 0;
+    let preservedNonLocalImageCount = 0;
+    let failedListingCount = 0;
+    let failedFileCount = 0;
+
+    for await (const listing of staleListings) {
+      checkedCount += 1;
+      const currentImages = listing.media?.images ?? [];
+      const imagesToKeep = [];
+      const failedImages = [];
+      let listingHasFileError = false;
+
+      for (const imageUrl of currentImages) {
+        const imagePath = resolveStoredImagePath(imageUrl);
+        if (!imagePath) {
+          // Only delete files served from this app's local /storage/images directory.
+          imagesToKeep.push(imageUrl);
+          preservedNonLocalImageCount += 1;
+          continue;
+        }
+
+        try {
+          await fs.unlink(imagePath);
+          deletedFileCount += 1;
+        } catch (error) {
+          if (error.code === "ENOENT") {
+            missingFileCount += 1;
+            continue;
+          }
+          listingHasFileError = true;
+          failedFileCount += 1;
+          failedImages.push(imageUrl);
+          console.error(`[Property Listing Cron] Could not remove media for listing ${listing._id}:`, error.message);
+        }
+      }
+
+      if (listingHasFileError) {
+        // Keep failed paths so the next cron run can retry them. Keep updatedAt
+        // unchanged and leave status eligible for retry.
+        listing.set("media.images", [...imagesToKeep, ...failedImages]);
+        try {
+          await listing.save({ timestamps: false });
+        } catch (error) {
+          console.error(`[Property Listing Cron] Could not save partial media cleanup for listing ${listing._id}:`, error.message);
+        }
+        failedListingCount += 1;
+        continue;
+      }
+
+      listing.set("media.images", imagesToKeep);
+      listing.status = "Inactive";
+      try {
+        await listing.save();
+        inactivatedCount += 1;
+      } catch (error) {
+        // The stale updatedAt value keeps this listing eligible for a retry.
+        failedListingCount += 1;
+        console.error(`[Property Listing Cron] Could not update listing ${listing._id} after media cleanup:`, error.message);
+      }
+    }
+
+    console.info(`[Property Listing Cron] One-year job inactivated ${inactivatedCount} listing(s); removed ${deletedFileCount} media file(s)`);
+    return res.status(200).json({
+      success: true,
+      message: "One-year inactive listings and local media cleanup completed",
+      data: {
+        checkedCount,
+        inactivatedCount,
+        deletedFileCount,
+        missingFileCount,
+        preservedNonLocalImageCount,
+        failedListingCount,
+        failedFileCount,
+        cutoffDate,
+        checkedAt,
+      },
+    });
+  } catch (error) {
+    console.error("[Property Listing Cron] One-year inactive job failed:", error);
+    return res.status(500).json({ success: false, message: "Failed to process one-year inactive listings" });
+  }
+};
+
 // ── PATCH /property-listings/mark-inactive/:id ────────────────────────────────
 const markInactive = async (req, res) => {
   try {
@@ -1003,4 +1162,4 @@ const markRented = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented };
+module.exports = { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };

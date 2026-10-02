@@ -1,10 +1,18 @@
 const express  = require("express");
-const { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented } = require("./controller");
+const { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
 const { createListingValidator }        = require("./validator");
 const { userProtect }                   = require("../../../middleware/userAuth");
 const { uploadImage }                   = require("../../../utils/upload");
 
 const router = express.Router();
+
+const cronProtect = (req, res, next) => {
+  const secret = req.headers["x-cron-secret"];
+  if (!secret || secret !== process.env.CRONJOB_SECRET) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+  next();
+};
 
 // ── Protected routes (auth required) ─────────────────────────────────────────
 // These must be declared before the /:id wildcard so they are not swallowed.
@@ -14,6 +22,8 @@ router.get("/active-categories",            userProtect, getActivePropertyCatego
 router.get("/active-purposes",              userProtect, getActivePropertyPurposes);
 router.get("/active-property-types",        userProtect, getActivePropertyTypes);
 router.get("/my-listings",                  userProtect, getMyListings);
+router.get("/cron-6-month-inactive",         cronProtect, get6MonthInactiveProperties);
+router.get("/cron-1-year-inactive",          cronProtect, get1YearInactiveProperties);
 
 router.post("/",      userProtect, createListingValidator, create);
 router.patch("/",     userProtect, updateListing); // PATCH with ID in body

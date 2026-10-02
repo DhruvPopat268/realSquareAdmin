@@ -253,6 +253,7 @@ const propertyListingSchema = new Schema(
 propertyListingSchema.index({ cityName: 1, "category.id": 1, "listingType.id": 1 });
 propertyListingSchema.index({ "listedBy.id": 1 });
 propertyListingSchema.index({ status: 1 });
+propertyListingSchema.index({ status: 1, updatedAt: 1 });
 propertyListingSchema.index({ "locality.latitude": 1, "locality.longitude": 1 });
 
 module.exports = mongoose.model("PropertyListing", propertyListingSchema);
