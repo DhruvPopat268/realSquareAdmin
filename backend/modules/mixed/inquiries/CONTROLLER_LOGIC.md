@@ -88,7 +88,7 @@ Creates a new inquiry from user input (frontend chatbot), automatically creates 
 - After saving the inquiry, send the approved `property_inquiry_confirmation` (`en_US`) template to `createdBy.mobile`. Its 12 body parameters follow this order: customer name, listing type, property category, property type, preferred area, preferred city, minimum budget, maximum budget, BHK, built-up or plot area, furnishing type, and company name (`RealSquare`; the template adds the static `Team` suffix).
 - Optional category, property type, preferred area, BHK, area, and furnishing values use `NA` when missing; area uses built-up area first, then plot area, with its unit.
 - Confirm and Reject quick replies carry inquiry-specific payloads. Meta calls `GET /api/webhooks/whatsapp` to verify the callback URL and `POST /api/webhooks/whatsapp` with reply events. The POST signature is checked with `WHATSAPP_APP_SECRET`; the GET verification token must match the existing `WHATSAPP_WEBHOOK_SECRET`.
-- A reply is recorded in `whatsappResponse` only when the sender's WhatsApp number matches the inquiry creator. Confirm also sets `verifiedByUser.isVerified` and `verifiedByUser.source` to `whatsapp`. Duplicate message IDs are ignored.
+- A reply is recorded in `whatsappResponse` only when the sender's WhatsApp number matches the inquiry creator. Confirm also sets `verifiedByUser.isVerified` and `verifiedByUser.source` to `whatsapp`; Reject marks the inquiry status as `rejected` and clears its verified flag/source. Duplicate message IDs are ignored.
 - Configure Meta's callback URL as `https://<your-api-domain>/api/webhooks/whatsapp`, enter the same value as the backend's `WHATSAPP_WEBHOOK_SECRET`, and configure `WHATSAPP_APP_SECRET` from the Meta app. Subscribe the WhatsApp Business Account to the `messages` webhook field.
 - WhatsApp send or template-data errors are logged and do not fail inquiry creation.
 
@@ -155,7 +155,7 @@ Uses the `createAssignments()` helper function:
 ## Assigned Inquiry Retrieval - `/assigned`
 
 - Results are scoped to the authenticated user's `assignedTo.id`, then joined to their source inquiry before pagination.
-- Active/locked assignments are returned only while the inquiry is active. Purchased assignments remain visible even if the inquiry is expired, inactive, or completed.
+- Active/locked assignments are hidden when their inquiry is expired, inactive, completed, or rejected. Purchased assignments remain visible after those status changes.
 - `stats.total` equals the visible active plus purchased assignment count. Assignment status and classification stats count the same visible set; list filters do not change the overall stats.
 - Closed locked assignments are filtered from the response, not deleted, preserving assignment history and Admin totals.
 

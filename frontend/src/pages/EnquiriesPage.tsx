@@ -48,6 +48,7 @@ const inquiryStatusLabel: Record<AdminInquiry["status"], string> = {
   expired: "Expired",
   inactive: "Inactive",
   completed: "Completed",
+  rejected: "Rejected",
 };
 
 const inquiryStatusStyle: Record<AdminInquiry["status"], string> = {
@@ -55,6 +56,7 @@ const inquiryStatusStyle: Record<AdminInquiry["status"], string> = {
   expired: "bg-slate-100 text-slate-600",
   inactive: "bg-amber-50 text-amber-700",
   completed: "bg-emerald-50 text-emerald-700",
+  rejected: "bg-rose-50 text-rose-700",
 };
 
 function formatBudget(min: number, max: number) {
@@ -152,7 +154,7 @@ export default function EnquiriesPage() {
   const [enquiries, setEnquiries] = useState<AdminInquiry[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [stats, setStats] = useState({ active: 0, expired: 0, inactive: 0, completed: 0, hot: 0, warm: 0, cold: 0 });
+  const [stats, setStats] = useState({ active: 0, expired: 0, inactive: 0, completed: 0, rejected: 0, hot: 0, warm: 0, cold: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
@@ -300,7 +302,7 @@ export default function EnquiriesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-8">
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           <div><p className="text-xs text-muted-foreground">Active</p><p className="text-xl font-bold text-green-600">{stats.active.toLocaleString()}</p></div>
@@ -316,6 +318,10 @@ export default function EnquiriesPage() {
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100"><CheckCircle2 className="h-5 w-5 text-emerald-700" /></div>
           <div><p className="text-xs text-muted-foreground">Completed</p><p className="text-xl font-bold text-emerald-700">{stats.completed.toLocaleString()}</p></div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100"><Ban className="h-5 w-5 text-rose-700" /></div>
+          <div><p className="text-xs text-muted-foreground">Rejected</p><p className="text-xl font-bold text-rose-700">{stats.rejected.toLocaleString()}</p></div>
         </div>
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"><Flame className="h-5 w-5 text-red-600" /></div>
@@ -468,6 +474,7 @@ export default function EnquiriesPage() {
             <DropdownMenuItem onClick={() => set("status", "inactive")}>Inactive</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("status", "completed")}>Completed</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("status", "expired")}>Expired</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("status", "rejected")}>Rejected</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 

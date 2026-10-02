@@ -28,7 +28,7 @@ export interface AdminInquiry {
   lastFollowUpDate: string;
   remarks?: string;
   preferredCommunication: string[];
-  status: "active" | "expired" | "inactive" | "completed";
+  status: "active" | "expired" | "inactive" | "completed" | "rejected";
   totalAssigned: number;
   totalPurchased: number;
   createdAt: string;
@@ -38,7 +38,7 @@ export interface AdminInquiry {
 export interface AdminInquiriesResponse {
   success: boolean;
   data: AdminInquiry[];
-  stats: { active: number; expired: number; inactive: number; completed: number; hot: number; warm: number; cold: number };
+  stats: { active: number; expired: number; inactive: number; completed: number; rejected: number; hot: number; warm: number; cold: number };
   pagination: { total: number; page: number; limit: number; totalPages: number };
 }
 

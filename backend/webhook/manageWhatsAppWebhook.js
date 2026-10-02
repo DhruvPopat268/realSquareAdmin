@@ -99,6 +99,7 @@ const processQuickReply = async (message) => {
       "whatsappResponse.from": sender,
       "verifiedByUser.isVerified": status === "confirmed",
       ...(status === "confirmed" ? { "verifiedByUser.source": "whatsapp" } : {}),
+      ...(status === "rejected" ? { status: "rejected" } : {}),
     },
     ...(status === "rejected" ? { $unset: { "verifiedByUser.source": 1 } } : {}),
   });

@@ -1022,9 +1022,11 @@ describe("GET /api/mixed/inquiries/assigned", () => {
       { inquiryStatus: "expired", assignmentStatus: "active", visible: false },
       { inquiryStatus: "inactive", assignmentStatus: "active", visible: false },
       { inquiryStatus: "completed", assignmentStatus: "active", visible: false },
+      { inquiryStatus: "rejected", assignmentStatus: "active", visible: false },
       { inquiryStatus: "expired", assignmentStatus: "purchased", visible: true },
       { inquiryStatus: "inactive", assignmentStatus: "purchased", visible: true },
       { inquiryStatus: "completed", assignmentStatus: "purchased", visible: true },
+      { inquiryStatus: "rejected", assignmentStatus: "purchased", visible: true },
     ];
 
     try {
@@ -1061,9 +1063,9 @@ describe("GET /api/mixed/inquiries/assigned", () => {
       const statsResponse = await getAssigned(USER_TOKEN);
       expect(statsResponse.statusCode).toBe(200);
       expect(statsResponse.body.data.stats.active).toBe(baselineStats.active + 1);
-      expect(statsResponse.body.data.stats.purchased).toBe(baselineStats.purchased + 3);
-      expect(statsResponse.body.data.stats.total).toBe(baselineStats.total + 4);
-      expect(statsResponse.body.data.stats.hot).toBe(baselineStats.hot + 4);
+      expect(statsResponse.body.data.stats.purchased).toBe(baselineStats.purchased + 4);
+      expect(statsResponse.body.data.stats.total).toBe(baselineStats.total + 5);
+      expect(statsResponse.body.data.stats.hot).toBe(baselineStats.hot + 5);
       expect(await AssignedInquiry.countDocuments({ inquiry: { $in: inquiryIds } })).toBe(cases.length);
     } finally {
       if (inquiryIds.length) {
@@ -1164,9 +1166,16 @@ describe("GET /api/mixed/inquiries/my — inquiry status values", () => {
       expired: expect.any(Number),
       inactive: expect.any(Number),
       completed: expect.any(Number),
+      rejected: expect.any(Number),
     }));
     expect(res.body.data.stats.total).toBe(res.body.data.pagination.total);
     expect(res.body.data.inquiries.every((inquiry) => inquiry.status === "inactive")).toBe(true);
+
+    const rejected = await request(app)
+      .get("/api/mixed/inquiries/my?status=rejected")
+      .set("Authorization", `Bearer ${USER_TOKEN}`);
+    expect(rejected.statusCode).toBe(200);
+    expect(rejected.body.data.inquiries.every((inquiry) => inquiry.status === "rejected")).toBe(true);
   });
 });
 
@@ -1267,7 +1276,7 @@ describe("PATCH /api/mixed/inquiries/purchase — purchase flows", () => {
     }
   };
 
-  ["expired", "inactive", "completed"].forEach((inquiryStatus) => {
+  ["expired", "inactive", "completed", "rejected"].forEach((inquiryStatus) => {
     ["plan", "coins"].forEach((purchasedVia) => {
       purchaseFixtureTest(`409 — ${inquiryStatus} inquiry cannot be purchased via ${purchasedVia}`, async () => {
         await rejectUnavailableInquiryPurchase(inquiryStatus, purchasedVia);

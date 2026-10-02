@@ -50,7 +50,7 @@ const getInquiries = async (req, res) => {
     const { page, limit, skip } = getPagination(req.query);
 
     if (req.query.status) {
-      if (!["active", "expired", "inactive", "completed"].includes(req.query.status)) {
+      if (!["active", "expired", "inactive", "completed", "rejected"].includes(req.query.status)) {
         return res.status(400).json({ success: false, message: "Unsupported inquiry status filter" });
       }
       filter.status = req.query.status;
@@ -155,6 +155,7 @@ const getInquiries = async (req, res) => {
             expired: { $sum: { $cond: [{ $eq: ["$status", "expired"] }, 1, 0] } },
             inactive: { $sum: { $cond: [{ $eq: ["$status", "inactive"] }, 1, 0] } },
             completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+            rejected: { $sum: { $cond: [{ $eq: ["$status", "rejected"] }, 1, 0] } },
             hot: { $sum: { $cond: [{ $eq: ["$inquiryClassification", "hot"] }, 1, 0] } },
             warm: { $sum: { $cond: [{ $eq: ["$inquiryClassification", "warm"] }, 1, 0] } },
             cold: { $sum: { $cond: [{ $eq: ["$inquiryClassification", "cold"] }, 1, 0] } },
@@ -185,8 +186,8 @@ const getInquiries = async (req, res) => {
       totalPurchased: assignmentStatsByInquiryId.get(String(inquiry._id))?.totalPurchased ?? 0,
     }));
 
-    const { active = 0, expired = 0, inactive = 0, completed = 0, hot = 0, warm = 0, cold = 0 } = statsResult[0] || {};
-    const stats = { active, expired, inactive, completed, hot, warm, cold };
+    const { active = 0, expired = 0, inactive = 0, completed = 0, rejected = 0, hot = 0, warm = 0, cold = 0 } = statsResult[0] || {};
+    const stats = { active, expired, inactive, completed, rejected, hot, warm, cold };
 
     return res.status(200).json({
       success: true,

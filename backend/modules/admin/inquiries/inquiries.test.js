@@ -108,6 +108,7 @@ describe("GET /api/admin/inquiries", () => {
       expired: expect.any(Number),
       inactive: expect.any(Number),
       completed: expect.any(Number),
+      rejected: expect.any(Number),
     }));
   });
 
@@ -122,6 +123,12 @@ describe("GET /api/admin/inquiries", () => {
     const res = await adminGet("/api/admin/inquiries?status=completed");
     expect(res.statusCode).toBe(200);
     expect(res.body.data.every((inquiry) => inquiry.status === "completed")).toBe(true);
+  });
+
+  adminFixtureTest("200 — filters by rejected inquiry status", async () => {
+    const res = await adminGet("/api/admin/inquiries?status=rejected");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.every((inquiry) => inquiry.status === "rejected")).toBe(true);
   });
 });
 

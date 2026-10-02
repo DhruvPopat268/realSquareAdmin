@@ -105,6 +105,7 @@ describe("WhatsApp reply webhook helpers", () => {
     expect(result).toBe("processed");
     const update = Inquiry.findByIdAndUpdate.mock.calls[0][1].$set;
     expect(update["whatsappResponse.status"]).toBe("rejected");
+    expect(update.status).toBe("rejected");
     expect(update["verifiedByUser.isVerified"]).toBe(false);
     expect(Inquiry.findByIdAndUpdate.mock.calls[0][1].$unset).toEqual({ "verifiedByUser.source": 1 });
   });

@@ -360,7 +360,7 @@ const expireOldInquiries = async (req, res) => {
  *   typeId         — inquiry propertyType ObjectId
  *   search         — searches preferredCity, preferredArea, createdBy.name, createdBy.mobile
  *                    (createdBy fields only visible for purchased assignments)
- * Closed enquiries (expired, inactive, or completed) are hidden for active/locked
+ * Closed enquiries (expired, inactive, completed, or rejected) are hidden for active/locked
  * assignments, while purchased assignments remain visible. stats.total counts
  * the visible assignments and is independent of list filters.
  */
@@ -400,11 +400,12 @@ const getAssignedInquiries = async (req, res) => {
         },
       },
       { $unwind: { path: "$inquiry", preserveNullAndEmptyArrays: false } },
-      // Keep bought enquiries accessible after closure, but hide closed locked cards.
+      // Keep purchased enquiries accessible after closure, but hide closed locked cards.
       {
         $match: {
           $or: [
             { status: "purchased" },
+            // Only active enquiries remain visible to users who have not unlocked them.
             { status: "active", "inquiry.status": "active" },
           ],
         },
@@ -543,7 +544,7 @@ const getMyInquiries = async (req, res) => {
     if (req.query.categoryId)       filter.propertyCategory        = req.query.categoryId;
     if (req.query.typeId)           filter.propertyType            = req.query.typeId;
     if (req.query.status) {
-      if (!["active", "expired", "inactive", "completed"].includes(req.query.status)) {
+      if (!["active", "expired", "inactive", "completed", "rejected"].includes(req.query.status)) {
         return res.status(400).json({ success: false, message: "Unsupported inquiry status filter" });
       }
       filter.status = req.query.status;
@@ -577,7 +578,7 @@ const getMyInquiries = async (req, res) => {
       ]),
     ]);
 
-    const statusCounts = { active: 0, expired: 0, inactive: 0, completed: 0 };
+    const statusCounts = { active: 0, expired: 0, inactive: 0, completed: 0, rejected: 0 };
     statusStats.forEach(({ _id, count }) => { if (_id in statusCounts) statusCounts[_id] = count; });
 
     const classCounts = { hot: 0, warm: 0, cold: 0 };
@@ -686,6 +687,11 @@ const purchaseAssignedInquiry = async (req, res) => {
     }
     if (inquiry.status === "expired") {
       const error = new Error("This inquiry has expired and cannot be purchased");
+      error.status = 409;
+      throw error;
+    }
+    if (inquiry.status === "rejected") {
+      const error = new Error("This inquiry is rejected and cannot be purchased");
       error.status = 409;
       throw error;
     }
