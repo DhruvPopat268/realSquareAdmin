@@ -7,89 +7,11 @@ const EnquiryPurchasedPlan  = require("../enquiryPurchasedPlans/model");
 const UserCoinsWallet       = require("../userCoinsWallet/model");
 const CoinsTransaction      = require("../coinsTransactions/model");
 const LeadEnquiryCoinsConfig = require("../../admin/leadEnquiryCoinsConfig/model");
-const { sendWhatsApp } = require("../../../whatsappConfig/whatsappService");
-const { TEMPLATES } = require("../../../whatsappConfig/whatsappTemplates");
 
 const ROLE_USERTYPE_MAP = {
   [process.env.OWNER_ROLE_ID]: "Owner",
   [process.env.BROKER_ROLE_ID]: "Broker",
   [process.env.BUILDER_ROLE_ID]: "Builder",
-};
-
-// Ensure these models are registered before populate runs
-const PropertyPurpose = require("../../admin/propertyPurposes/model");
-const PropertyCategory = require("../../admin/propertyCategories/model");
-const PropertyType = require("../../admin/propertyTypes/model");
-
-const inquiryTemplateText = (value) => (
-  value == null || String(value).trim() === "" ? "NA" : String(value)
-);
-
-const formatTemplateAmount = (value) => (
-  value == null ? "NA" : Number(value).toLocaleString("en-IN")
-);
-
-const formatTemplateArea = (area) => {
-  if (area?.value == null) return "NA";
-  return `${Number(area.value).toLocaleString("en-IN")} ${inquiryTemplateText(area.unit)}`;
-};
-
-const sendInquiryConfirmation = async (inquiry) => {
-  const inquiryId = String(inquiry?._id ?? "unknown");
-  try {
-    console.info(`[Inquiry ${inquiryId}] Preparing WhatsApp confirmation`);
-    const [purpose, category, propertyType] = await Promise.all([
-      PropertyPurpose.findById(inquiry.listingType).select("name").lean(),
-      inquiry.propertyCategory
-        ? PropertyCategory.findById(inquiry.propertyCategory).select("name").lean()
-        : null,
-      inquiry.propertyType
-        ? PropertyType.findById(inquiry.propertyType).select("name").lean()
-        : null,
-    ]);
-
-    const area = inquiry.builtUpArea?.value != null
-      ? formatTemplateArea(inquiry.builtUpArea)
-      : inquiry.plotArea?.value != null
-        ? formatTemplateArea(inquiry.plotArea)
-        : "NA";
-
-    const variables = {
-      createdByName: inquiryTemplateText(inquiry.createdBy?.name),
-      listingType: inquiryTemplateText(purpose?.name),
-      propertyCategory: inquiryTemplateText(category?.name),
-      propertyType: inquiryTemplateText(propertyType?.name),
-      preferredArea: inquiryTemplateText(inquiry.preferredArea),
-      preferredCity: inquiryTemplateText(inquiry.preferredCity),
-      minimumBudget: formatTemplateAmount(inquiry.budget?.min),
-      maximumBudget: formatTemplateAmount(inquiry.budget?.max),
-      bhk: inquiryTemplateText(inquiry.bhk),
-      area,
-      furnishingType: inquiryTemplateText(inquiry.furnishingType),
-      // The approved template appends the static word "Team" after this placeholder.
-      companyName: "RealSquare",
-      inquiryId: String(inquiry._id),
-    };
-
-    // Start the external send without delaying a successful inquiry creation response.
-    console.info(`[Inquiry ${inquiryId}] WhatsApp confirmation prepared; starting send`);
-    Promise.resolve(sendWhatsApp(
-      inquiry.createdBy?.mobile,
-      TEMPLATES.PROPERTY_INQUIRY_CONFIRMATION,
-      variables
-    )).then((sent) => {
-      if (sent) {
-        console.info(`[Inquiry ${inquiryId}] WhatsApp confirmation send completed`);
-      } else {
-        console.error(`[Inquiry ${inquiryId}] WhatsApp confirmation was not sent; see WhatsApp API log above`);
-      }
-    }).catch((error) => {
-      console.error(`[Inquiry ${inquiryId}] Failed to start WhatsApp confirmation:`, error.message);
-    });
-  } catch (error) {
-    // Notification failures must not roll back or fail a successfully created inquiry.
-    console.error(`[Inquiry ${inquiryId}] Could not prepare WhatsApp confirmation:`, error.message);
-  }
 };
 
 /**
@@ -153,9 +75,6 @@ const createInquiry = async (req, res) => {
     };
 
     const inquiry = await Inquiry.create(inquiryData);
-    console.info(`[Inquiry ${inquiry._id}] Created successfully; starting WhatsApp confirmation`);
-
-    await sendInquiryConfirmation(inquiry);
 
     // Find eligible users and create AssignedInquiry records for each
     const assignedCount = await createAssignments(inquiry);

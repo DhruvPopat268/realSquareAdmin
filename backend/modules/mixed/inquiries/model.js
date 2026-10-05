@@ -148,28 +148,6 @@ const inquirySchema = new mongoose.Schema(
       required: true,
     },
 
-    // Verification details
-    verifiedByUser: {
-      isVerified: {
-        type: Boolean,
-        default: false,
-      },
-      source: {
-        type: String,
-        enum: ["whatsapp", "call-agent"],
-      },
-    },
-
-    // Customer's response to the Confirm / Reject buttons in the WhatsApp template
-    whatsappResponse: {
-      status: {
-        type: String,
-        enum: ["confirmed", "rejected"],
-      },
-      respondedAt: { type: Date },
-      messageId: { type: String },
-      from: { type: String },
-    },
   },
   { timestamps: true }
 );

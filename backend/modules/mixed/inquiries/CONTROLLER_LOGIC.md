@@ -84,15 +84,7 @@ Creates a new inquiry from user input (frontend chatbot), automatically creates 
 - Set default status as "active"
 - Return created inquiry object
 
-### 5. Send WhatsApp Confirmation
-- After saving the inquiry, send the approved `property_inquiry_confirmation` (`en_US`) template to `createdBy.mobile`. Its 12 body parameters follow this order: customer name, listing type, property category, property type, preferred area, preferred city, minimum budget, maximum budget, BHK, built-up or plot area, furnishing type, and company name (`RealSquare`; the template adds the static `Team` suffix).
-- Optional category, property type, preferred area, BHK, area, and furnishing values use `NA` when missing; area uses built-up area first, then plot area, with its unit.
-- Confirm and Reject quick replies carry inquiry-specific payloads. Meta calls `GET /api/webhooks/whatsapp` to verify the callback URL and `POST /api/webhooks/whatsapp` with reply events. The POST signature is checked with `WHATSAPP_APP_SECRET`; the GET verification token must match the existing `WHATSAPP_WEBHOOK_SECRET`.
-- A reply is recorded in `whatsappResponse` only when the sender's WhatsApp number matches the inquiry creator. Confirm also sets `verifiedByUser.isVerified` and `verifiedByUser.source` to `whatsapp`; Reject marks the inquiry status as `rejected` and clears its verified flag/source. Duplicate message IDs are ignored.
-- Configure Meta's callback URL as `https://<your-api-domain>/api/webhooks/whatsapp`, enter the same value as the backend's `WHATSAPP_WEBHOOK_SECRET`, and configure `WHATSAPP_APP_SECRET` from the Meta app. Subscribe the WhatsApp Business Account to the `messages` webhook field.
-- WhatsApp send or template-data errors are logged and do not fail inquiry creation.
-
-### 6. Find Eligible Users
+### 5. Find Eligible Users
 Uses the `findEligibleUsers()` helper function:
 
 #### Criteria for Eligibility:
@@ -116,14 +108,14 @@ Uses the `findEligibleUsers()` helper function:
 **Step 5: Data Projection**
 - Return only: `_id` (as `id`), `name`, `mobile`, `role`
 
-### 7. Create AssignedInquiry Records
+### 6. Create AssignedInquiry Records
 Uses the `createAssignments()` helper function:
 - Maps each eligible user to an `AssignedInquiry` document
 - Sets `assignmentSource: "automatic"`
 - Uses `insertMany({ ordered: false })` — if any duplicate-key errors occur (unique index on `{inquiry, assignedTo.id}`), they are silently skipped and only successfully inserted records are counted
 - Returns the count of newly created assignment records
 
-### 8. Return Response
+### 7. Return Response
 - Return created inquiry object
 - Return `assignedCount` — number of `AssignedInquiry` records successfully created
 - Status: 201 (Created)
