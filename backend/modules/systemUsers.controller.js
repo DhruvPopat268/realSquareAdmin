@@ -561,13 +561,7 @@ const getMe = async (req, res) => {
     const displayName = req.user.name || profile?.fullName || profile?.name || "";
     const isProfileCompleted = !!(req.user.mobile && displayName && req.user.role);
 
-    // Check if user can list property (includes profile completion, role check, and credits check)
-    const LISTING_ALLOWED_ROLES = [
-      process.env.OWNER_ROLE_ID,
-      process.env.BROKER_ROLE_ID,
-      process.env.BUILDER_ROLE_ID,
-    ];
-    
+    // Check profile completion, block Customers, then check listing credits.
     let canListProperty = { canList: false, message: null };
     
     if (!isProfileCompleted) {
@@ -575,15 +569,10 @@ const getMe = async (req, res) => {
         canList: false,
         message: "Please complete your profile to list properties.",
       };
-    } else if (!LISTING_ALLOWED_ROLES.includes(req.user.role?._id?.toString())) {
+    } else if (req.user.role?._id?.toString() === process.env.CUSTOMER_ROLE_ID) {
       canListProperty = {
         canList: false,
-        message: "Only Owners, Brokers, and Builders can list properties.",
-      };
-    } else if (!req.user.myPropertyListingAllowed && !hasListings) {
-      canListProperty = {
-        canList: false,
-        message: "You don't have permission to list properties.",
+        message: "Customers cannot list properties.",
       };
     } else {
       // Check credits (plan or free listing)
