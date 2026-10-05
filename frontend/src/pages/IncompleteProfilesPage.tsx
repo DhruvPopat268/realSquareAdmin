@@ -32,7 +32,7 @@ export default function IncompleteProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [deletionFilter, setDeletionFilter] = useState("all");
+  const [deletionFilter, setDeletionFilter] = useState("false");
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -116,7 +116,6 @@ export default function IncompleteProfilesPage() {
         <Select value={deletionFilter} onValueChange={(v) => { setDeletionFilter(v); setPage(1); }}>
           <SelectTrigger className="h-8 w-36 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
             <SelectItem value="false">Not Deleted</SelectItem>
             <SelectItem value="true">Deleted</SelectItem>
           </SelectContent>

@@ -29,7 +29,7 @@ export default function CustomersPage() {
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [deletionFilter, setDeletionFilter] = useState("all");
+  const [deletionFilter, setDeletionFilter] = useState("false");
 
   const [viewTarget, setViewTarget] = useState<Customer | null>(null);
   const [viewOpen, setViewOpen]     = useState(false);
@@ -160,7 +160,7 @@ export default function CustomersPage() {
         <div className="flex-1" />
         <p className="text-sm text-muted-foreground">{filtered.length} customer{filtered.length !== 1 ? "s" : ""}</p>
         <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
-          <option value="all">All</option><option value="false">Not Deleted</option><option value="true">Deleted</option>
+          <option value="false">Not Deleted</option><option value="true">Deleted</option>
         </select>
       </div>
 

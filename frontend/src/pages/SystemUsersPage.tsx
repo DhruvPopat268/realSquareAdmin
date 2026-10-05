@@ -58,7 +58,7 @@ export default function SystemUsersPage() {
   const [search, setSearch]               = useState("");
   const [roleFilter, setRoleFilter]       = useState<{ id: string; name: string } | null>(null);
   const [statusFilter, setStatusFilter]   = useState<"All" | "Yes" | "No">("All");
-  const [deletionFilter, setDeletionFilter] = useState<"All" | "Yes" | "No">("All");
+  const [deletionFilter, setDeletionFilter] = useState<"All" | "Yes" | "No">("No");
   const [page, setPage]                   = useState(1);
   const [pageSize, setPageSize]           = useState(10);
   const [total, setTotal]                 = useState(0);
@@ -68,7 +68,7 @@ export default function SystemUsersPage() {
   const [pendingSearch, setPendingSearch]               = useState("");
   const [pendingRoleFilter, setPendingRoleFilter]       = useState<{ id: string; name: string } | null>(null);
   const [pendingStatusFilter, setPendingStatusFilter]   = useState<"All" | "Yes" | "No">("All");
-  const [pendingDeletionFilter, setPendingDeletionFilter] = useState<"All" | "Yes" | "No">("All");
+  const [pendingDeletionFilter, setPendingDeletionFilter] = useState<"All" | "Yes" | "No">("No");
 
   // dialog
   const [open, setOpen]             = useState(false);
@@ -83,7 +83,7 @@ export default function SystemUsersPage() {
   const [deleteOpen, setDeleteOpen]     = useState(false);
   const [deleting, setDeleting]         = useState(false);
 
-  function buildParams(sf: "All" | "Yes" | "No", rid?: string, q?: string, deleted: "All" | "Yes" | "No" = "All") {
+  function buildParams(sf: "All" | "Yes" | "No", rid?: string, q?: string, deleted: "All" | "Yes" | "No" = "No") {
     const p: Record<string, string | number> = {
       page: page,
       limit: pageSize
@@ -96,7 +96,7 @@ export default function SystemUsersPage() {
     return p;
   }
 
-  async function fetchUsers(sf: "All" | "Yes" | "No", rid?: string, q?: string, deleted: "All" | "Yes" | "No" = "All") {
+  async function fetchUsers(sf: "All" | "Yes" | "No", rid?: string, q?: string, deleted: "All" | "Yes" | "No" = "No") {
     setLoading(true);
     try {
       const res = await systemUsersService.getAll(buildParams(sf, rid, q, deleted));
@@ -114,19 +114,19 @@ export default function SystemUsersPage() {
     systemUsersService.getRolesForSystemUsers()
       .then((r) => setRoles(r.data.data))
       .catch(() => {});
-    fetchUsers("All", undefined, "", "All");
+    fetchUsers("All", undefined, "", "No");
     // Initialize pending filters to match applied filters on mount
     setPendingSearch("");
     setPendingRoleFilter(null);
     setPendingStatusFilter("All");
-    setPendingDeletionFilter("All");
+    setPendingDeletionFilter("No");
   }, []);
 
   // ── Filtered + paginated ───────────────────────────────────────────────────
   const filtered = data; // Data already filtered and paginated from backend
   const paged = data; // Already paginated from backend
 
-  const hasFilters = search !== "" || statusFilter !== "All" || roleFilter !== null || deletionFilter !== "All";
+  const hasFilters = search !== "" || statusFilter !== "All" || roleFilter !== null || deletionFilter !== "No";
 
   function applyFilters() {
     setSearch(pendingSearch);
@@ -142,7 +142,7 @@ export default function SystemUsersPage() {
     const resetSearch = "";
     const resetRole = null;
     const resetStatus: "All" | "Yes" | "No" = "All";
-    const resetDeleted: "All" | "Yes" | "No" = "All";
+    const resetDeleted: "All" | "Yes" | "No" = "No";
     
     setPendingSearch(resetSearch);
     setPendingRoleFilter(resetRole);
@@ -360,7 +360,6 @@ export default function SystemUsersPage() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => setPendingDeletionFilter("No")}>Not Deleted</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setPendingDeletionFilter("Yes")}>Deleted</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setPendingDeletionFilter("All")}>All</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
