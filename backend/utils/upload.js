@@ -18,7 +18,12 @@ const imageStorage = multer.diskStorage({
   },
 });
 
-const imageFilter = (_req, file, cb) => {
+const imageFilter = (req, file, cb) => {
+  console.log("UPLOAD:", {
+    name: file.originalname,
+    mimetype: file.mimetype,
+  });
+
   /^image\/(jpeg|jpg|png|webp)$/.test(file.mimetype)
     ? cb(null, true)
     : cb(new Error("Only jpeg, png, webp images are allowed"), false);
