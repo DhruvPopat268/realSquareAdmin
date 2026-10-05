@@ -6,6 +6,7 @@ const AdminWallet        = require("../../admin/adminWallet/model");
 const UserCoinsWallet    = require("../userCoinsWallet/model");
 const CoinsTransaction   = require("../coinsTransactions/model");
 const ListingPurchasedPlan = require("./model");
+const getUserDetailsSnapshot = require("../userDetailsSnapshot");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -65,6 +66,7 @@ const createPlanOrder = async (req, res) => {
     const transaction = await PaymentTransaction.create({
       user:            req.user._id,
       userType,
+      userDetails:     await getUserDetailsSnapshot(req.user),
       reason:          "ListingPlanPurchase",
       razorpayOrderId: razorpayOrder.id,
       amount:          purchaseAmount,
@@ -144,6 +146,7 @@ const upgradePlanOrder = async (req, res) => {
     const transaction = await PaymentTransaction.create({
       user:            req.user._id,
       userType,
+      userDetails:     await getUserDetailsSnapshot(req.user),
       reason:          "ListingPlanUpgrade",
       razorpayOrderId: razorpayOrder.id,
       amount:          purchaseAmount,
@@ -272,6 +275,7 @@ const purchasePlan = async (req, res) => {
       const purchasedPlan = await ListingPurchasedPlan.create({
         user:          req.user._id,
         userType,
+        userDetails:   await getUserDetailsSnapshot(req.user),
         plan:          planSnapshot,
         paymentMethod: "Free",
         coinsPaid:     0,
@@ -291,17 +295,21 @@ const purchasePlan = async (req, res) => {
     if (!userWallet || userWallet.currentBalance < plan.coins)
       return res.status(400).json({ success: false, message: "Insufficient coins balance" });
 
+    const userDetails = await getUserDetailsSnapshot(req.user);
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       userWallet.currentBalance    -= plan.coins;
       userWallet.totalDebitedCoins += plan.coins;
+      userWallet.userDetails        = userDetails;
       await userWallet.save({ session });
 
       const purchasedPlan = new ListingPurchasedPlan({
         user:          req.user._id,
         userType,
+        userDetails,
         plan:          planSnapshot,
         paymentMethod: "Coins",
         coinsPaid:     plan.coins,
@@ -315,6 +323,7 @@ const purchasePlan = async (req, res) => {
       const coinsTxn = new CoinsTransaction({
         user:          req.user._id,
         userType,
+        userDetails,
         type:          "Debit",
         coins:         plan.coins,
         reason:        "ListingPlanPurchase",
@@ -389,6 +398,7 @@ const upgradePlan = async (req, res) => {
         const newPlan = new ListingPurchasedPlan({
           user:          req.user._id,
           userType,
+          userDetails:   await getUserDetailsSnapshot(req.user),
           plan:          planSnapshot,
           paymentMethod: "Free",
           coinsPaid:     0,
@@ -421,17 +431,21 @@ const upgradePlan = async (req, res) => {
     if (!userWallet || userWallet.currentBalance < plan.coins)
       return res.status(400).json({ success: false, message: "Insufficient coins balance" });
 
+    const userDetails = await getUserDetailsSnapshot(req.user);
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       userWallet.currentBalance    -= plan.coins;
       userWallet.totalDebitedCoins += plan.coins;
+      userWallet.userDetails        = userDetails;
       await userWallet.save({ session });
 
       const newPlan = new ListingPurchasedPlan({
         user:          req.user._id,
         userType,
+        userDetails,
         plan:          planSnapshot,
         paymentMethod: "Coins",
         coinsPaid:     plan.coins,
@@ -449,6 +463,7 @@ const upgradePlan = async (req, res) => {
       const coinsTxn = new CoinsTransaction({
         user:          req.user._id,
         userType,
+        userDetails,
         type:          "Debit",
         coins:         plan.coins,
         reason:        "ListingPlanUpgrade",

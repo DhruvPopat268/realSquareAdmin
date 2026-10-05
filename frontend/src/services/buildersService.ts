@@ -7,6 +7,7 @@ export interface Builder {
   mobile: string;
   profilePhoto?: string;
   isActive: boolean;
+  isDeleted: boolean;
   autoApprovalProperties: boolean;
   enquiryCities: string[];
   lastLogin: string | null;
@@ -22,7 +23,7 @@ export interface Builder {
 }
 
 export const buildersService = {
-  getAll: () => api.get<{ success: boolean; data: Builder[] }>("/builder/admin"),
+  getAll: (params?: { isDeleted?: string }) => api.get<{ success: boolean; data: Builder[] }>("/builder/admin", { params }),
   create: (payload: FormData) =>
     api.post<{ success: boolean; data: Builder }>("/builder/admin", payload, {
       headers: { "Content-Type": "multipart/form-data" },

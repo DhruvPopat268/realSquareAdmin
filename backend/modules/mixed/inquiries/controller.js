@@ -7,6 +7,7 @@ const EnquiryPurchasedPlan  = require("../enquiryPurchasedPlans/model");
 const UserCoinsWallet       = require("../userCoinsWallet/model");
 const CoinsTransaction      = require("../coinsTransactions/model");
 const LeadEnquiryCoinsConfig = require("../../admin/leadEnquiryCoinsConfig/model");
+const getUserDetailsSnapshot = require("../userDetailsSnapshot");
 
 const ROLE_USERTYPE_MAP = {
   [process.env.OWNER_ROLE_ID]: "Owner",
@@ -114,6 +115,7 @@ const findEligibleUsers = async (inquiry) => {
 
     const users = await SystemUser.find({
       ...roleFilter,
+      isDeleted: { $ne: true },
       enquiryCities: inquiry.preferredCity,
       name:   { $exists: true, $ne: "" },
       mobile: { $exists: true, $ne: "" },
@@ -677,6 +679,7 @@ const purchaseAssignedInquiry = async (req, res) => {
       await CoinsTransaction.create([{
         user: req.user._id,
         userType,
+        userDetails: await getUserDetailsSnapshot(req.user),
         type: "Debit",
         coins: coinsRequired,
         reason: "InquiryPurchase",

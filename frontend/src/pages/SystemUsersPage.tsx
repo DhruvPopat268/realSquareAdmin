@@ -58,6 +58,7 @@ export default function SystemUsersPage() {
   const [search, setSearch]               = useState("");
   const [roleFilter, setRoleFilter]       = useState<{ id: string; name: string } | null>(null);
   const [statusFilter, setStatusFilter]   = useState<"All" | "Yes" | "No">("All");
+  const [deletionFilter, setDeletionFilter] = useState<"All" | "Yes" | "No">("All");
   const [page, setPage]                   = useState(1);
   const [pageSize, setPageSize]           = useState(10);
   const [total, setTotal]                 = useState(0);
@@ -67,6 +68,7 @@ export default function SystemUsersPage() {
   const [pendingSearch, setPendingSearch]               = useState("");
   const [pendingRoleFilter, setPendingRoleFilter]       = useState<{ id: string; name: string } | null>(null);
   const [pendingStatusFilter, setPendingStatusFilter]   = useState<"All" | "Yes" | "No">("All");
+  const [pendingDeletionFilter, setPendingDeletionFilter] = useState<"All" | "Yes" | "No">("All");
 
   // dialog
   const [open, setOpen]             = useState(false);
@@ -81,22 +83,23 @@ export default function SystemUsersPage() {
   const [deleteOpen, setDeleteOpen]     = useState(false);
   const [deleting, setDeleting]         = useState(false);
 
-  function buildParams(sf: "All" | "Yes" | "No", rid?: string, q?: string) {
+  function buildParams(sf: "All" | "Yes" | "No", rid?: string, q?: string, deleted: "All" | "Yes" | "No" = "All") {
     const p: Record<string, string | number> = {
       page: page,
       limit: pageSize
     };
     if (sf === "Yes") p.isActive = "true";
     if (sf === "No")  p.isActive = "false";
+    p.isDeleted = deleted === "Yes" ? "true" : deleted === "No" ? "false" : "all";
     if (rid)          p.role     = rid;
     if (q?.trim())    p.search   = q.trim();
     return p;
   }
 
-  async function fetchUsers(sf: "All" | "Yes" | "No", rid?: string, q?: string) {
+  async function fetchUsers(sf: "All" | "Yes" | "No", rid?: string, q?: string, deleted: "All" | "Yes" | "No" = "All") {
     setLoading(true);
     try {
-      const res = await systemUsersService.getAll(buildParams(sf, rid, q));
+      const res = await systemUsersService.getAll(buildParams(sf, rid, q, deleted));
       setData(res.data.data);
       setTotal(res.data.pagination.total);
       setTotalPages(res.data.pagination.totalPages);
@@ -111,25 +114,27 @@ export default function SystemUsersPage() {
     systemUsersService.getRolesForSystemUsers()
       .then((r) => setRoles(r.data.data))
       .catch(() => {});
-    fetchUsers("All", undefined, "");
+    fetchUsers("All", undefined, "", "All");
     // Initialize pending filters to match applied filters on mount
     setPendingSearch("");
     setPendingRoleFilter(null);
     setPendingStatusFilter("All");
+    setPendingDeletionFilter("All");
   }, []);
 
   // ── Filtered + paginated ───────────────────────────────────────────────────
   const filtered = data; // Data already filtered and paginated from backend
   const paged = data; // Already paginated from backend
 
-  const hasFilters = search !== "" || statusFilter !== "All" || roleFilter !== null;
+  const hasFilters = search !== "" || statusFilter !== "All" || roleFilter !== null || deletionFilter !== "All";
 
   function applyFilters() {
     setSearch(pendingSearch);
     setRoleFilter(pendingRoleFilter);
     setStatusFilter(pendingStatusFilter);
+    setDeletionFilter(pendingDeletionFilter);
     setPage(1);
-    fetchUsers(pendingStatusFilter, pendingRoleFilter?.id, pendingSearch);
+    fetchUsers(pendingStatusFilter, pendingRoleFilter?.id, pendingSearch, pendingDeletionFilter);
   }
 
   async function clearFilters() {
@@ -137,17 +142,20 @@ export default function SystemUsersPage() {
     const resetSearch = "";
     const resetRole = null;
     const resetStatus: "All" | "Yes" | "No" = "All";
+    const resetDeleted: "All" | "Yes" | "No" = "All";
     
     setPendingSearch(resetSearch);
     setPendingRoleFilter(resetRole);
     setPendingStatusFilter(resetStatus);
+    setPendingDeletionFilter(resetDeleted);
     setSearch(resetSearch);
     setRoleFilter(resetRole);
     setStatusFilter(resetStatus);
+    setDeletionFilter(resetDeleted);
     setPage(1);
     
     // Fetch with explicit reset values
-    await fetchUsers(resetStatus, undefined, resetSearch);
+    await fetchUsers(resetStatus, undefined, resetSearch, resetDeleted);
   }
 
   function goToPage(p: number) {
@@ -157,7 +165,7 @@ export default function SystemUsersPage() {
   // Refetch when page or pageSize changes
   useEffect(() => {
     if (roles.length > 0) { // Only fetch if roles are loaded (not initial render)
-      fetchUsers(statusFilter, roleFilter?.id, search);
+      fetchUsers(statusFilter, roleFilter?.id, search, deletionFilter);
     }
   }, [page, pageSize]);
 
@@ -314,6 +322,7 @@ export default function SystemUsersPage() {
           />
         </div>
         {/* Role filter */}
+        <div className="flex-1" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
@@ -342,6 +351,18 @@ export default function SystemUsersPage() {
             <DropdownMenuItem onClick={() => setPendingStatusFilter("No")}>No</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
+              Deleted: {pendingDeletionFilter} <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setPendingDeletionFilter("No")}>Not Deleted</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPendingDeletionFilter("Yes")}>Deleted</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPendingDeletionFilter("All")}>All</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
         {hasFilters && (
           <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={clearFilters}>
@@ -362,6 +383,7 @@ export default function SystemUsersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Email</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deleted</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Last Login</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Last Activity</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created</th>
@@ -370,18 +392,18 @@ export default function SystemUsersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="py-16"><Spinner fullPage={false} size="md" label="Loading users..." /></td></tr>
+              <tr><td colSpan={12} className="py-16"><Spinner fullPage={false} size="md" label="Loading users..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={10} className="text-center text-muted-foreground py-16">No users found</td></tr>
+              <tr><td colSpan={12} className="text-center text-muted-foreground py-16">No users found</td></tr>
             ) : paged.map((u, i) => (
               <tr key={u._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-20">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => openEdit(u)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
+                    <button disabled={u.isDeleted} onClick={() => openEdit(u)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors disabled:opacity-40">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     {u.role?._id !== ADMIN_ROLE_ID && (
-                      <button onClick={() => openDelete(u)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors">
+                      <button disabled={u.isDeleted} onClick={() => openDelete(u)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -401,12 +423,13 @@ export default function SystemUsersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <Switch checked={u.isActive} onCheckedChange={() => toggleActive(u)} disabled={u.role?._id === ADMIN_ROLE_ID} className="scale-90" />
+                    <Switch checked={u.isActive} onCheckedChange={() => toggleActive(u)} disabled={u.isDeleted || u.role?._id === ADMIN_ROLE_ID} className="scale-90" />
                     <span className={`text-xs font-medium ${u.isActive ? "text-green-600" : "text-muted-foreground"}`}>
                       {u.isActive ? "Yes" : "No"}
                     </span>
                   </div>
                 </td>
+                <td className="px-4 py-3">{u.isDeleted ? "Yes" : "No"}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {u.lastLogin ? (
                     <>

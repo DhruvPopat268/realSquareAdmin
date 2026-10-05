@@ -7,6 +7,7 @@ export interface Broker {
   mobile: string;
   profilePhoto?: string;
   isActive: boolean;
+  isDeleted: boolean;
   autoApprovalProperties: boolean;
   enquiryCities: string[];
   lastLogin: string | null;
@@ -21,7 +22,7 @@ export interface Broker {
 }
 
 export const brokersService = {
-  getAll: () => api.get<{ success: boolean; data: Broker[] }>("/broker/admin"),
+  getAll: (params?: { isDeleted?: string }) => api.get<{ success: boolean; data: Broker[] }>("/broker/admin", { params }),
   create: (payload: FormData) =>
     api.post<{ success: boolean; data: Broker }>("/broker/admin", payload, {
       headers: { "Content-Type": "multipart/form-data" },

@@ -13,10 +13,6 @@ const LIMITS = [10, 20, 50, 100];
 interface Query { page: number; limit: number; status: string; userType: string; userId: string; }
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", userType: "", userId: "" };
 
-function userName(u: EnquiryPurchasedPlan["user"]) {
-  return u.name ?? u.mobile;
-}
-
 const STATUS_COLORS: Record<string, string> = {
   Active:    "bg-green-100 text-green-700",
   Expired:   "bg-red-100 text-red-700",
@@ -207,8 +203,8 @@ export default function PurchasedEnquiryPlansPage() {
                   <tr key={p._id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
                     <td className="px-5 py-3">
-                      <p className="font-medium leading-tight">{userName(p.user)}</p>
-                      <p className="text-xs text-muted-foreground">{p.user.mobile}</p>
+                      <p className="font-medium leading-tight">{p.userDetails?.name || p.userDetails?.mobile || "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground">{p.userDetails?.mobile || "—"}</p>
                     </td>
                     <td className="px-5 py-3 text-muted-foreground">{p.userType}</td>
                     <td className="px-5 py-3 font-medium">{p.plan.name}</td>

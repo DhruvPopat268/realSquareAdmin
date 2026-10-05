@@ -4,6 +4,10 @@ const paymentTransactionSchema = new mongoose.Schema(
   {
     user:              { type: mongoose.Schema.Types.ObjectId, ref: "SystemUser", required: true },
     userType:          { type: String, enum: ["Owner", "Broker", "Builder"], required: true },
+    userDetails: {
+      name:   { type: String, required: true, trim: true },
+      mobile: { type: String, required: true, trim: true },
+    },
     refId:             { type: mongoose.Schema.Types.ObjectId, refPath: "refModel" },
     refModel:          { type: String, enum: ["ListingPlan", "EnquiryPlan"] },
     reason:            { type: String, enum: ["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"], required: true },

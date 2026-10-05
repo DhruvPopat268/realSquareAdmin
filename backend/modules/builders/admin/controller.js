@@ -1,4 +1,5 @@
 const SystemUser = require("../../systemUsers.model");
+const SystemUserSession = require("../../systemUsers.session.model");
 
 const BUILDER_ROLE_ID = process.env.BUILDER_ROLE_ID;
 
@@ -9,7 +10,12 @@ const fileByField = (files, name) => (files || []).find((f) => f.fieldname === n
 
 const getBuilders = async (req, res) => {
   try {
-    const builders = await SystemUser.find({ role: BUILDER_ROLE_ID })
+    const isDeleted = req.query.isDeleted;
+    if (isDeleted && !["true", "false", "all"].includes(isDeleted))
+      return res.status(400).json({ success: false, message: "isDeleted must be true, false, or all" });
+    const filter = { role: BUILDER_ROLE_ID };
+    if (isDeleted !== "all") filter.isDeleted = isDeleted === "true" ? true : { $ne: true };
+    const builders = await SystemUser.find(filter)
       .populate("role", "name permissions isActive")
       .sort({ createdAt: -1 });
 
@@ -73,8 +79,8 @@ const updateBuilder = async (req, res) => {
     if (profilePhotoFile)
       updateData["profilePhoto"] = toUrl(profilePhotoFile.path);
 
-    const builder = await SystemUser.findByIdAndUpdate(
-      id,
+    const builder = await SystemUser.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
       { $set: updateData },
       { new: true, runValidators: true }
     ).populate("role", "name permissions isActive");
@@ -100,8 +106,8 @@ const updateBuilderStatus = async (req, res) => {
     if (isActive               !== undefined) updateData.isActive               = isActive;
     if (autoApprovalProperties !== undefined) updateData.autoApprovalProperties = autoApprovalProperties;
 
-    const builder = await SystemUser.findByIdAndUpdate(
-      id,
+    const builder = await SystemUser.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
       { $set: updateData },
       { new: true }
     ).populate("role", "name permissions isActive");
@@ -119,9 +125,15 @@ const deleteBuilder = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const builder = await SystemUser.findByIdAndDelete(id);
+    const builder = await SystemUser.findOneAndUpdate(
+      { _id: id, role: BUILDER_ROLE_ID, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true } },
+      { new: true }
+    );
     if (!builder)
       return res.status(404).json({ success: false, message: "Builder not found" });
+
+    await SystemUserSession.deleteMany({ userId: builder._id });
 
     res.json({ success: true, message: "Builder deleted successfully" });
   } catch (err) {

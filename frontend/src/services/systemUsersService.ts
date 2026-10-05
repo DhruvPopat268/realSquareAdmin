@@ -13,6 +13,7 @@ export interface SystemUser {
   role: SystemUserRole | null;
   isSuperAdmin: boolean;
   isActive: boolean;
+  isDeleted: boolean;
   lastLogin: string | null;
   lastActivity: string | null;
   createdAt: string;
@@ -41,7 +42,7 @@ export const systemUsersService = {
   getRolesForSystemUsers: () =>
     api.get<{ success: boolean; data: SystemUserRole[] }>("/admin/auth/system-users/roles"),
   getIncompleteProfiles: (params?: Record<string, string | number>) =>
-    api.get<{ success: boolean; data: Array<{ _id: string; name?: string; mobile: string; createdAt: string; updatedAt: string }>; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/auth/incomplete-profiles", { params }),
+    api.get<{ success: boolean; data: Array<{ _id: string; name?: string; mobile: string; isDeleted: boolean; createdAt: string; updatedAt: string }>; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/auth/incomplete-profiles", { params }),
   deleteIncompleteProfile: (id: string) =>
     api.delete(`/admin/auth/incomplete-profiles/${id}`),
   getActiveUsers: (params?: Record<string, string>) =>

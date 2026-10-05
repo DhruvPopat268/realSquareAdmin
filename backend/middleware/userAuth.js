@@ -15,8 +15,8 @@ const userProtect = async (req, res, next) => {
     if (!session)
       return res.status(401).json({ success: false, message: "Session expired or logged out" });
 
-    const user = await SystemUser.findByIdAndUpdate(
-      decoded.id,
+    const user = await SystemUser.findOneAndUpdate(
+      { _id: decoded.id, isDeleted: { $ne: true } },
       { lastActivity: new Date() },
       { new: true }
     ).populate("role", "name permissions isActive");

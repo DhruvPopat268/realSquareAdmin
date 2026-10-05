@@ -29,6 +29,7 @@ export default function CustomersPage() {
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [deletionFilter, setDeletionFilter] = useState("all");
 
   const [viewTarget, setViewTarget] = useState<Customer | null>(null);
   const [viewOpen, setViewOpen]     = useState(false);
@@ -44,11 +45,12 @@ export default function CustomersPage() {
   const [deleting, setDeleting]         = useState(false);
 
   useEffect(() => {
-    customersService.getAll()
+    setLoading(true);
+    customersService.getAll({ isDeleted: deletionFilter })
       .then((res) => setData(res.data.data))
       .catch(() => toast({ variant: "destructive", title: "Failed to load customers" }))
       .finally(() => setLoading(false));
-  }, []);
+  }, [deletionFilter]);
 
   function openView(c: Customer) { setViewTarget(c); setViewOpen(true); }
 
@@ -157,6 +159,9 @@ export default function CustomersPage() {
         </div>
         <div className="flex-1" />
         <p className="text-sm text-muted-foreground">{filtered.length} customer{filtered.length !== 1 ? "s" : ""}</p>
+        <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
+          <option value="all">All</option><option value="false">Not Deleted</option><option value="true">Deleted</option>
+        </select>
       </div>
 
       <div className="rounded-lg border bg-card overflow-x-auto">
@@ -173,6 +178,7 @@ export default function CustomersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-40">Bio</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deleted</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Login</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Activity</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Joined At</th>
@@ -180,9 +186,9 @@ export default function CustomersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={13} className="py-16"><Spinner fullPage={false} size="md" label="Loading customers..." /></td></tr>
+              <tr><td colSpan={14} className="py-16"><Spinner fullPage={false} size="md" label="Loading customers..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={13} className="text-center text-muted-foreground py-16">No customers found</td></tr>
+              <tr><td colSpan={14} className="text-center text-muted-foreground py-16">No customers found</td></tr>
             ) : paged.map((c, i) => (
               <tr key={c._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
@@ -190,10 +196,10 @@ export default function CustomersPage() {
                     <button disabled onClick={() => openView(c)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed">
                       <Eye className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => openEdit(c)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
+                    <button disabled={c.isDeleted} onClick={() => openEdit(c)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors disabled:opacity-40">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => openDelete(c)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors">
+                    <button disabled={c.isDeleted} onClick={() => openDelete(c)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -224,12 +230,13 @@ export default function CustomersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <Switch checked={c.isActive} onCheckedChange={() => handleToggleStatus(c)} className="scale-90" />
+                    <Switch checked={c.isActive} onCheckedChange={() => handleToggleStatus(c)} disabled={c.isDeleted} className="scale-90" />
                     <span className={`text-xs font-medium ${c.isActive ? "text-green-600" : "text-muted-foreground"}`}>
                       {c.isActive ? "Yes" : "No"}
                     </span>
                   </div>
                 </td>
+                <td className="px-4 py-3">{c.isDeleted ? "Yes" : "No"}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {c.lastLogin ? (
                     <>

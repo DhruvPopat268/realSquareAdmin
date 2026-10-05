@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { validationResult } = require("express-validator");
 const SystemUser        = require("../../../modules/systemUsers.model");
 const SystemUserSession = require("./session.model");
+const AppSystemUserSession = require("../../../modules/systemUsers.session.model");
 const SystemUserOtp     = require("./otp.model");
 const SystemUserRole    = require("../systemUsersRoles/model");
 const { sendEmail }     = require("../../../utils/emailService");
@@ -122,6 +123,9 @@ const login = async (req, res) => {
     if (!admin || !(await admin.matchPassword(password)))
       return res.status(401).json({ success: false, message: "Invalid email or password" });
 
+    if (admin.isDeleted)
+      return res.status(403).json({ success: false, message: "Account is deleted" });
+
     if (!admin.isActive)
       return res.status(403).json({ success: false, message: "Account is deactivated" });
 
@@ -186,6 +190,9 @@ const sendOtp = async (req, res) => {
     if (!admin)
       return res.status(404).json({ success: false, message: "No account found with this email" });
 
+    if (admin.isDeleted)
+      return res.status(403).json({ success: false, message: "Account is deleted" });
+
     if (!admin.isActive)
       return res.status(403).json({ success: false, message: "Account is deactivated" });
 
@@ -230,6 +237,9 @@ const forgotPassword = async (req, res) => {
     const admin = await SystemUser.findById(otpRecord.userId);
     if (!admin)
       return res.status(404).json({ success: false, message: "User not found" });
+
+    if (admin.isDeleted)
+      return res.status(403).json({ success: false, message: "Account is deleted" });
 
     admin.profile.password = newPassword;
     await admin.save();
@@ -317,11 +327,17 @@ const getUsers = async (req, res) => {
       process.env.VITE_CUSTOMER_ROLE || process.env.CUSTOMER_ROLE_ID,
     ].filter(Boolean);
 
+    const deletedFilter = req.query.isDeleted;
+    if (deletedFilter && !["true", "false", "all"].includes(deletedFilter)) {
+      return res.status(400).json({ success: false, message: "isDeleted must be true, false, or all" });
+    }
+
     const filter = {
       $and: [
         {
           role: { $nin: excludedRoleIds, $ne: null }  // Only users with panel/admin roles (not null, not app roles)
-        }
+        },
+        ...(deletedFilter === "all" ? [] : [{ isDeleted: deletedFilter === "true" ? true : { $ne: true } }]),
       ]
     };
 
@@ -372,7 +388,7 @@ const getUsers = async (req, res) => {
 // ── Get Single System User ────────────────────────────────────────────────────
 const getUserById = async (req, res) => {
   try {
-    const user = await SystemUser.findById(req.params.id)
+    const user = await SystemUser.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
       .select(EXCLUDE_PASSWORD)
       .populate("role", POPULATE_ROLE);
 
@@ -399,7 +415,7 @@ const updateUser = async (req, res) => {
 
   try {
     const adminRoleId = process.env.ADMIN_ROLE_ID;
-    const user = await SystemUser.findById(req.params.id);
+    const user = await SystemUser.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
     
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
@@ -427,8 +443,9 @@ const updateUser = async (req, res) => {
         return res.status(409).json({ success: false, message: "Mobile already in use" });
     }
 
-    const updatedUser = await SystemUser.findByIdAndUpdate(
-      req.params.id,
+    delete req.body.isDeleted;
+    const updatedUser = await SystemUser.findOneAndUpdate(
+      { _id: req.params.id, isDeleted: { $ne: true } },
       req.body,
       { new: true, runValidators: true }
     ).select(EXCLUDE_PASSWORD).populate("role", POPULATE_ROLE);
@@ -445,7 +462,11 @@ const deleteUser = async (req, res) => {
     if (req.params.id === req.user._id.toString())
       return res.status(400).json({ success: false, message: "You cannot delete your own account" });
 
-    const user = await SystemUser.findByIdAndDelete(req.params.id);
+    const user = await SystemUser.findOneAndUpdate(
+      { _id: req.params.id, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true } },
+      { new: true }
+    );
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
@@ -475,6 +496,7 @@ const updateMyProfile = async (req, res) => {
     // prevent role / isSuperAdmin escalation via this endpoint
     delete req.body.role;
     delete req.body.isSuperAdmin;
+    delete req.body.isDeleted;
     if (req.body.profile) delete req.body.profile.password;
 
     if (req.body.email) {
@@ -550,7 +572,14 @@ const getRolesForSystemUsers = async (req, res) => {
 // ── Get Incomplete Profiles (users without roles) ─────────────────────────────
 const getIncompleteProfiles = async (req, res) => {
   try {
-    const filter = { role: { $eq: null } };  // Users with no role assigned
+    const deletedFilter = req.query.isDeleted;
+    if (deletedFilter && !["true", "false", "all"].includes(deletedFilter)) {
+      return res.status(400).json({ success: false, message: "isDeleted must be true, false, or all" });
+    }
+    const filter = {
+      role: { $eq: null },
+      ...(deletedFilter === "all" ? {} : { isDeleted: deletedFilter === "true" ? true : { $ne: true } }),
+    };
 
     // Pagination
     const page  = Math.max(1, parseInt(req.query.page) || 1);
@@ -559,7 +588,7 @@ const getIncompleteProfiles = async (req, res) => {
 
     const [users, total] = await Promise.all([
       SystemUser.find(filter)
-        .select("_id name mobile createdAt updatedAt")
+        .select("_id name mobile isDeleted createdAt updatedAt")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -584,11 +613,15 @@ const getIncompleteProfiles = async (req, res) => {
 // ── Delete Incomplete Profile ──────────────────────────────────────────────────
 const deleteIncompleteProfile = async (req, res) => {
   try {
-    const user = await SystemUser.findByIdAndDelete(req.params.id);
+    const user = await SystemUser.findOneAndUpdate(
+      { _id: req.params.id, role: { $eq: null }, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true } },
+      { new: true }
+    );
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    await SystemUserSession.deleteMany({ userId: req.params.id });
+    await AppSystemUserSession.deleteMany({ userId: req.params.id });
 
     res.json({ success: true, message: "Profile deleted successfully" });
   } catch (err) {

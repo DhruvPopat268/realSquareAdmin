@@ -15,7 +15,6 @@ const getCoinsTransactions = async (req, res) => {
 
     const [transactions, total, stats] = await Promise.all([
       CoinsTransaction.find(filter)
-        .populate("user", "mobile name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),

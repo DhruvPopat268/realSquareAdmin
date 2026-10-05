@@ -54,6 +54,9 @@ const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
 
 const issueToken = async (userId) => {
+  const user = await SystemUser.findOne({ _id: userId, isDeleted: { $ne: true } }).select("_id");
+  if (!user) throw new Error("Account is deleted");
+
   const maxSessions = parseInt(process.env.USER_MAX_SESSIONS) || 3;
   const sessionCount = await SystemUserSession.countDocuments({ userId });
   if (sessionCount >= maxSessions) {
@@ -64,7 +67,10 @@ const issueToken = async (userId) => {
     expiresIn: process.env.USER_JWT_EXPIRES_IN,
   });
   await SystemUserSession.create({ userId, token });
-  await SystemUser.findByIdAndUpdate(userId, { lastLogin: new Date() });
+  await SystemUser.findOneAndUpdate(
+    { _id: userId, isDeleted: { $ne: true } },
+    { lastLogin: new Date() }
+  );
   return token;
 };
 
@@ -156,6 +162,9 @@ const sendOtp = async (req, res) => {
   try {
     let user = await SystemUser.findOne({ $or: MOBILE_OR_QUERY(mobile) });
 
+    if (user?.isDeleted)
+      return res.status(403).json({ success: false, message: "Account is deleted" });
+
     if (user && !user.isActive)
       return res.status(403).json({ success: false, message: "Account is deactivated" });
 
@@ -192,6 +201,9 @@ const verifyOtp = async (req, res) => {
 
     if (!user)
       return res.status(404).json({ success: false, message: "No account found for this mobile" });
+
+    if (user.isDeleted)
+      return res.status(403).json({ success: false, message: "Account is deleted" });
 
     if (!user.isActive)
       return res.status(403).json({ success: false, message: "Account is deactivated" });
@@ -505,14 +517,30 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// ── Delete Account (protected) ────────────────────────────────────────────────
-// DELETE /api/system-users/delete-account
-const deleteAccount = async (req, res) => {
+// ── Reset Role Profile for Role Switch (protected) ────────────────────────────
+// POST /api/system-users/switch-role
+const switchRole = async (req, res) => {
   try {
+    await SystemUser.findByIdAndUpdate(
+      req.user._id,
+      {
+        $unset: {
+          role: 1,
+          customerProfile: 1,
+          ownerProfile: 1,
+          brokerProfile: 1,
+          builderProfile: 1,
+          enquiryCities: 1,
+          lastLogin: 1,
+          lastActivity: 1,
+        },
+      },
+      { runValidators: true }
+    );
+
     await SystemUserSession.deleteMany({ userId: req.user._id });
-    await SystemUser.findByIdAndDelete(req.user._id);
     res.clearCookie("user_token");
-    res.json({ success: true, message: "Account deleted successfully" });
+    res.json({ success: true, message: "Profile reset for role switch successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -695,5 +723,5 @@ const logout = async (req, res) => {
 module.exports = {
   sendOtp, verifyOtp, completeProfile,
   sendChangeMobileOtp, verifyChangeMobileOtp,
-  updateProfile, deleteAccount, logout, getMe, getActiveUsers,
+  updateProfile, switchRole, logout, getMe, getActiveUsers,
 };

@@ -11,6 +11,7 @@ interface IncompleteProfile {
   _id: string;
   name?: string;
   mobile: string;
+  isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,6 +32,7 @@ export default function IncompleteProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [deletionFilter, setDeletionFilter] = useState("all");
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -42,7 +44,7 @@ export default function IncompleteProfilesPage() {
   async function fetchProfiles() {
     setLoading(true);
     try {
-      const params = { page, limit: pageSize };
+      const params = { page, limit: pageSize, isDeleted: deletionFilter };
       const res = await systemUsersService.getIncompleteProfiles(params);
       setData(res.data.data);
       setTotal(res.data.pagination.total);
@@ -59,7 +61,7 @@ export default function IncompleteProfilesPage() {
 
   useEffect(() => {
     fetchProfiles();
-  }, [page, pageSize]);
+  }, [page, pageSize, deletionFilter]);
 
   function goToPage(p: number) {
     setPage(p);
@@ -109,7 +111,16 @@ export default function IncompleteProfilesPage() {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex-1" />
         <p className="text-sm text-muted-foreground">{total} record{total !== 1 ? "s" : ""}</p>
+        <Select value={deletionFilter} onValueChange={(v) => { setDeletionFilter(v); setPage(1); }}>
+          <SelectTrigger className="h-8 w-36 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="false">Not Deleted</SelectItem>
+            <SelectItem value="true">Deleted</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -121,18 +132,19 @@ export default function IncompleteProfilesPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-12">#</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mobile</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deleted</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="py-16">
+                <td colSpan={5} className="py-16">
                   <Spinner fullPage={false} size="md" label="Loading profiles..." />
                 </td>
               </tr>
             ) : paged.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-center text-muted-foreground py-16">
+                <td colSpan={5} className="text-center text-muted-foreground py-16">
                   No incomplete profiles found
                 </td>
               </tr>
@@ -141,6 +153,7 @@ export default function IncompleteProfilesPage() {
                 <td className="px-4 py-3 w-20">
                   <button
                     onClick={() => openDelete(profile)}
+                    disabled={profile.isDeleted}
                     className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -152,6 +165,7 @@ export default function IncompleteProfilesPage() {
                   <p className="text-sm text-foreground">{fmtDate(profile.createdAt).date}</p>
                   <p className="text-xs text-muted-foreground">{fmtDate(profile.createdAt).time}</p>
                 </td>
+                <td className="px-4 py-3">{profile.isDeleted ? "Yes" : "No"}</td>
               </tr>
             ))}
           </tbody>

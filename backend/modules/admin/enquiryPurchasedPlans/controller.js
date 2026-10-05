@@ -14,7 +14,6 @@ const getEnquiryPurchasedPlans = async (req, res) => {
 
     const [records, total, statsRaw] = await Promise.all([
       EnquiryPurchasedPlan.find(filter)
-        .populate("user", "mobile name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),

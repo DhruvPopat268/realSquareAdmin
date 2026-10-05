@@ -2,7 +2,8 @@ import api from "@/lib/axiosInterceptor";
 
 export interface PaymentTransaction {
   _id: string;
-  user: { _id: string; mobile: string; name?: string };
+  user: string;
+  userDetails?: { name?: string; mobile?: string } | null;
   userType: "Owner" | "Broker" | "Builder";
   reason: "ListingPlanPurchase" | "ListingPlanUpgrade" | "EnquiryPlanPurchase" | "EnquiryPlanUpgrade" | "CoinsPurchase" | "Refund" | "AdminCredit" | "AdminDebit";
   razorpayOrderId: string;

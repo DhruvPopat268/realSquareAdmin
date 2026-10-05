@@ -6,6 +6,7 @@ const AdminWallet           = require("../../admin/adminWallet/model");
 const UserCoinsWallet       = require("../userCoinsWallet/model");
 const CoinsTransaction      = require("../coinsTransactions/model");
 const EnquiryPurchasedPlan  = require("./model");
+const getUserDetailsSnapshot = require("../userDetailsSnapshot");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -95,6 +96,7 @@ const createEnquiryPlanOrder = async (req, res) => {
     const transaction = await PaymentTransaction.create({
       user:            req.user._id,
       userType,
+      userDetails:     await getUserDetailsSnapshot(req.user),
       reason:          "EnquiryPlanPurchase",
       razorpayOrderId: razorpayOrder.id,
       amount:          plan.amount,
@@ -173,6 +175,7 @@ const upgradeEnquiryPlanOrder = async (req, res) => {
     const transaction = await PaymentTransaction.create({
       user:            req.user._id,
       userType,
+      userDetails:     await getUserDetailsSnapshot(req.user),
       reason:          "EnquiryPlanUpgrade",
       razorpayOrderId: razorpayOrder.id,
       amount:          plan.amount,
@@ -266,6 +269,7 @@ const purchaseEnquiryPlan = async (req, res) => {
       const purchased = await EnquiryPurchasedPlan.create({
         user:               req.user._id,
         userType,
+        userDetails:        await getUserDetailsSnapshot(req.user),
         plan:               planSnapshot,
         paymentMethod:      "Free",
         coinsPaid:          0,
@@ -285,17 +289,21 @@ const purchaseEnquiryPlan = async (req, res) => {
     if (!userWallet || userWallet.currentBalance < plan.coins)
       return res.status(400).json({ success: false, message: "Insufficient coins balance" });
 
+    const userDetails = await getUserDetailsSnapshot(req.user);
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       userWallet.currentBalance    -= plan.coins;
       userWallet.totalDebitedCoins += plan.coins;
+      userWallet.userDetails        = userDetails;
       await userWallet.save({ session });
 
       const purchased = new EnquiryPurchasedPlan({
         user:               req.user._id,
         userType,
+        userDetails,
         plan:               planSnapshot,
         paymentMethod:      "Coins",
         coinsPaid:          plan.coins,
@@ -309,6 +317,7 @@ const purchaseEnquiryPlan = async (req, res) => {
       const coinsTxn = new CoinsTransaction({
         user:          req.user._id,
         userType,
+        userDetails,
         type:          "Debit",
         coins:         plan.coins,
         reason:        "EnquiryPlanPurchase",
@@ -383,6 +392,7 @@ const upgradeEnquiryPlan = async (req, res) => {
         const newPlan = new EnquiryPurchasedPlan({
           user:               req.user._id,
           userType,
+          userDetails:        await getUserDetailsSnapshot(req.user),
           plan:               planSnapshot,
           paymentMethod:      "Free",
           coinsPaid:          0,
@@ -415,17 +425,21 @@ const upgradeEnquiryPlan = async (req, res) => {
     if (!userWallet || userWallet.currentBalance < plan.coins)
       return res.status(400).json({ success: false, message: "Insufficient coins balance" });
 
+    const userDetails = await getUserDetailsSnapshot(req.user);
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       userWallet.currentBalance    -= plan.coins;
       userWallet.totalDebitedCoins += plan.coins;
+      userWallet.userDetails        = userDetails;
       await userWallet.save({ session });
 
       const newPlan = new EnquiryPurchasedPlan({
         user:               req.user._id,
         userType,
+        userDetails,
         plan:               planSnapshot,
         paymentMethod:      "Coins",
         coinsPaid:          plan.coins,
@@ -443,6 +457,7 @@ const upgradeEnquiryPlan = async (req, res) => {
       const coinsTxn = new CoinsTransaction({
         user:          req.user._id,
         userType,
+        userDetails,
         type:          "Debit",
         coins:         plan.coins,
         reason:        "EnquiryPlanUpgrade",

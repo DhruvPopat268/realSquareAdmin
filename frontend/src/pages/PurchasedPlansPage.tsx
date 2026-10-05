@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Archive, Ban } from "lucide-react";
-import { purchasedPlansService, type ListingListingPurchasedPlan } from "@/services/purchasedPlansService";
+import { purchasedPlansService, type ListingPurchasedPlan } from "@/services/purchasedPlansService";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
@@ -12,10 +12,6 @@ const LIMITS = [10, 20, 50, 100];
 
 interface Query { page: number; limit: number; status: string; userType: string; userId: string; }
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", userType: "", userId: "" };
-
-function userName(u: ListingPurchasedPlan["user"]) {
-  return u.name ?? u.mobile;
-}
 
 const STATUS_VARIANTS: Record<string, "default" | "destructive" | "secondary"> = {
   Active:    "default",
@@ -213,8 +209,8 @@ export default function ListingPurchasedPlansPage() {
                   <tr key={p._id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
                     <td className="px-5 py-3">
-                      <p className="font-medium leading-tight">{userName(p.user)}</p>
-                      <p className="text-xs text-muted-foreground">{p.user.mobile}</p>
+                      <p className="font-medium leading-tight">{p.userDetails?.name || p.userDetails?.mobile || "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground">{p.userDetails?.mobile || "—"}</p>
                     </td>
                     <td className="px-5 py-3 text-muted-foreground">{p.userType}</td>
                     <td className="px-5 py-3 font-medium">{p.plan.name}</td>

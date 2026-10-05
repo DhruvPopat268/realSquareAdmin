@@ -1,5 +1,5 @@
 const express            = require("express");
-const { completeProfile, sendOtp, verifyOtp, logout, updateProfile, deleteAccount, sendChangeMobileOtp, verifyChangeMobileOtp, getMe, getActiveUsers } = require("./systemUsers.controller");
+const { completeProfile, sendOtp, verifyOtp, logout, updateProfile, switchRole, sendChangeMobileOtp, verifyChangeMobileOtp, getMe, getActiveUsers } = require("./systemUsers.controller");
 const { uploadImage }    = require("../utils/upload");
 const { userProtect } = require("../middleware/userAuth");
 
@@ -15,6 +15,6 @@ router.post("/complete-profile",     userProtect, uploadImage.any(), completePro
 router.put("/update-profile",        userProtect, uploadImage.any(), updateProfile);
 router.post("/send-change-mobile-otp",   userProtect, sendChangeMobileOtp);
 router.post("/verify-change-mobile-otp", userProtect, verifyChangeMobileOtp);
-router.delete("/delete-account",         userProtect, deleteAccount);
+router.post("/switch-role",               userProtect, switchRole);
 
 module.exports = router;

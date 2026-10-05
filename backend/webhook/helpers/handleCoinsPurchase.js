@@ -3,6 +3,7 @@ const CoinsOffer      = require("../../modules/admin/coinsOffersManagement/model
 const AdminWallet     = require("../../modules/admin/adminWallet/model");
 const UserCoinsWallet = require("../../modules/mixed/userCoinsWallet/model");
 const CoinsTransaction = require("../../modules/mixed/coinsTransactions/model");
+const getUserDetailsSnapshot = require("../../modules/mixed/userDetailsSnapshot");
 
 const handleCoinsPurchase = async (txn, payment, purchaseAmount, signature) => {
   // ── Resolve coins to credit ───────────────────────────────────────────────
@@ -35,6 +36,7 @@ const handleCoinsPurchase = async (txn, payment, purchaseAmount, signature) => {
   session.startTransaction();
 
   try {
+    const userDetails = await getUserDetailsSnapshot(txn.userDetails || txn.user);
     const adminWallet = await AdminWallet.findOneAndUpdate(
       {},
       {
@@ -55,7 +57,7 @@ const handleCoinsPurchase = async (txn, payment, purchaseAmount, signature) => {
       { user: txn.user },
       {
         $inc:         { currentBalance: coinsToCredit, totalCreditedCoins: coinsToCredit },
-        $setOnInsert: { userType: txn.userType },
+        $setOnInsert: { userType: txn.userType, userDetails },
       },
       { new: true, upsert: true, session }
     );
@@ -63,6 +65,7 @@ const handleCoinsPurchase = async (txn, payment, purchaseAmount, signature) => {
     const coinsTxn = new CoinsTransaction({
       user:          txn.user,
       userType:      txn.userType,
+      userDetails,
       type:          "Credit",
       coins:         coinsToCredit,
       reason:        "CoinsPurchase",

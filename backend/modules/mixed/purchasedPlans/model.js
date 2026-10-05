@@ -4,6 +4,10 @@ const purchasedPlanSchema = new mongoose.Schema(
   {
     user:          { type: mongoose.Schema.Types.ObjectId, ref: "SystemUser", required: true },
     userType:      { type: String, enum: ["Owner", "Broker", "Builder"], required: true },
+    userDetails: {
+      name:   { type: String, required: true, trim: true },
+      mobile: { type: String, required: true, trim: true },
+    },
     plan: {
       planId:                  { type: mongoose.Schema.Types.ObjectId, ref: "ListingPlan", required: true },
       name:                    { type: String, required: true },

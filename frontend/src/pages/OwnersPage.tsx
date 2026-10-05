@@ -38,6 +38,7 @@ export default function OwnersPage() {
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [deletionFilter, setDeletionFilter] = useState("all");
 
   const [viewTarget, setViewTarget]     = useState<Owner | null>(null);
   const [viewOpen, setViewOpen]         = useState(false);
@@ -56,11 +57,12 @@ export default function OwnersPage() {
   const [deleting, setDeleting]         = useState(false);
 
   useEffect(() => {
-    ownersService.getAll()
+    setLoading(true);
+    ownersService.getAll({ isDeleted: deletionFilter })
       .then((res) => setData(res.data.data))
       .catch(() => toast({ variant: "destructive", title: "Failed to load owners" }))
       .finally(() => setLoading(false));
-  }, []);
+  }, [deletionFilter]);
 
   function openView(o: Owner) { setViewTarget(o); setViewOpen(true); }
 
@@ -188,6 +190,9 @@ export default function OwnersPage() {
         </div>
         <div className="flex-1" />
         <p className="text-sm text-muted-foreground">{filtered.length} owner{filtered.length !== 1 ? "s" : ""}</p>
+        <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
+          <option value="all">All</option><option value="false">Not Deleted</option><option value="true">Deleted</option>
+        </select>
       </div>
 
       <div className="rounded-lg border bg-card overflow-x-auto">
@@ -206,6 +211,7 @@ export default function OwnersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[160px]">GST Number</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deleted</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Auto Approval</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Login</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Activity</th>
@@ -214,16 +220,16 @@ export default function OwnersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={16} className="py-16"><Spinner fullPage={false} size="md" label="Loading owners..." /></td></tr>
+              <tr><td colSpan={17} className="py-16"><Spinner fullPage={false} size="md" label="Loading owners..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={16} className="text-center text-muted-foreground py-16">No owners found</td></tr>
+              <tr><td colSpan={17} className="text-center text-muted-foreground py-16">No owners found</td></tr>
             ) : paged.map((o, i) => (
               <tr key={o._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
                   <div className="flex items-center gap-1">
                     <button disabled onClick={() => openView(o)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed"><Eye className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => openEdit(o)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => openDelete(o)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <button disabled={o.isDeleted} onClick={() => openEdit(o)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors disabled:opacity-40"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button disabled={o.isDeleted} onClick={() => openDelete(o)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{(page - 1) * pageSize + i + 1}</td>
@@ -246,13 +252,14 @@ export default function OwnersPage() {
                 <td className="px-4 py-3 text-muted-foreground text-xs">{o.enquiryCities?.length ? o.enquiryCities.join(", ") : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <Switch checked={o.isActive} onCheckedChange={() => handleToggleStatus(o)} className="scale-90" />
+                    <Switch checked={o.isActive} onCheckedChange={() => handleToggleStatus(o)} disabled={o.isDeleted} className="scale-90" />
                     <span className={`text-xs font-medium ${o.isActive ? "text-green-600" : "text-muted-foreground"}`}>{o.isActive ? "Yes" : "No"}</span>
                   </div>
                 </td>
+                <td className="px-4 py-3">{o.isDeleted ? "Yes" : "No"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <Switch checked={o.autoApprovalProperties} onCheckedChange={() => handleToggleAutoApproval(o)} className="scale-90" />
+                    <Switch checked={o.autoApprovalProperties} onCheckedChange={() => handleToggleAutoApproval(o)} disabled={o.isDeleted} className="scale-90" />
                     <span className={`text-xs font-medium ${o.autoApprovalProperties ? "text-green-600" : "text-muted-foreground"}`}>{o.autoApprovalProperties ? "Yes" : "No"}</span>
                   </div>
                 </td>

@@ -2,6 +2,7 @@ const mongoose             = require("mongoose");
 const EnquiryPlan          = require("../../modules/admin/enquiryPlansManagement/model");
 const AdminWallet          = require("../../modules/admin/adminWallet/model");
 const EnquiryPurchasedPlan = require("../../modules/mixed/enquiryPurchasedPlans/model");
+const getUserDetailsSnapshot = require("../../modules/mixed/userDetailsSnapshot");
 
 const handleEnquiryPlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
   if (purchaseAmount !== txn.amount)
@@ -25,6 +26,7 @@ const handleEnquiryPlanUpgrade = async (txn, payment, purchaseAmount, signature)
     ? null
     : new Date(new Date(startDate).setDate(startDate.getDate() + expiryDurationDays));
 
+  const userDetails = await getUserDetailsSnapshot(txn.userDetails || txn.user);
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -41,6 +43,7 @@ const handleEnquiryPlanUpgrade = async (txn, payment, purchaseAmount, signature)
     const newPlan = new EnquiryPurchasedPlan({
       user:     txn.user,
       userType: txn.userType,
+      userDetails,
       plan: {
         planId:                 plan._id,
         name:                   plan.name,

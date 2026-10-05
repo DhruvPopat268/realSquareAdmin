@@ -42,10 +42,6 @@ const REASON_COLORS: Record<string, string> = {
 interface Query { page: number; limit: number; status: string; reason: string; userType: string; userId: string; }
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", reason: "", userType: "", userId: "" };
 
-function userName(u: PaymentTransaction["user"]) {
-  return u.name ?? u.mobile;
-}
-
 export default function WalletTransactionsPage() {
   const { toast } = useToast();
 
@@ -225,8 +221,8 @@ export default function WalletTransactionsPage() {
                 <tr key={txn._id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
                   <td className="px-4 py-3">
-                    <p className="font-medium leading-tight">{userName(txn.user)}</p>
-                    <p className="text-xs text-muted-foreground">{txn.user.mobile}</p>
+                    <p className="font-medium leading-tight">{txn.userDetails?.name || txn.userDetails?.mobile || "Unknown"}</p>
+                    <p className="text-xs text-muted-foreground">{txn.userDetails?.mobile || "—"}</p>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{txn.userType}</td>
                   <td className="px-4 py-3">

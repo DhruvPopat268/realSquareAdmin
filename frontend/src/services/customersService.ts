@@ -7,6 +7,7 @@ export interface Customer {
   mobile: string;
   profilePhoto?: string;
   isActive: boolean;
+  isDeleted: boolean;
   enquiryCities: string[];
   lastLogin: string | null;
   lastActivity: string | null;
@@ -20,7 +21,7 @@ export interface Customer {
 }
 
 export const customersService = {
-  getAll: () => api.get<{ success: boolean; data: Customer[] }>("/customer/admin"),
+  getAll: (params?: { isDeleted?: string }) => api.get<{ success: boolean; data: Customer[] }>("/customer/admin", { params }),
   update: (id: string, payload: {
     name?: string;
     email?: string;

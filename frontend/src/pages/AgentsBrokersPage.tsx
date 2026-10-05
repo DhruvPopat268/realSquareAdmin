@@ -30,6 +30,7 @@ export default function AgentsBrokersPage() {
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [deletionFilter, setDeletionFilter] = useState("all");
 
   const [viewTarget, setViewTarget]     = useState<Broker | null>(null);
   const [viewOpen, setViewOpen]         = useState(false);
@@ -49,11 +50,12 @@ export default function AgentsBrokersPage() {
   const [deleting, setDeleting]         = useState(false);
 
   useEffect(() => {
-    brokersService.getAll()
+    setLoading(true);
+    brokersService.getAll({ isDeleted: deletionFilter })
       .then((res) => setData(res.data.data))
       .catch(() => toast({ variant: "destructive", title: "Failed to load brokers" }))
       .finally(() => setLoading(false));
-  }, []);
+  }, [deletionFilter]);
 
   function openView(b: Broker) { setViewTarget(b); setViewOpen(true); }
 
@@ -193,6 +195,9 @@ export default function AgentsBrokersPage() {
         </div>
         <div className="flex-1" />
         <p className="text-sm text-muted-foreground">{filtered.length} broker{filtered.length !== 1 ? "s" : ""}</p>
+        <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
+          <option value="all">All</option><option value="false">Not Deleted</option><option value="true">Deleted</option>
+        </select>
         <Button size="sm" onClick={openCreate}>+ Add Broker</Button>
       </div>
 
@@ -210,6 +215,7 @@ export default function AgentsBrokersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Experience (yrs)</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deleted</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Auto Approval</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Login</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[130px]">Last Activity</th>
@@ -218,16 +224,16 @@ export default function AgentsBrokersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={14} className="py-16"><Spinner fullPage={false} size="md" label="Loading brokers..." /></td></tr>
+              <tr><td colSpan={15} className="py-16"><Spinner fullPage={false} size="md" label="Loading brokers..." /></td></tr>
             ) : paged.length === 0 ? (
-              <tr><td colSpan={14} className="text-center text-muted-foreground py-16">No brokers found</td></tr>
+              <tr><td colSpan={15} className="text-center text-muted-foreground py-16">No brokers found</td></tr>
             ) : paged.map((b, i) => (
               <tr key={b._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
                   <div className="flex items-center gap-1">
                     <button disabled onClick={() => openView(b)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed"><Eye className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => openEdit(b)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => openDelete(b)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <button disabled={b.isDeleted} onClick={() => openEdit(b)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors disabled:opacity-40"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button disabled={b.isDeleted} onClick={() => openDelete(b)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{(page - 1) * pageSize + i + 1}</td>
@@ -244,13 +250,14 @@ export default function AgentsBrokersPage() {
                 <td className="px-4 py-3 text-muted-foreground text-xs">{b.enquiryCities?.length ? b.enquiryCities.join(", ") : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <Switch checked={b.isActive} onCheckedChange={() => handleToggleStatus(b)} className="scale-90" />
+                    <Switch checked={b.isActive} onCheckedChange={() => handleToggleStatus(b)} disabled={b.isDeleted} className="scale-90" />
                     <span className={`text-xs font-medium ${b.isActive ? "text-green-600" : "text-muted-foreground"}`}>{b.isActive ? "Yes" : "No"}</span>
                   </div>
                 </td>
+                <td className="px-4 py-3">{b.isDeleted ? "Yes" : "No"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <Switch checked={b.autoApprovalProperties} onCheckedChange={() => handleToggleAutoApproval(b)} className="scale-90" />
+                    <Switch checked={b.autoApprovalProperties} onCheckedChange={() => handleToggleAutoApproval(b)} disabled={b.isDeleted} className="scale-90" />
                     <span className={`text-xs font-medium ${b.autoApprovalProperties ? "text-green-600" : "text-muted-foreground"}`}>{b.autoApprovalProperties ? "Yes" : "No"}</span>
                   </div>
                 </td>

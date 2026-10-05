@@ -61,6 +61,7 @@ const systemUserSchema = new mongoose.Schema(
     role:           { type: mongoose.Schema.Types.ObjectId, ref: "SystemUserRole" },
     isSuperAdmin:   { type: Boolean, default: false },
     isActive:       { type: Boolean, default: true },
+    isDeleted:      { type: Boolean, default: false },
     autoApprovalProperties: { type: Boolean, default: false },
     freeListedProperties:   { type: Number, default: 0 },
     enquiryCities:          [{ type: String, trim: true }],

@@ -2,7 +2,8 @@ import api from "@/lib/axiosInterceptor";
 
 export interface CoinsTransaction {
   _id: string;
-  user: { _id: string; mobile: string; name?: string };
+  user: string;
+  userDetails?: { name?: string; mobile?: string } | null;
   userType: "Owner" | "Broker" | "Builder";
   type: "Credit" | "Debit";
   coins: number;

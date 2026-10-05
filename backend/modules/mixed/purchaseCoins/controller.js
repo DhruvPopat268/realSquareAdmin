@@ -2,6 +2,7 @@ const Razorpay           = require("razorpay");
 const CoinsOffer         = require("../../admin/coinsOffersManagement/model");
 const PaymentTransaction = require("../transactions/model");
 const AdminWallet        = require("../../admin/adminWallet/model");
+const getUserDetailsSnapshot = require("../userDetailsSnapshot");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -64,6 +65,7 @@ const createCoinsOrder = async (req, res) => {
     const transaction = await PaymentTransaction.create({
       user:            req.user._id,
       userType,
+      userDetails:     await getUserDetailsSnapshot(req.user),
       reason:          "CoinsPurchase",
       razorpayOrderId: razorpayOrder.id,
       amount:          purchaseAmount,

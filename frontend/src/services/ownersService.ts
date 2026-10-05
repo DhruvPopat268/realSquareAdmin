@@ -7,6 +7,7 @@ export interface Owner {
   mobile: string;
   profilePhoto?: string;
   isActive: boolean;
+  isDeleted: boolean;
   autoApprovalProperties: boolean;
   enquiryCities: string[];
   lastLogin: string | null;
@@ -27,7 +28,7 @@ export interface Owner {
 }
 
 export const ownersService = {
-  getAll: () => api.get<{ success: boolean; data: Owner[] }>("/owner/admin"),
+  getAll: (params?: { isDeleted?: string }) => api.get<{ success: boolean; data: Owner[] }>("/owner/admin", { params }),
   update: (id: string, payload: FormData) =>
     api.put<{ success: boolean; data: Owner }>(`/owner/admin/${id}`, payload, {
       headers: { "Content-Type": "multipart/form-data" },

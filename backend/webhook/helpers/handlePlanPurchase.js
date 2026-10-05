@@ -2,6 +2,7 @@ const mongoose       = require("mongoose");
 const Plan           = require("../../modules/admin/plansManagement/model");
 const AdminWallet    = require("../../modules/admin/adminWallet/model");
 const ListingPurchasedPlan  = require("../../modules/mixed/purchasedPlans/model");
+const getUserDetailsSnapshot = require("../../modules/mixed/userDetailsSnapshot");
 
 const handlePlanPurchase = async (txn, payment, purchaseAmount, signature) => {
   if (purchaseAmount !== txn.amount)
@@ -20,6 +21,7 @@ const handlePlanPurchase = async (txn, payment, purchaseAmount, signature) => {
     : new Date(new Date(startDate).setDate(startDate.getDate() + expiryDurationDays));
 
   // ── MongoDB transaction ───────────────────────────────────────────────────
+  const userDetails = await getUserDetailsSnapshot(txn.userDetails || txn.user);
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -36,6 +38,7 @@ const handlePlanPurchase = async (txn, payment, purchaseAmount, signature) => {
     const purchasedPlan = new ListingPurchasedPlan({
       user:          txn.user,
       userType:      txn.userType,
+      userDetails,
       plan: {
         planId:                  plan._id,
         name:                    plan.name,
