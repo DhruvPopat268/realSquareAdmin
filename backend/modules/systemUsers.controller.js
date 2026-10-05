@@ -219,6 +219,8 @@ const verifyOtp = async (req, res) => {
 const completeProfile = async (req, res) => {
   try {
     const { role, ...profileData } = req.body;
+    const rawEnquiryCities = profileData.enquiryCities;
+    delete profileData.enquiryCities;
 
     if (!role)
       return res.status(400).json({ success: false, message: "role is required" });
@@ -226,6 +228,21 @@ const completeProfile = async (req, res) => {
     const profileField = ALLOWED_ROLES[role];
     if (!profileField)
       return res.status(403).json({ success: false, message: "This role is not allowed to self-register" });
+
+    let enquiryCities;
+    if (rawEnquiryCities !== undefined) {
+      try {
+        const parsedCities = typeof rawEnquiryCities === "string"
+          ? JSON.parse(rawEnquiryCities)
+          : rawEnquiryCities;
+        if (!Array.isArray(parsedCities)) {
+          return res.status(400).json({ success: false, message: "enquiryCities must be an array" });
+        }
+        enquiryCities = parsedCities.map((city) => String(city).trim()).filter(Boolean);
+      } catch {
+        return res.status(400).json({ success: false, message: "enquiryCities must be a valid JSON array" });
+      }
+    }
 
     const existingProfile = Object.values(ALLOWED_ROLES).find((field) => req.user[field]?.mobile);
     if (existingProfile)
@@ -276,6 +293,7 @@ const completeProfile = async (req, res) => {
       isActive: true,
       isSuperAdmin: false,
     };
+    if (enquiryCities !== undefined) rootLevelData.enquiryCities = enquiryCities;
 
     // Store name at root level
     if (profileField === "builderProfile" && profileData.name) {
@@ -404,10 +422,17 @@ const updateProfile = async (req, res) => {
     const businessLogoFile = fileByField(req.files, "businessLogo");
 
     const updateData = {};
+    const unsetData = {};
     if (!req.userRole) updateData.role = roleId;
 
-    // Root-level fields (name, email, profilePhoto)
-    const rootFields = ["name", "email", "profilePhoto"];
+    const addUpdateField = (path, value) => {
+      // FormData serializes null as the literal string "null".
+      if (value === null || (typeof value === "string" && value.trim().toLowerCase() === "null")) {
+        unsetData[path] = 1;
+      } else {
+        updateData[path] = value;
+      }
+    };
     
     // Handle profilePhoto upload
     if (profilePhotoFile) {
@@ -425,36 +450,52 @@ const updateProfile = async (req, res) => {
       
       // Special handling for fullName -> name at root level
       if (key === "fullName" && profileField !== "builderProfile") {
-        updateData.name = value;
+        addUpdateField("name", value);
       }
       // For builder, "name" goes to root
       else if (key === "name" && profileField === "builderProfile") {
-        updateData.name = value;
+        addUpdateField("name", value);
       }
       // email and profilePhoto go to root
       else if (key === "email") {
-        updateData.email = value;
+        addUpdateField("email", value);
+      } else if (key === "profilePhoto") {
+        addUpdateField("profilePhoto", value);
       }
       // enquiryCities goes to root — parse JSON array from FormData string
       else if (key === "enquiryCities") {
+        if (value === null || (typeof value === "string" && value.trim().toLowerCase() === "null")) {
+          unsetData.enquiryCities = 1;
+          return;
+        }
         try {
           const parsed = typeof value === "string" ? JSON.parse(value) : value;
-          updateData.enquiryCities = Array.isArray(parsed)
+          addUpdateField("enquiryCities", Array.isArray(parsed)
             ? parsed.map((c) => String(c).trim()).filter(Boolean)
-            : [];
+            : []);
         } catch {
           updateData.enquiryCities = [];
         }
       }
       // All other fields go into the nested profile
       else {
-        updateData[`${profileField}.${key}`] = value;
+        addUpdateField(`${profileField}.${key}`, value);
       }
     });
 
+    const updateOperation = {};
+    if (Object.keys(updateData).length) updateOperation.$set = updateData;
+    if (Object.keys(unsetData).length) updateOperation.$unset = unsetData;
+
+    if (!Object.keys(updateOperation).length) {
+      const user = await SystemUser.findById(req.user._id)
+        .populate("role", "name permissions isActive");
+      return res.json({ success: true, data: user });
+    }
+
     const user = await SystemUser.findByIdAndUpdate(
       req.user._id,
-      { $set: updateData },
+      updateOperation,
       { new: true, runValidators: true }
     ).populate("role", "name permissions isActive");
 
