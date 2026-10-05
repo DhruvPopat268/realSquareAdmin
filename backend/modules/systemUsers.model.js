@@ -17,6 +17,7 @@ const locationSchema = new mongoose.Schema({
 
 // ── Owner profile sub-schema ─────────────────────────────────────────────────
 const ownerBusinessDetailsSchema = new mongoose.Schema({
+  name:       { type: String, trim: true },
   logo:       { type: String },
   type:       { type: String, enum: ["private_owner", "real_estate_investment_trust", "property_management_group", "family_office"] },
   gstNumber:  { type: String, trim: true },
