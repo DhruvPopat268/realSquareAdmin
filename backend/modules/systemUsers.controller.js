@@ -666,11 +666,6 @@ const getMe = async (req, res) => {
         canList: false,
         message: "Only Owners, Brokers, and Builders can list properties.",
       };
-    } else if (!req.user.myPropertyListingAllowed && !hasListings) {
-      canListProperty = {
-        canList: false,
-        message: "You don't have permission to list properties.",
-      };
     } else {
       // Check credits (plan or free listing)
       canListProperty = await checkCanListProperty(req.user._id);
