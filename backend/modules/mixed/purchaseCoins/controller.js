@@ -99,7 +99,11 @@ const createCoinsOrder = async (req, res) => {
 // ── Cancel Coins Order ──────────────────────────────────────────────────────────
 const cancelCoinsOrder = async (req, res) => {
   try {
-    const transaction = await PaymentTransaction.findById(req.params.transactionId);
+    const transaction = await PaymentTransaction.findOne({
+      _id: req.params.transactionId,
+      user: req.user._id,
+      reason: "CoinsPurchase",
+    });
     if (!transaction)
       return res.status(404).json({ success: false, message: "Transaction not found" });
 

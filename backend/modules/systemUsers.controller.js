@@ -10,6 +10,7 @@ const LeadEnquiryCoinsConfig   = require("./admin/leadEnquiryCoinsConfig/model")
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 const mongoose          = require("mongoose");
+const { runReraVerification } = require("./mixed/reraVerification/controller");
 
 const DUMMY_OTP = "123456";
 
@@ -50,6 +51,21 @@ const MOBILE_OR_QUERY = (mobile) => [
 ];
 
 const fileByField = (files, name) => (files || []).find((f) => f.fieldname === name);
+
+const verifyBrokerRera = async (reraId, context) => {
+  try {
+    return { reraId, ...(await runReraVerification(reraId)) };
+  } catch (err) {
+    console.error(`[${context}] RERA verification failed for broker ID ${reraId}:`, err.message);
+    return {
+      reraId,
+      verified: false,
+      reason: "RERA verification could not be completed",
+      projectDetails: null,
+      sources: [],
+    };
+  }
+};
 
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
@@ -232,6 +248,8 @@ const verifyOtp = async (req, res) => {
 const completeProfile = async (req, res) => {
   try {
     const { role, ...profileData } = req.body;
+    const submittedReraId = profileData.reraId;
+    delete profileData.reraId;
     const rawEnquiryCities = profileData.enquiryCities;
     delete profileData.enquiryCities;
 
@@ -241,6 +259,10 @@ const completeProfile = async (req, res) => {
     const profileField = ALLOWED_ROLES[role];
     if (!profileField)
       return res.status(403).json({ success: false, message: "This role is not allowed to self-register" });
+
+    if (profileField === "brokerProfile" && typeof submittedReraId === "string" && submittedReraId.trim()) {
+      profileData.reraVerification = await verifyBrokerRera(submittedReraId.trim(), "completeProfile");
+    }
 
     let enquiryCities;
     if (rawEnquiryCities !== undefined) {
@@ -431,12 +453,24 @@ const updateProfile = async (req, res) => {
     delete req.body.role;
     delete req.body.mobile;
 
+    const submittedReraId = req.body.reraId;
+    delete req.body.reraId;
+
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     const businessLogoFile = fileByField(req.files, "businessLogo");
 
     const updateData = {};
     const unsetData = {};
     if (!req.userRole) updateData.role = roleId;
+
+    if (profileField === "brokerProfile" && submittedReraId !== undefined) {
+      const cleanedReraId = typeof submittedReraId === "string" ? submittedReraId.trim() : "";
+      if (!cleanedReraId || cleanedReraId.toLowerCase() === "null") {
+        unsetData["brokerProfile.reraVerification"] = 1;
+      } else if (cleanedReraId !== req.user.brokerProfile?.reraVerification?.reraId) {
+        updateData["brokerProfile.reraVerification"] = await verifyBrokerRera(cleanedReraId, "updateProfile");
+      }
+    }
 
     const addUpdateField = (path, value) => {
       // FormData serializes null as the literal string "null".

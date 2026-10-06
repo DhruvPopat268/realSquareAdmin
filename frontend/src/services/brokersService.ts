@@ -18,6 +18,23 @@ export interface Broker {
     yearsOfExperience?: number;
     agencyName?: string;
     bio?: string;
+    reraVerification?: {
+      reraId: string;
+      verified: boolean;
+      reason: string;
+      projectDetails: {
+        projectName?: string | null;
+        developerName?: string | null;
+        localityOrCity?: string | null;
+        state?: string | null;
+        projectType?: string | null;
+        completionDate?: string | null;
+        totalUnits?: string | null;
+        status?: string | null;
+        confidence?: "high" | "low" | "unknown";
+      } | null;
+      sources: string[];
+    };
   } | null;
 }
 

@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X } from "lucide-react";
+import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X, Info } from "lucide-react";
 import { brokersService, type Broker } from "@/services/brokersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
@@ -16,7 +16,7 @@ const PAGE_SIZES = [10, 25, 50];
 
 const INIT_FORM = {
   fullName: "", email: "", mobile: "",
-  agencyName: "", yearsOfExperience: "", bio: "",
+  agencyName: "", reraId: "", yearsOfExperience: "", bio: "",
 };
 
 function fmtDate(dateStr: string) {
@@ -50,6 +50,7 @@ export default function AgentsBrokersPage() {
   const photoRef                        = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting]     = useState(false);
   const [enquiryCities, setEnquiryCities] = useState<string[]>([]);
+  const [reraInfoTarget, setReraInfoTarget] = useState<Broker | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Broker | null>(null);
   const [deleteOpen, setDeleteOpen]     = useState(false);
@@ -103,6 +104,7 @@ export default function AgentsBrokersPage() {
       email:             b.email                                       || "",
       mobile:            b.mobile                                      || "",
       agencyName:        b.brokerProfile?.agencyName                   || "",
+      reraId:            b.brokerProfile?.reraVerification?.reraId      || "",
       yearsOfExperience: b.brokerProfile?.yearsOfExperience?.toString() || "",
       bio:               b.brokerProfile?.bio                          || "",
     });
@@ -149,6 +151,13 @@ export default function AgentsBrokersPage() {
       fd.append("mobile",   editForm.mobile.trim());
       if (editForm.email.trim())             fd.append("email",             editForm.email.trim());
       if (editForm.agencyName.trim())        fd.append("agencyName",        editForm.agencyName.trim());
+      const currentReraId = editTarget?.brokerProfile?.reraVerification?.reraId || "";
+      const nextReraId = editForm.reraId.trim();
+      if (isCreating) {
+        if (nextReraId) fd.append("reraId", nextReraId);
+      } else if (nextReraId !== currentReraId) {
+        fd.append("reraId", nextReraId || "null");
+      }
       if (editForm.yearsOfExperience.trim()) fd.append("yearsOfExperience", editForm.yearsOfExperience.trim());
       if (editForm.bio.trim())               fd.append("bio",               editForm.bio.trim());
       fd.append("enquiryCities", JSON.stringify(enquiryCities));
@@ -257,6 +266,7 @@ export default function AgentsBrokersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Email</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mobile</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Agency Name</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[170px]">RERA ID</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Experience (yrs)</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
@@ -269,9 +279,9 @@ export default function AgentsBrokersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={15} className="py-16"><Spinner fullPage={false} size="md" label="Loading brokers..." /></td></tr>
+              <tr><td colSpan={16} className="py-16"><Spinner fullPage={false} size="md" label="Loading brokers..." /></td></tr>
             ) : data.length === 0 ? (
-              <tr><td colSpan={15} className="text-center text-muted-foreground py-16">No brokers found</td></tr>
+              <tr><td colSpan={16} className="text-center text-muted-foreground py-16">No brokers found</td></tr>
             ) : data.map((b, i) => (
               <tr key={b._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
@@ -290,6 +300,18 @@ export default function AgentsBrokersPage() {
                 <td className="px-4 py-3 text-muted-foreground">{b.email || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{b.mobile || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{b.brokerProfile?.agencyName || "—"}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${b.brokerProfile?.reraVerification?.verified ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                      {b.brokerProfile?.reraVerification?.verified ? "Verified" : "Not Verified"}
+                    </span>
+                    {b.brokerProfile?.reraVerification && (
+                      <button type="button" aria-label="View RERA verification details" onClick={() => setReraInfoTarget(b)} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <Info className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-muted-foreground text-center">{b.brokerProfile?.yearsOfExperience ?? "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{b.enquiryCities?.length ? b.enquiryCities.join(", ") : "—"}</td>
                 <td className="px-4 py-3">
@@ -386,6 +408,10 @@ export default function AgentsBrokersPage() {
               <Input value={editForm.agencyName} onChange={(e) => setField("agencyName", e.target.value)} placeholder="Agency name" />
             </div>
             <div className="space-y-1.5">
+              <Label>RERA Registration ID</Label>
+              <Input value={editForm.reraId} onChange={(e) => setField("reraId", e.target.value)} placeholder="Enter RERA ID (optional)" />
+            </div>
+            <div className="space-y-1.5">
               <Label>Years of Experience</Label>
               <Input type="number" min={0} value={editForm.yearsOfExperience} onChange={(e) => setField("yearsOfExperience", e.target.value)} placeholder="e.g. 5" />
             </div>
@@ -398,6 +424,37 @@ export default function AgentsBrokersPage() {
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={submitting}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={submitting}>{submitting ? "Saving..." : isCreating ? "Create Broker" : "Update Broker"}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!reraInfoTarget} onOpenChange={(open) => { if (!open) setReraInfoTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>RERA Verification Details</DialogTitle></DialogHeader>
+          {reraInfoTarget?.brokerProfile?.reraVerification && (() => {
+            const verification = reraInfoTarget.brokerProfile!.reraVerification!;
+            const details = verification.projectDetails;
+            const fields: [string, string | null | undefined][] = [
+              ["Project", details?.projectName],
+              ["Developer", details?.developerName],
+              ["Location", [details?.localityOrCity, details?.state].filter(Boolean).join(", ")],
+              ["Project Type", details?.projectType],
+              ["Completion Date", details?.completionDate],
+              ["Total Units", details?.totalUnits],
+              ["Project Status", details?.status],
+              ["Confidence", details?.confidence],
+            ];
+            return (
+              <div className="space-y-3 text-sm">
+                <div><p className="text-xs text-muted-foreground">RERA ID</p><p className="font-medium break-all">{verification.reraId}</p></div>
+                <div><p className="text-xs text-muted-foreground">Verification</p><p className={verification.verified ? "font-medium text-green-700" : "font-medium text-amber-700"}>{verification.verified ? "Verified" : "Not Verified"}</p></div>
+                {verification.reason && <p className="text-muted-foreground">{verification.reason}</p>}
+                <div className="grid grid-cols-2 gap-2">
+                  {fields.map(([label, value]) => <div key={label}><p className="text-xs text-muted-foreground">{label}</p><p className="break-words">{value || "—"}</p></div>)}
+                </div>
+                {verification.sources?.length > 0 && <div><p className="mb-1 text-xs text-muted-foreground">Sources</p><ul className="list-inside list-disc space-y-1">{verification.sources.map((url) => <li key={url}><a href={url} target="_blank" rel="noreferrer" className="break-all text-primary underline">{url}</a></li>)}</ul></div>}
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

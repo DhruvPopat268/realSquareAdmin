@@ -1,6 +1,7 @@
 const SystemUser = require("../../systemUsers.model");
 const SystemUserSession = require("../../systemUsers.session.model");
 const getAdminUserStats = require("../../../utils/adminUserStats");
+const { runReraVerification } = require("../../mixed/reraVerification/controller");
 
 const BROKER_ROLE_ID = process.env.BROKER_ROLE_ID;
 
@@ -9,6 +10,21 @@ const toUrl = (filePath) =>
 
 const fileByField = (files, name) => (files || []).find((f) => f.fieldname === name);
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const verifyBrokerRera = async (reraId, context) => {
+  try {
+    return { reraId, ...(await runReraVerification(reraId)) };
+  } catch (err) {
+    console.error(`[${context}] Broker RERA verification failed:`, err.message);
+    return {
+      reraId,
+      verified: false,
+      reason: "RERA verification could not be completed",
+      projectDetails: null,
+      sources: [],
+    };
+  }
+};
 
 const getBrokers = async (req, res) => {
   try {
@@ -50,6 +66,7 @@ const getBrokers = async (req, res) => {
 const createBroker = async (req, res) => {
   try {
     const { mobile, fullName, email, yearsOfExperience, agencyName, bio } = req.body;
+    const reraId = typeof req.body.reraId === "string" ? req.body.reraId.trim() : "";
     let enquiryCities = req.body.enquiryCities;
 
     if (!mobile)
@@ -76,6 +93,7 @@ const createBroker = async (req, res) => {
       yearsOfExperience: yearsOfExperience ? Number(yearsOfExperience) : undefined,
       agencyName, bio,
     };
+    if (reraId) brokerProfile.reraVerification = await verifyBrokerRera(reraId, "createBroker");
 
     const broker = await SystemUser.create({
       name: fullName,
@@ -99,15 +117,31 @@ const updateBroker = async (req, res) => {
   try {
     const { id } = req.params;
     const { fullName, email, mobile, yearsOfExperience, agencyName, bio } = req.body;
+    const submittedReraId = req.body.reraId;
     let { enquiryCities } = req.body;
 
     const updateData = {};
+    const unsetData = {};
     if (fullName          !== undefined) updateData["name"]                            = fullName;
     if (email             !== undefined) updateData["email"]                           = email;
     if (agencyName        !== undefined) updateData["brokerProfile.agencyName"]        = agencyName;
     if (bio               !== undefined) updateData["brokerProfile.bio"]               = bio;
     if (yearsOfExperience !== undefined) updateData["brokerProfile.yearsOfExperience"] = Number(yearsOfExperience);
     if (mobile            !== undefined) updateData["mobile"]                          = mobile;
+
+    if (submittedReraId !== undefined) {
+      const reraId = typeof submittedReraId === "string" ? submittedReraId.trim() : "";
+      if (!reraId || reraId.toLowerCase() === "null") {
+        unsetData["brokerProfile.reraVerification"] = 1;
+      } else {
+        const existing = await SystemUser.findOne({ _id: id, role: BROKER_ROLE_ID, isDeleted: { $ne: true } })
+          .select("brokerProfile.reraVerification.reraId");
+        if (!existing) return res.status(404).json({ success: false, message: "Broker not found" });
+        if (reraId !== existing.brokerProfile?.reraVerification?.reraId) {
+          updateData["brokerProfile.reraVerification"] = await verifyBrokerRera(reraId, "updateBroker");
+        }
+      }
+    }
 
     if (enquiryCities !== undefined) {
       if (typeof enquiryCities === "string") {
@@ -126,9 +160,13 @@ const updateBroker = async (req, res) => {
     if (profilePhotoFile)
       updateData["profilePhoto"] = toUrl(profilePhotoFile.path);
 
+    const updateOperation = {};
+    if (Object.keys(updateData).length) updateOperation.$set = updateData;
+    if (Object.keys(unsetData).length) updateOperation.$unset = unsetData;
+
     const broker = await SystemUser.findOneAndUpdate(
       { _id: id, isDeleted: { $ne: true } },
-      { $set: updateData },
+      updateOperation,
       { new: true, runValidators: true }
     ).populate("role", "name permissions isActive");
 

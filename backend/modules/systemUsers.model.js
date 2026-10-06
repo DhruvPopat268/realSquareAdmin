@@ -35,11 +35,32 @@ const customerProfileSchema = new mongoose.Schema({
   verified:     { type: Boolean, default: false },
 }, { _id: false });
 
+const brokerReraProjectDetailsSchema = new mongoose.Schema({
+  projectName:    { type: String, default: null },
+  developerName:  { type: String, default: null },
+  localityOrCity: { type: String, default: null },
+  state:          { type: String, default: null },
+  projectType:    { type: String, default: null },
+  completionDate: { type: String, default: null },
+  totalUnits:     { type: String, default: null },
+  status:         { type: String, default: null },
+  confidence:     { type: String, enum: ["high", "low", "unknown"], default: "unknown" },
+}, { _id: false });
+
+const brokerReraVerificationSchema = new mongoose.Schema({
+  reraId:        { type: String, trim: true, required: true },
+  verified:      { type: Boolean, default: false },
+  reason:        { type: String, default: "" },
+  projectDetails:{ type: brokerReraProjectDetailsSchema, default: null },
+  sources:       { type: [String], default: [] },
+}, { _id: false });
+
 // ── Broker profile sub-schema ───────────────────────────────────────────────
 const brokerProfileSchema = new mongoose.Schema({
   yearsOfExperience: { type: Number },
   agencyName:        { type: String, trim: true },
   bio:               { type: String, trim: true },
+  reraVerification:  { type: brokerReraVerificationSchema },
 }, { _id: false });
 
 // ── Builder profile sub-schema ───────────────────────────────────────────────
