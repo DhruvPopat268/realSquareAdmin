@@ -8,7 +8,7 @@ const getCoinsTransactions = async (req, res) => {
     const skip  = (page - 1) * limit;
 
     const [transactions, total, wallet] = await Promise.all([
-      CoinsTransaction.find({ user: req.user._id }).select("-__v").sort({ createdAt: -1 }).skip(skip).limit(limit),
+      CoinsTransaction.find({ user: req.user._id }).select("-__v -userDetails -user -userType -refId -refModel -balanceBefore -balanceAfter").sort({ createdAt: -1 }).skip(skip).limit(limit),
       CoinsTransaction.countDocuments({ user: req.user._id }),
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance totalCreditedCoins totalDebitedCoins"),
     ]);

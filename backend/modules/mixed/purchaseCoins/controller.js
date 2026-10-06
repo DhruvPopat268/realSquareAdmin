@@ -119,7 +119,7 @@ const cancelCoinsOrder = async (req, res) => {
 // ── Get Active Coins Offers ───────────────────────────────────────────────────
 const getActiveCoinsOffers = async (req, res) => {
   try {
-    const offers = await CoinsOffer.find({ isActive: true }).select("-__v");
+    const offers = await CoinsOffer.find({ isActive: true }).select("-__v -createdAt -updatedAt -isActive");
     res.json({ success: true, data: offers });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
