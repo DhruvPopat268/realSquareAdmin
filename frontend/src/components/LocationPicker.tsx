@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
@@ -26,6 +26,10 @@ export default function LocationPicker({ value, onChange }: Props) {
   const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const autocomplete = useRef<google.maps.places.AutocompleteService | null>(null);
   const geocoder     = useRef<google.maps.Geocoder | null>(null);
+
+  useEffect(() => {
+    setQuery(value?.name || "");
+  }, [value?.name]);
 
   if (isLoaded && !autocomplete.current) {
     autocomplete.current = new google.maps.places.AutocompleteService();

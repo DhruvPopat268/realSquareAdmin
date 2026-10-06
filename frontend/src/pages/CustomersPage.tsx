@@ -1,15 +1,16 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, ChevronLeft, ChevronRight, Eye, Pencil, Trash2 } from "lucide-react";
+import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X } from "lucide-react";
 import { customersService, type Customer } from "@/services/customersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
 import LocationPicker from "@/components/LocationPicker";
+import UserStatusStats, { type UserStatusCounts } from "@/components/UserStatusStats";
 
 const PAGE_SIZES = [10, 25, 50];
 
@@ -29,30 +30,76 @@ export default function CustomersPage() {
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [stats, setStats] = useState<UserStatusCounts>({ total: 0, active: 0, inactive: 0, deleted: 0 });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [deletionFilter, setDeletionFilter] = useState("false");
 
-  const [viewTarget, setViewTarget] = useState<Customer | null>(null);
-  const [viewOpen, setViewOpen]     = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "", mobile: "", email: "", bio: "", locationName: "", locationLat: "", locationLng: "",
+  });
+  const [createErrors, setCreateErrors] = useState<Partial<typeof createForm>>({});
+  const [creating, setCreating] = useState(false);
+  const [createPhotoFile, setCreatePhotoFile] = useState<File | null>(null);
+  const [createPhotoPreview, setCreatePhotoPreview] = useState("");
+  const createPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!createPhotoPreview) return;
+    return () => URL.revokeObjectURL(createPhotoPreview);
+  }, [createPhotoPreview]);
 
   const [editTarget, setEditTarget] = useState<Customer | null>(null);
   const [editOpen, setEditOpen]     = useState(false);
   const [editForm, setEditForm]     = useState(INIT_EDIT);
   const [editErrors, setEditErrors] = useState<Partial<typeof INIT_EDIT>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState("");
+  const editPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editPhotoPreview) return;
+    return () => URL.revokeObjectURL(editPhotoPreview);
+  }, [editPhotoPreview]);
 
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [deleteOpen, setDeleteOpen]     = useState(false);
   const [deleting, setDeleting]         = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    customersService.getAll({ isDeleted: deletionFilter })
-      .then((res) => setData(res.data.data))
-      .catch(() => toast({ variant: "destructive", title: "Failed to load customers" }))
-      .finally(() => setLoading(false));
-  }, [deletionFilter]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  function openView(c: Customer) { setViewTarget(c); setViewOpen(true); }
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    customersService.getAll({
+      isDeleted: deletionFilter,
+      page,
+      limit: pageSize,
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+    })
+      .then((res) => {
+        if (!active) return;
+        setData(res.data.data);
+        setTotal(res.data.pagination.total);
+        setTotalPages(res.data.pagination.totalPages);
+        setStats(res.data.stats);
+      })
+      .catch(() => {
+        if (active) toast({ variant: "destructive", title: "Failed to load customers" });
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [deletionFilter, page, pageSize, debouncedSearch, refreshKey]);
 
   function openEdit(c: Customer) {
     setEditTarget(c);
@@ -66,6 +113,9 @@ export default function CustomersPage() {
       locationLng:  c.customerProfile?.location?.longitude?.toString() || "",
     });
     setEditErrors({});
+    setEditPhotoFile(null);
+    setEditPhotoPreview("");
+    if (editPhotoInputRef.current) editPhotoInputRef.current.value = "";
     setEditOpen(true);
   }
 
@@ -75,6 +125,7 @@ export default function CustomersPage() {
     try {
       const res = await customersService.updateStatus(c._id, !c.isActive);
       setData((prev) => prev.map((item) => item._id === c._id ? res.data.data : item));
+      setRefreshKey((key) => key + 1);
       toast({ title: `Customer ${!c.isActive ? "activated" : "deactivated"} successfully` });
     } catch {
       toast({ variant: "destructive", title: "Failed to update status" });
@@ -84,24 +135,32 @@ export default function CustomersPage() {
   async function handleEdit() {
     const errs: Partial<typeof INIT_EDIT> = {};
     if (!editForm.name.trim()) errs.name = "Name is required";
+    if (editForm.mobile.trim() && !/^\d{10}$/.test(editForm.mobile.trim())) {
+      errs.mobile = "Mobile must be exactly 10 digits";
+    }
     if (Object.keys(errs).length) { setEditErrors(errs); return; }
 
     setSubmitting(true);
     try {
-      const res = await customersService.update(editTarget!._id, {
-        name:   editForm.name.trim(),
-        ...(editForm.email.trim()  && { email:  editForm.email.trim() }),
-        ...(editForm.bio.trim()    && { bio:    editForm.bio.trim() }),
-        ...(editForm.mobile.trim() && { mobile: editForm.mobile.trim() }),
-        ...(editForm.locationName.trim() && {
-          location: {
-            name:      editForm.locationName.trim(),
-            latitude:  parseFloat(editForm.locationLat),
-            longitude: parseFloat(editForm.locationLng),
-          },
-        }),
-      });
+      const payload = new FormData();
+      payload.append("name", editForm.name.trim());
+      if (editForm.email.trim()) payload.append("email", editForm.email.trim());
+      if (editForm.bio.trim()) payload.append("bio", editForm.bio.trim());
+      if (editForm.mobile.trim()) payload.append("mobile", editForm.mobile.trim());
+      if (editForm.locationName.trim()) {
+        payload.append("location", JSON.stringify({
+          name: editForm.locationName.trim(),
+          latitude: parseFloat(editForm.locationLat),
+          longitude: parseFloat(editForm.locationLng),
+        }));
+      }
+      if (editPhotoFile) payload.append("profilePhoto", editPhotoFile);
+
+      const res = await customersService.update(editTarget!._id, payload);
       setData((prev) => prev.map((item) => item._id === editTarget!._id ? res.data.data : item));
+      setRefreshKey((key) => key + 1);
+      setEditPhotoFile(null);
+      setEditPhotoPreview("");
       toast({ title: "Customer updated successfully" });
       setEditOpen(false);
     } catch (err: any) {
@@ -111,12 +170,65 @@ export default function CustomersPage() {
     }
   }
 
+  async function handleCreateCustomer() {
+    const name = createForm.name.trim();
+    const mobile = createForm.mobile.trim();
+    const errors: Partial<typeof createForm> = {};
+    if (!name) errors.name = "Name is required";
+    if (!mobile) errors.mobile = "Mobile is required";
+    else if (!/^\d{10}$/.test(mobile)) errors.mobile = "Mobile must be exactly 10 digits";
+    if (createForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email.trim())) {
+      errors.email = "Enter a valid email address";
+    }
+    if (Object.keys(errors).length) {
+      setCreateErrors(errors);
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const payload = new FormData();
+      payload.append("name", name);
+      payload.append("mobile", mobile);
+      if (createForm.email.trim()) payload.append("email", createForm.email.trim());
+      if (createForm.bio.trim()) payload.append("bio", createForm.bio.trim());
+      if (createForm.locationName.trim()) {
+        payload.append("location", JSON.stringify({
+          name: createForm.locationName.trim(),
+          latitude: parseFloat(createForm.locationLat),
+          longitude: parseFloat(createForm.locationLng),
+        }));
+      }
+      if (createPhotoFile) payload.append("profilePhoto", createPhotoFile);
+
+      const res = await customersService.create(payload);
+      setData((prev) => [res.data.data, ...prev.filter((customer) => customer._id !== res.data.data._id)]);
+      setSearch("");
+      setDebouncedSearch("");
+      setPage(1);
+      setDeletionFilter("false");
+      setRefreshKey((key) => key + 1);
+      setCreateOpen(false);
+      setCreateForm({ name: "", mobile: "", email: "", bio: "", locationName: "", locationLat: "", locationLng: "" });
+      setCreatePhotoFile(null);
+      setCreatePhotoPreview("");
+      setCreateErrors({});
+      toast({ title: "Customer created successfully" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: err?.response?.data?.message || "Failed to create customer" });
+    } finally {
+      setCreating(false);
+    }
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
       await customersService.remove(deleteTarget._id);
       setData((prev) => prev.filter((c) => c._id !== deleteTarget._id));
+      setPage(1);
+      setRefreshKey((key) => key + 1);
       toast({ title: "Customer deleted successfully" });
       setDeleteOpen(false);
     } catch {
@@ -126,42 +238,65 @@ export default function CustomersPage() {
     }
   }
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((c) =>
-      c.name?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q) ||
-      c.mobile?.includes(q)
-    );
-  }, [data, search]);
-
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
-
   return (
     <div className="space-y-4">
 
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Customers</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage all registered customers.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Customers</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage all registered customers.</p>
+        </div>
+        <Button onClick={() => { setCreateErrors({}); setCreateOpen(true); }}>+ Add Customer</Button>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search name, email, mobile..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pl-8 h-9 w-64 text-sm"
-          />
+      <UserStatusStats stats={stats} />
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search name, email, mobile..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-9 w-64 text-sm"
+            />
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="Show searchable customer fields"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              >
+                <CircleHelp className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="space-y-1">
+                <p>Search by:</p>
+                <p>Name</p>
+                <p>Email</p>
+                <p>Mobile number</p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+          <div className="flex-1" />
+          <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
+            <option value="false">Not Deleted</option><option value="true">Deleted</option>
+          </select>
         </div>
-        <div className="flex-1" />
-        <p className="text-sm text-muted-foreground">{filtered.length} customer{filtered.length !== 1 ? "s" : ""}</p>
-        <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
-          <option value="false">Not Deleted</option><option value="true">Deleted</option>
-        </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Rows per page</span>
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+            className="h-8 rounded-md border bg-background px-3 text-xs"
+          >
+            {PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+          </select>
+          <p className="text-sm text-muted-foreground">{total} customer{total !== 1 ? "s" : ""}</p>
+        </div>
       </div>
 
       <div className="rounded-lg border bg-card overflow-x-auto">
@@ -187,15 +322,12 @@ export default function CustomersPage() {
           <tbody>
             {loading ? (
               <tr><td colSpan={14} className="py-16"><Spinner fullPage={false} size="md" label="Loading customers..." /></td></tr>
-            ) : paged.length === 0 ? (
+            ) : data.length === 0 ? (
               <tr><td colSpan={14} className="text-center text-muted-foreground py-16">No customers found</td></tr>
-            ) : paged.map((c, i) => (
+            ) : data.map((c, i) => (
               <tr key={c._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
                   <div className="flex items-center gap-1">
-                    <button disabled onClick={() => openView(c)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
                     <button disabled={c.isDeleted} onClick={() => openEdit(c)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors disabled:opacity-40">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -267,15 +399,8 @@ export default function CustomersPage() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <span>
-            Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} entries
+            Showing {total === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} entries
           </span>
-          <select
-            value={pageSize}
-            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-          >
-            {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
-          </select>
         </div>
         <div className="flex items-center gap-1">
           <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted">
@@ -305,34 +430,123 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* View Dialog */}
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Customer Details</DialogTitle></DialogHeader>
-          {viewTarget && (
-            <div className="space-y-3 py-2 text-sm">
-              {viewTarget.profilePhoto && (
-                <img src={viewTarget.profilePhoto} alt="profile" className="h-16 w-16 rounded-full object-cover border" />
-              )}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <span className="text-muted-foreground">Name</span><span className="font-medium">{viewTarget.name || "—"}</span>
-                <span className="text-muted-foreground">Email</span><span>{viewTarget.email || "—"}</span>
-                <span className="text-muted-foreground">Mobile</span><span>{viewTarget.mobile || "—"}</span>
-                <span className="text-muted-foreground">Location</span><span>{viewTarget.customerProfile?.location?.name || "—"}</span>
-                <span className="text-muted-foreground">Enquiry Cities</span><span>{viewTarget.enquiryCities?.length ? viewTarget.enquiryCities.join(", ") : "—"}</span>
-                <span className="text-muted-foreground">Is Active</span>
-                <span className={viewTarget.isActive ? "text-green-600 font-medium" : "text-muted-foreground"}>{viewTarget.isActive ? "Yes" : "No"}</span>
+      {/* Add Customer Dialog */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!creating) setCreateOpen(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Add Customer</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="space-y-1.5">
+              <Label>Profile Photo</Label>
+              <input
+                ref={createPhotoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setCreatePhotoFile(file);
+                  setCreatePhotoPreview(URL.createObjectURL(file));
+                }}
+              />
+              <div className="flex items-center gap-3">
+                {createPhotoPreview ? (
+                  <img src={createPhotoPreview} alt="Selected profile" className="h-14 w-14 rounded-full border object-cover" />
+                ) : (
+                  <div className="h-14 w-14 rounded-full border bg-muted flex items-center justify-center text-xs text-muted-foreground">Optional</div>
+                )}
+                <Button type="button" variant="outline" size="sm" onClick={() => createPhotoInputRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" /> Choose Photo
+                </Button>
+                {createPhotoFile && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCreatePhotoFile(null);
+                      setCreatePhotoPreview("");
+                      if (createPhotoInputRef.current) createPhotoInputRef.current.value = "";
+                    }}
+                  >
+                    <X className="mr-1 h-4 w-4" /> Remove
+                  </Button>
+                )}
               </div>
-              {viewTarget.customerProfile?.bio && (
-                <div>
-                  <p className="text-muted-foreground mb-1">Bio</p>
-                  <p className="text-foreground">{viewTarget.customerProfile.bio}</p>
-                </div>
-              )}
             </div>
-          )}
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-name">Name <span className="text-destructive">*</span></Label>
+              <Input
+                id="new-customer-name"
+                value={createForm.name}
+                onChange={(e) => {
+                  setCreateForm((form) => ({ ...form, name: e.target.value }));
+                  setCreateErrors((errors) => ({ ...errors, name: undefined }));
+                }}
+                placeholder="Customer name"
+                autoFocus
+              />
+              {createErrors.name && <p className="text-xs text-destructive">{createErrors.name}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-mobile">Mobile <span className="text-destructive">*</span></Label>
+              <Input
+                id="new-customer-mobile"
+                type="tel"
+                inputMode="tel"
+                maxLength={10}
+                value={createForm.mobile}
+                onChange={(e) => {
+                  setCreateForm((form) => ({ ...form, mobile: e.target.value }));
+                  setCreateErrors((errors) => ({ ...errors, mobile: undefined }));
+                }}
+                placeholder="Mobile number"
+              />
+              {createErrors.mobile && <p className="text-xs text-destructive">{createErrors.mobile}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-email">Email</Label>
+              <Input
+                id="new-customer-email"
+                type="email"
+                value={createForm.email}
+                onChange={(e) => {
+                  setCreateForm((form) => ({ ...form, email: e.target.value }));
+                  setCreateErrors((errors) => ({ ...errors, email: undefined }));
+                }}
+                placeholder="email@example.com"
+              />
+              {createErrors.email && <p className="text-xs text-destructive">{createErrors.email}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Location</Label>
+              <LocationPicker
+                value={createForm.locationName ? {
+                  name: createForm.locationName,
+                  latitude: parseFloat(createForm.locationLat) || 0,
+                  longitude: parseFloat(createForm.locationLng) || 0,
+                } : null}
+                onChange={(location) => setCreateForm((form) => ({
+                  ...form,
+                  locationName: location.name,
+                  locationLat: location.latitude.toString(),
+                  locationLng: location.longitude.toString(),
+                }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-bio">Bio</Label>
+              <Input
+                id="new-customer-bio"
+                value={createForm.bio}
+                onChange={(e) => setCreateForm((form) => ({ ...form, bio: e.target.value }))}
+                placeholder="Short bio"
+              />
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+            <Button onClick={handleCreateCustomer} disabled={creating}>{creating ? "Creating..." : "Add Customer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -342,6 +556,49 @@ export default function CustomersPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Edit Customer</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="space-y-1.5">
+              <Label>Profile Photo (optional)</Label>
+              <input
+                ref={editPhotoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setEditPhotoFile(file);
+                  setEditPhotoPreview(URL.createObjectURL(file));
+                }}
+              />
+              <div className="flex items-center gap-3">
+                {(editPhotoPreview || editTarget?.profilePhoto) ? (
+                  <img
+                    src={editPhotoPreview || editTarget?.profilePhoto}
+                    alt="Customer profile"
+                    className="h-14 w-14 rounded-full border object-cover"
+                  />
+                ) : (
+                  <div className="h-14 w-14 rounded-full border bg-muted flex items-center justify-center text-xs text-muted-foreground">No photo</div>
+                )}
+                <Button type="button" variant="outline" size="sm" onClick={() => editPhotoInputRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" /> Choose Photo
+                </Button>
+                {editPhotoFile && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditPhotoFile(null);
+                      setEditPhotoPreview("");
+                      if (editPhotoInputRef.current) editPhotoInputRef.current.value = "";
+                    }}
+                  >
+                    <X className="mr-1 h-4 w-4" /> Cancel Photo Change
+                  </Button>
+                )}
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label>Name <span className="text-destructive">*</span></Label>
               <Input
@@ -364,10 +621,14 @@ export default function CustomersPage() {
               <Label>Mobile</Label>
               <Input
                 value={editForm.mobile}
-                onChange={(e) => setEditForm((f) => ({ ...f, mobile: e.target.value }))}
+                onChange={(e) => {
+                  setEditForm((f) => ({ ...f, mobile: e.target.value }));
+                  setEditErrors((errors) => ({ ...errors, mobile: undefined }));
+                }}
                 placeholder="10-digit mobile number"
                 maxLength={10}
               />
+              {editErrors.mobile && <p className="text-xs text-destructive">{editErrors.mobile}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Location</Label>

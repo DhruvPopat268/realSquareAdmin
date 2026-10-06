@@ -30,7 +30,7 @@ export interface ActiveUser {
 
 export const systemUsersService = {
   getAll:  (params?: Record<string, string | number>) =>
-    api.get<{ success: boolean; data: SystemUser[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/auth/system-users", { params }),
+    api.get<{ success: boolean; data: SystemUser[]; stats: { total: number; active: number; inactive: number; deleted: number }; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/auth/system-users", { params }),
   getById: (id: string) =>
     api.get<{ success: boolean; data: SystemUser }>(`/admin/auth/system-users/${id}`),
   create:  (payload: { name: string; email: string; mobile: string; profile: { password: string }; role?: string; isSuperAdmin?: boolean; isActive?: boolean }) =>

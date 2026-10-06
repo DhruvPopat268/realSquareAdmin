@@ -1,5 +1,6 @@
 const SystemUser = require("../../systemUsers.model");
 const SystemUserSession = require("../../systemUsers.session.model");
+const getAdminUserStats = require("../../../utils/adminUserStats");
 
 const BUILDER_ROLE_ID = process.env.BUILDER_ROLE_ID;
 
@@ -7,19 +8,40 @@ const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
 
 const fileByField = (files, name) => (files || []).find((f) => f.fieldname === name);
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const getBuilders = async (req, res) => {
   try {
     const isDeleted = req.query.isDeleted;
     if (isDeleted && !["true", "false", "all"].includes(isDeleted))
       return res.status(400).json({ success: false, message: "isDeleted must be true, false, or all" });
-    const filter = { role: BUILDER_ROLE_ID };
+    const statsFilter = { role: BUILDER_ROLE_ID };
+    const filter = { ...statsFilter };
     if (isDeleted !== "all") filter.isDeleted = isDeleted === "true" ? true : { $ne: true };
-    const builders = await SystemUser.find(filter)
-      .populate("role", "name permissions isActive")
-      .sort({ createdAt: -1 });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+    if (typeof req.query.search === "string" && req.query.search.trim()) {
+      const search = new RegExp(escapeRegex(req.query.search.trim()), "i");
+      filter.$or = [{ name: search }, { email: search }, { mobile: search }];
+    }
 
-    res.json({ success: true, data: builders });
+    const [builders, total, stats] = await Promise.all([
+      SystemUser.find(filter)
+        .populate("role", "name permissions isActive")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SystemUser.countDocuments(filter),
+      getAdminUserStats(statsFilter),
+    ]);
+
+    res.json({
+      success: true,
+      data: builders,
+      stats,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -28,9 +50,37 @@ const getBuilders = async (req, res) => {
 const createBuilder = async (req, res) => {
   try {
     const { mobile, name, email, gstNumber, cinNumber, foundedYear, totalProjectsDelivered } = req.body;
+    let { enquiryCities, location } = req.body;
 
     if (!mobile)
       return res.status(400).json({ success: false, message: "mobile is required" });
+
+    if (typeof enquiryCities === "string") {
+      try {
+        enquiryCities = JSON.parse(enquiryCities);
+      } catch {
+        return res.status(400).json({ success: false, message: "enquiryCities must be a valid JSON array" });
+      }
+    }
+    if (enquiryCities === undefined) enquiryCities = [];
+    if (!Array.isArray(enquiryCities))
+      return res.status(400).json({ success: false, message: "enquiryCities must be an array" });
+    enquiryCities = [...new Set(enquiryCities.map((city) => String(city).trim()).filter(Boolean))];
+
+    if (typeof location === "string") {
+      try {
+        location = JSON.parse(location);
+      } catch {
+        return res.status(400).json({ success: false, message: "location must be valid JSON" });
+      }
+    }
+    if (location !== undefined && location !== null) {
+      const latitude = Number(location.latitude);
+      const longitude = Number(location.longitude);
+      if (typeof location.name !== "string" || !location.name.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude))
+        return res.status(400).json({ success: false, message: "location must include a name, latitude, and longitude" });
+      location = { name: location.name.trim(), latitude, longitude };
+    }
 
     const existing = await SystemUser.findOne({ mobile });
     if (existing)
@@ -42,6 +92,7 @@ const createBuilder = async (req, res) => {
       cinNumber,
       foundedYear:            foundedYear            ? Number(foundedYear)            : undefined,
       totalProjectsDelivered: totalProjectsDelivered ? Number(totalProjectsDelivered) : undefined,
+      location: location || undefined,
     };
 
     const builder = await SystemUser.create({
@@ -51,6 +102,7 @@ const createBuilder = async (req, res) => {
       profilePhoto: profilePhotoFile ? toUrl(profilePhotoFile.path) : undefined,
       role: BUILDER_ROLE_ID,
       isActive: true,
+      enquiryCities,
       builderProfile,
     });
 
@@ -65,6 +117,7 @@ const updateBuilder = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, email, mobile, gstNumber, cinNumber, foundedYear, totalProjectsDelivered } = req.body;
+    let { enquiryCities, location } = req.body;
 
     const updateData = {};
     if (name                   !== undefined) updateData["name"]                                  = name;
@@ -74,6 +127,34 @@ const updateBuilder = async (req, res) => {
     if (cinNumber              !== undefined) updateData["builderProfile.cinNumber"]              = cinNumber;
     if (foundedYear            !== undefined) updateData["builderProfile.foundedYear"]            = Number(foundedYear);
     if (totalProjectsDelivered !== undefined) updateData["builderProfile.totalProjectsDelivered"] = Number(totalProjectsDelivered);
+
+    if (enquiryCities !== undefined) {
+      if (typeof enquiryCities === "string") {
+        try {
+          enquiryCities = JSON.parse(enquiryCities);
+        } catch {
+          return res.status(400).json({ success: false, message: "enquiryCities must be a valid JSON array" });
+        }
+      }
+      if (!Array.isArray(enquiryCities))
+        return res.status(400).json({ success: false, message: "enquiryCities must be an array" });
+      updateData.enquiryCities = [...new Set(enquiryCities.map((city) => String(city).trim()).filter(Boolean))];
+    }
+
+    if (typeof location === "string") {
+      try {
+        location = JSON.parse(location);
+      } catch {
+        return res.status(400).json({ success: false, message: "location must be valid JSON" });
+      }
+    }
+    if (location !== undefined && location !== null) {
+      const latitude = Number(location.latitude);
+      const longitude = Number(location.longitude);
+      if (typeof location.name !== "string" || !location.name.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude))
+        return res.status(400).json({ success: false, message: "location must include a name, latitude, and longitude" });
+      updateData["builderProfile.location"] = { name: location.name.trim(), latitude, longitude };
+    }
 
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     if (profilePhotoFile)

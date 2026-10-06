@@ -1,13 +1,17 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, ChevronLeft, ChevronRight, Eye, Pencil, Trash2, Upload, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X } from "lucide-react";
 import { buildersService, type Builder } from "@/services/buildersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
+import EnquiryCitiesPicker from "@/components/EnquiryCitiesPicker";
+import LocationPicker, { type LocationValue } from "@/components/LocationPicker";
+import UserStatusStats, { type UserStatusCounts } from "@/components/UserStatusStats";
 
 const PAGE_SIZES = [10, 25, 50];
 
@@ -30,10 +34,12 @@ export default function BuildersDevelopersPage() {
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [stats, setStats] = useState<UserStatusCounts>({ total: 0, active: 0, inactive: 0, deleted: 0 });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [deletionFilter, setDeletionFilter] = useState("false");
-
-  const [viewTarget, setViewTarget]     = useState<Builder | null>(null);
-  const [viewOpen, setViewOpen]         = useState(false);
 
   const [editTarget, setEditTarget]     = useState<Builder | null>(null);
   const [editOpen, setEditOpen]         = useState(false);
@@ -44,20 +50,41 @@ export default function BuildersDevelopersPage() {
   const [photoPreview, setPhotoPreview] = useState("");
   const photoRef                        = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting]     = useState(false);
+  const [enquiryCities, setEnquiryCities] = useState<string[]>([]);
+  const [location, setLocation] = useState<LocationValue | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Builder | null>(null);
   const [deleteOpen, setDeleteOpen]     = useState(false);
   const [deleting, setDeleting]         = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    buildersService.getAll({ isDeleted: deletionFilter })
-      .then((res) => setData(res.data.data))
-      .catch(() => toast({ variant: "destructive", title: "Failed to load builders" }))
-      .finally(() => setLoading(false));
-  }, [deletionFilter]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  function openView(b: Builder) { setViewTarget(b); setViewOpen(true); }
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    buildersService.getAll({
+      isDeleted: deletionFilter,
+      page,
+      limit: pageSize,
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+    })
+      .then((res) => {
+        if (!active) return;
+        setData(res.data.data);
+        setTotal(res.data.pagination.total);
+        setTotalPages(res.data.pagination.totalPages);
+        setStats(res.data.stats);
+      })
+      .catch(() => { if (active) toast({ variant: "destructive", title: "Failed to load builders" }); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [deletionFilter, page, pageSize, debouncedSearch, refreshKey]);
 
   function openCreate() {
     setIsCreating(true);
@@ -66,6 +93,8 @@ export default function BuildersDevelopersPage() {
     setEditErrors({});
     setPhotoFile(null);
     setPhotoPreview("");
+    setEnquiryCities([]);
+    setLocation(null);
     setEditOpen(true);
   }
 
@@ -84,6 +113,8 @@ export default function BuildersDevelopersPage() {
     setEditErrors({});
     setPhotoFile(null);
     setPhotoPreview(b.profilePhoto || "");
+    setEnquiryCities(b.enquiryCities || []);
+    setLocation(b.builderProfile?.location || null);
     setEditOpen(true);
   }
 
@@ -93,6 +124,7 @@ export default function BuildersDevelopersPage() {
     try {
       const res = await buildersService.updateStatus(b._id, { isActive: !b.isActive });
       setData((prev) => prev.map((item) => item._id === b._id ? res.data.data : item));
+      setRefreshKey((key) => key + 1);
       toast({ title: `Builder ${!b.isActive ? "activated" : "deactivated"} successfully` });
     } catch {
       toast({ variant: "destructive", title: "Failed to update status" });
@@ -125,15 +157,22 @@ export default function BuildersDevelopersPage() {
       if (editForm.cinNumber.trim())              fd.append("cinNumber",              editForm.cinNumber.trim());
       if (editForm.foundedYear.trim())            fd.append("foundedYear",            editForm.foundedYear.trim());
       if (editForm.totalProjectsDelivered.trim()) fd.append("totalProjectsDelivered", editForm.totalProjectsDelivered.trim());
+      fd.append("enquiryCities", JSON.stringify(enquiryCities));
+      if (location) fd.append("location", JSON.stringify(location));
       if (photoFile)                              fd.append("profilePhoto",           photoFile);
 
       if (isCreating) {
-        const res = await buildersService.create(fd);
-        setData((prev) => [res.data.data, ...prev]);
+        await buildersService.create(fd);
+        setSearch("");
+        setDebouncedSearch("");
+        setPage(1);
+        setDeletionFilter("false");
+        setRefreshKey((key) => key + 1);
         toast({ title: "Builder created successfully" });
       } else {
         const res = await buildersService.update(editTarget!._id, fd);
         setData((prev) => prev.map((item) => item._id === editTarget!._id ? res.data.data : item));
+        setRefreshKey((key) => key + 1);
         toast({ title: "Builder updated successfully" });
       }
       setEditOpen(false);
@@ -150,6 +189,8 @@ export default function BuildersDevelopersPage() {
     try {
       await buildersService.remove(deleteTarget._id);
       setData((prev) => prev.filter((b) => b._id !== deleteTarget._id));
+      setPage(1);
+      setRefreshKey((key) => key + 1);
       toast({ title: "Builder deleted successfully" });
       setDeleteOpen(false);
     } catch {
@@ -159,19 +200,6 @@ export default function BuildersDevelopersPage() {
     }
   }
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((b) =>
-      b.name?.toLowerCase().includes(q) ||
-      b.email?.toLowerCase().includes(q) ||
-      b.mobile?.includes(q)
-    );
-  }, [data, search]);
-
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
-
   function setField(key: keyof typeof INIT_FORM, val: string) {
     setEditForm((f) => ({ ...f, [key]: val }));
     setEditErrors((e) => ({ ...e, [key]: undefined }));
@@ -180,27 +208,49 @@ export default function BuildersDevelopersPage() {
   return (
     <div className="space-y-4">
 
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Builders / Developers</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage all registered builders and developers.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Builders / Developers</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage all registered builders and developers.</p>
+        </div>
+        <Button onClick={openCreate}>+ Add Builder</Button>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search name, email, mobile..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pl-8 h-9 w-64 text-sm"
-          />
+      <UserStatusStats stats={stats} />
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search name, email, mobile..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-9 w-64 text-sm"
+            />
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" aria-label="Show searchable builder fields" className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+                <CircleHelp className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="space-y-1"><p>Search by:</p><p>Name</p><p>Email</p><p>Mobile number</p></div>
+            </TooltipContent>
+          </Tooltip>
+          <div className="flex-1" />
+          <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
+            <option value="false">Not Deleted</option><option value="true">Deleted</option>
+          </select>
         </div>
-        <div className="flex-1" />
-        <p className="text-sm text-muted-foreground">{filtered.length} builder{filtered.length !== 1 ? "s" : ""}</p>
-        <select aria-label="Deleted status" value={deletionFilter} onChange={(e) => { setDeletionFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border bg-background px-3 text-sm">
-          <option value="false">Not Deleted</option><option value="true">Deleted</option>
-        </select>
-        <Button size="sm" onClick={openCreate}>+ Add Builder</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Rows per page</span>
+          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded-md border bg-background px-2 text-xs">
+            {PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+          </select>
+          <p className="text-sm text-muted-foreground">{total} builder{total !== 1 ? "s" : ""}</p>
+        </div>
       </div>
 
       <div className="rounded-lg border bg-card overflow-x-auto">
@@ -229,13 +279,12 @@ export default function BuildersDevelopersPage() {
           <tbody>
             {loading ? (
               <tr><td colSpan={17} className="py-16"><Spinner fullPage={false} size="md" label="Loading builders..." /></td></tr>
-            ) : paged.length === 0 ? (
+            ) : data.length === 0 ? (
               <tr><td colSpan={17} className="text-center text-muted-foreground py-16">No builders found</td></tr>
-            ) : paged.map((b, i) => (
+            ) : data.map((b, i) => (
               <tr key={b._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 w-24">
                   <div className="flex items-center gap-1">
-                    <button disabled onClick={() => openView(b)} className="p-1.5 rounded-md bg-green-50 text-green-600 opacity-40 cursor-not-allowed"><Eye className="h-3.5 w-3.5" /></button>
                     <button disabled={b.isDeleted} onClick={() => openEdit(b)} className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors disabled:opacity-40"><Pencil className="h-3.5 w-3.5" /></button>
                     <button disabled={b.isDeleted} onClick={() => openDelete(b)} className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
@@ -286,10 +335,7 @@ export default function BuildersDevelopersPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span>Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} entries</span>
-          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded-md border bg-background px-2 text-xs">
-            {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
-          </select>
+          <span>Showing {total === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} entries</span>
         </div>
         <div className="flex items-center gap-1">
           <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
@@ -302,31 +348,6 @@ export default function BuildersDevelopersPage() {
           <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage((p) => p + 1)} className="h-8 w-8 rounded-md border flex items-center justify-center disabled:opacity-40 hover:bg-muted"><ChevronRight className="h-4 w-4" /></button>
         </div>
       </div>
-
-      {/* View Dialog */}
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Builder Details</DialogTitle></DialogHeader>
-          {viewTarget && (
-            <div className="space-y-3 py-2 text-sm">
-              {viewTarget.profilePhoto && <img src={viewTarget.profilePhoto} alt="profile" className="h-16 w-16 rounded-full object-cover border" />}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <span className="text-muted-foreground">Name</span><span className="font-medium">{viewTarget.name || "—"}</span>
-                <span className="text-muted-foreground">Email</span><span>{viewTarget.email || "—"}</span>
-                <span className="text-muted-foreground">Mobile</span><span>{viewTarget.mobile || "—"}</span>
-                <span className="text-muted-foreground">GST</span><span>{viewTarget.builderProfile?.gstNumber || "—"}</span>
-                <span className="text-muted-foreground">CIN</span><span>{viewTarget.builderProfile?.cinNumber || "—"}</span>
-                <span className="text-muted-foreground">Founded</span><span>{viewTarget.builderProfile?.foundedYear ?? "—"}</span>
-                <span className="text-muted-foreground">Projects</span><span>{viewTarget.builderProfile?.totalProjectsDelivered ?? "—"}</span>
-                <span className="text-muted-foreground">Enquiry Cities</span><span>{viewTarget.enquiryCities?.length ? viewTarget.enquiryCities.join(", ") : "—"}</span>
-                <span className="text-muted-foreground">Is Active</span>
-                <span className={viewTarget.isActive ? "text-green-600 font-medium" : "text-muted-foreground"}>{viewTarget.isActive ? "Yes" : "No"}</span>
-              </div>
-            </div>
-          )}
-          <DialogFooter><Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Create / Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -365,6 +386,15 @@ export default function BuildersDevelopersPage() {
             <div className="space-y-1.5">
               <Label>Email</Label>
               <Input type="email" value={editForm.email} onChange={(e) => setField("email", e.target.value)} placeholder="email@example.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Enquiry Cities</Label>
+              <EnquiryCitiesPicker value={enquiryCities} onChange={setEnquiryCities} />
+              <p className="text-xs text-muted-foreground">Add cities where this builder wants to receive enquiries.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Location</Label>
+              <LocationPicker value={location} onChange={setLocation} />
             </div>
             <div className="space-y-1.5">
               <Label>GST Number</Label>

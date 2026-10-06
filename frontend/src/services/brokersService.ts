@@ -22,7 +22,13 @@ export interface Broker {
 }
 
 export const brokersService = {
-  getAll: (params?: { isDeleted?: string }) => api.get<{ success: boolean; data: Broker[] }>("/broker/admin", { params }),
+  getAll: (params?: { isDeleted?: string; page?: number; limit?: number; search?: string }) =>
+    api.get<{
+      success: boolean;
+      data: Broker[];
+      stats: { total: number; active: number; inactive: number; deleted: number };
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>("/broker/admin", { params }),
   create: (payload: FormData) =>
     api.post<{ success: boolean; data: Broker }>("/broker/admin", payload, {
       headers: { "Content-Type": "multipart/form-data" },

@@ -8,6 +8,7 @@ const AppSystemUserSession = require("../../../modules/systemUsers.session.model
 const SystemUserOtp     = require("./otp.model");
 const SystemUserRole    = require("../systemUsersRoles/model");
 const { sendEmail }     = require("../../../utils/emailService");
+const getAdminUserStats = require("../../../utils/adminUserStats");
 
 const POPULATE_ROLE    = "name permissions isActive";
 const EXCLUDE_PASSWORD = "-profile.password";
@@ -332,47 +333,51 @@ const getUsers = async (req, res) => {
       return res.status(400).json({ success: false, message: "isDeleted must be true, false, or all" });
     }
 
-    const filter = {
+    const statsFilter = {
       $and: [
         {
           role: { $nin: excludedRoleIds, $ne: null }  // Only users with panel/admin roles (not null, not app roles)
         },
-        ...(deletedFilter === "all" ? [] : [{ isDeleted: deletedFilter === "true" ? true : { $ne: true } }]),
       ]
     };
 
+    if (req.query.role) statsFilter.$and.push({ role: req.query.role });
+    
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const searchFilter = search ? {
+        $or: [
+          { name:   new RegExp(search, "i") },
+          { email:  new RegExp(search, "i") },
+          { mobile: new RegExp(search, "i") },
+        ]
+      } : null;
+
+    const filter = { $and: [...statsFilter.$and] };
+    if (searchFilter) filter.$and.push(searchFilter);
+    if (deletedFilter !== "all") filter.$and.push({ isDeleted: deletedFilter === "true" ? true : { $ne: true } });
     if (req.query.isActive === "true")  filter.$and.push({ isActive: true });
     if (req.query.isActive === "false") filter.$and.push({ isActive: false });
-    if (req.query.role)                 filter.$and.push({ role: req.query.role });
-    
-    if (req.query.search) {
-      filter.$and.push({
-        $or: [
-          { name:   new RegExp(req.query.search.trim(), "i") },
-          { email:  new RegExp(req.query.search.trim(), "i") },
-          { mobile: new RegExp(req.query.search.trim(), "i") },
-        ]
-      });
-    }
 
     // Pagination
     const page  = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 10));
     const skip  = (page - 1) * limit;
 
-    const [users, total] = await Promise.all([
+    const [users, total, stats] = await Promise.all([
       SystemUser.find(filter)
         .select(EXCLUDE_PASSWORD)
         .populate("role", POPULATE_ROLE)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      SystemUser.countDocuments(filter)
+      SystemUser.countDocuments(filter),
+      getAdminUserStats(statsFilter)
     ]);
 
     res.json({
       success: true,
       data: users,
+      stats,
       pagination: {
         page,
         limit,

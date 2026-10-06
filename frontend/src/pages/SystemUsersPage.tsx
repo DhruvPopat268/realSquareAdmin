@@ -6,11 +6,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Pencil, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, CircleHelp, Plus, Pencil, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, X } from "lucide-react";
 import { systemUsersService, type SystemUser } from "@/services/systemUsersService";
 import { type SystemUserRole } from "@/services/systemUsersRolesService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
+import UserStatusStats, { type UserStatusCounts } from "@/components/UserStatusStats";
 
 // ── Admin role ID ───────────────────────────────────────────────────────────
 const ADMIN_ROLE_ID = import.meta.env.VITE_ADMIN_ROLE;
@@ -63,6 +65,7 @@ export default function SystemUsersPage() {
   const [pageSize, setPageSize]           = useState(10);
   const [total, setTotal]                 = useState(0);
   const [totalPages, setTotalPages]       = useState(1);
+  const [stats, setStats] = useState<UserStatusCounts>({ total: 0, active: 0, inactive: 0, deleted: 0 });
 
   // Pending filters (before Apply is clicked)
   const [pendingSearch, setPendingSearch]               = useState("");
@@ -103,6 +106,7 @@ export default function SystemUsersPage() {
       setData(res.data.data);
       setTotal(res.data.pagination.total);
       setTotalPages(res.data.pagination.totalPages);
+      setStats(res.data.stats);
     } catch (err: any) {
       toast({ variant: "destructive", title: extractMsg(err, "Failed to load users") });
     } finally {
@@ -226,6 +230,7 @@ export default function SystemUsersPage() {
         };
         const res = await systemUsersService.update(editTarget._id, payload);
         setData((prev) => prev.map((u) => u._id === editTarget._id ? res.data.data : u));
+        fetchUsers(statusFilter, roleFilter?.id, search, deletionFilter);
         toast({ title: "User updated successfully" });
       } else {
         const payload: any = {
@@ -239,6 +244,7 @@ export default function SystemUsersPage() {
         };
         const res = await systemUsersService.create(payload);
         setData((prev) => [res.data.data, ...prev]);
+        fetchUsers(statusFilter, roleFilter?.id, search, deletionFilter);
         toast({ title: "User created successfully" });
       }
       setOpen(false);
@@ -262,6 +268,7 @@ export default function SystemUsersPage() {
     try {
       const res = await systemUsersService.update(u._id, { isActive: !u.isActive });
       setData((prev) => prev.map((item) => item._id === u._id ? res.data.data : item));
+      fetchUsers(statusFilter, roleFilter?.id, search, deletionFilter);
       toast({ title: `User ${!u.isActive ? "activated" : "deactivated"} successfully` });
     } catch (err: any) {
       toast({ variant: "destructive", title: extractMsg(err, "Failed to update status") });
@@ -276,6 +283,7 @@ export default function SystemUsersPage() {
     try {
       await systemUsersService.remove(deleteTarget._id);
       setData((prev) => prev.filter((u) => u._id !== deleteTarget._id));
+      fetchUsers(statusFilter, roleFilter?.id, search, deletionFilter);
       toast({ title: "User deleted successfully" });
       setDeleteOpen(false);
     } catch (err: any) {
@@ -299,9 +307,77 @@ export default function SystemUsersPage() {
         </Button>
       </div>
 
+      <UserStatusStats stats={stats} />
+
       {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search name, email, mobile..."
+              value={pendingSearch}
+              onChange={(e) => setPendingSearch(e.target.value)}
+              className="pl-8 h-9 w-64 text-sm"
+            />
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" aria-label="Show searchable system user fields" className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+                <CircleHelp className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="space-y-1"><p>Search by:</p><p>Name</p><p>Email</p><p>Mobile number</p></div>
+            </TooltipContent>
+          </Tooltip>
+          <div className="flex-1" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
+                Role: {pendingRoleFilter ? pendingRoleFilter.name : "All"} <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-60 overflow-y-auto">
+              <DropdownMenuItem onClick={() => setPendingRoleFilter(null)}>All</DropdownMenuItem>
+              {roles.map((r) => (
+                <DropdownMenuItem key={r._id} onClick={() => setPendingRoleFilter({ id: r._id, name: r.name })}>
+                  {r.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
+                Is Active: {pendingStatusFilter} <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setPendingStatusFilter("All")}>All</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPendingStatusFilter("Yes")}>Yes</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPendingStatusFilter("No")}>No</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
+                Deleted: {pendingDeletionFilter} <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setPendingDeletionFilter("No")}>Not Deleted</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPendingDeletionFilter("Yes")}>Deleted</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
+          {hasFilters && (
+            <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={clearFilters}>
+              <X className="h-3.5 w-3.5" /> Clear
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-muted-foreground">Rows per page</span>
           <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
             <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
@@ -309,65 +385,8 @@ export default function SystemUsersPage() {
               {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
+          <p className="text-sm text-muted-foreground">{total} record{total !== 1 ? "s" : ""}</p>
         </div>
-        <p className="text-sm text-muted-foreground">{total} record{total !== 1 ? "s" : ""}</p>
-        <div className="flex-1" />
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search name, email, phone..."
-            value={pendingSearch}
-            onChange={(e) => setPendingSearch(e.target.value)}
-            className="pl-8 h-9 w-64 text-sm"
-          />
-        </div>
-        {/* Role filter */}
-        <div className="flex-1" />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Role: {pendingRoleFilter ? pendingRoleFilter.name : "All"} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-60 overflow-y-auto">
-            <DropdownMenuItem onClick={() => setPendingRoleFilter(null)}>All</DropdownMenuItem>
-            {roles.map((r) => (
-              <DropdownMenuItem key={r._id} onClick={() => setPendingRoleFilter({ id: r._id, name: r.name })}>
-                {r.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {/* Status filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Is Active: {pendingStatusFilter} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setPendingStatusFilter("All")}>All</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setPendingStatusFilter("Yes")}>Yes</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setPendingStatusFilter("No")}>No</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              Deleted: {pendingDeletionFilter} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setPendingDeletionFilter("No")}>Not Deleted</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setPendingDeletionFilter("Yes")}>Deleted</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
-        {hasFilters && (
-          <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={clearFilters}>
-            <X className="h-3.5 w-3.5" /> Clear
-          </Button>
-        )}
       </div>
 
       {/* Table */}

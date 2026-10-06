@@ -19,11 +19,18 @@ export interface Builder {
     cinNumber?: string;
     foundedYear?: number;
     totalProjectsDelivered?: number;
+    location?: { name: string; latitude: number; longitude: number };
   } | null;
 }
 
 export const buildersService = {
-  getAll: (params?: { isDeleted?: string }) => api.get<{ success: boolean; data: Builder[] }>("/builder/admin", { params }),
+  getAll: (params?: { isDeleted?: string; page?: number; limit?: number; search?: string }) =>
+    api.get<{
+      success: boolean;
+      data: Builder[];
+      stats: { total: number; active: number; inactive: number; deleted: number };
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>("/builder/admin", { params }),
   create: (payload: FormData) =>
     api.post<{ success: boolean; data: Builder }>("/builder/admin", payload, {
       headers: { "Content-Type": "multipart/form-data" },

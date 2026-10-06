@@ -28,7 +28,17 @@ export interface Owner {
 }
 
 export const ownersService = {
-  getAll: (params?: { isDeleted?: string }) => api.get<{ success: boolean; data: Owner[] }>("/owner/admin", { params }),
+  getAll: (params?: { isDeleted?: string; page?: number; limit?: number; search?: string }) =>
+    api.get<{
+      success: boolean;
+      data: Owner[];
+      stats: { total: number; active: number; inactive: number; deleted: number };
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>("/owner/admin", { params }),
+  create: (payload: FormData) =>
+    api.post<{ success: boolean; data: Owner }>("/owner/admin", payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
   update: (id: string, payload: FormData) =>
     api.put<{ success: boolean; data: Owner }>(`/owner/admin/${id}`, payload, {
       headers: { "Content-Type": "multipart/form-data" },
