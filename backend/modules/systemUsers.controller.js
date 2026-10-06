@@ -366,6 +366,43 @@ const completeProfile = async (req, res) => {
   }
 };
 
+// ── Assign customer role without profile details (protected) ─────────────────
+// POST /api/system-users/assign-customer-role
+const assignCustomerRole = async (req, res) => {
+  try {
+    const customerRoleId = process.env.CUSTOMER_ROLE_ID;
+    if (!customerRoleId || !ALLOWED_ROLES[customerRoleId]) {
+      return res.status(500).json({ success: false, message: "Customer role is not configured" });
+    }
+
+    const currentRoleId = req.userRole?.toString();
+    if (currentRoleId === customerRoleId) {
+      const user = await SystemUser.findById(req.user._id).populate("role", "name permissions isActive");
+      return res.json({ success: true, message: "Customer role is already assigned", data: user });
+    }
+    if (currentRoleId) {
+      return res.status(409).json({ success: false, message: "A role is already assigned to this account" });
+    }
+
+    const existingProfile = Object.values(ALLOWED_ROLES).find((field) => req.user[field]?.mobile);
+    if (existingProfile) {
+      return res.status(409).json({ success: false, message: "A role profile already exists for this account" });
+    }
+
+    const user = await SystemUser.findByIdAndUpdate(
+      req.user._id,
+      { $set: { role: customerRoleId, isActive: true, isSuperAdmin: false } },
+      { new: true, runValidators: true }
+    ).populate("role", "name permissions isActive");
+
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    return res.json({ success: true, message: "Customer role assigned successfully", data: user });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // ── Send Change Mobile OTP (protected) ────────────────────────────────────────
 // POST /api/system-users/send-change-mobile-otp  { mobile }
 const sendChangeMobileOtp = async (req, res) => {
@@ -767,7 +804,7 @@ const logout = async (req, res) => {
 };
 
 module.exports = {
-  sendOtp, verifyOtp, completeProfile,
+  sendOtp, verifyOtp, completeProfile, assignCustomerRole,
   sendChangeMobileOtp, verifyChangeMobileOtp,
   updateProfile, switchRole, logout, getMe, getActiveUsers,
 };
