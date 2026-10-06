@@ -9,6 +9,7 @@ const FreeListingConfig        = require("./admin/freeListingManagement/model");
 const LeadEnquiryCoinsConfig   = require("./admin/leadEnquiryCoinsConfig/model");
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
+const mongoose          = require("mongoose");
 
 const DUMMY_OTP = "123456";
 
@@ -520,7 +521,20 @@ const updateProfile = async (req, res) => {
 // ── Reset Role Profile for Role Switch (protected) ────────────────────────────
 // POST /api/system-users/switch-role
 const switchRole = async (req, res) => {
+  let session;
   try {
+    session = await mongoose.startSession();
+    session.startTransaction();
+    await ListingPurchasedPlan.updateMany(
+      { user: req.user._id, status: "Active" },
+      { $set: { status: "Cancelled", cancellationReason: "User switched role" } },
+      { session }
+    );
+    await EnquiryPurchasedPlan.updateMany(
+      { user: req.user._id, status: "Active" },
+      { $set: { status: "Cancelled", cancellationReason: "User switched role" } },
+      { session }
+    );
     await SystemUser.findByIdAndUpdate(
       req.user._id,
       {
@@ -535,14 +549,17 @@ const switchRole = async (req, res) => {
           lastActivity: 1,
         },
       },
-      { runValidators: true }
+      { runValidators: true, session }
     );
-
-    await SystemUserSession.deleteMany({ userId: req.user._id });
+    await SystemUserSession.deleteMany({ userId: req.user._id }, { session });
+    await session.commitTransaction();
     res.clearCookie("user_token");
     res.json({ success: true, message: "Profile reset for role switch successfully" });
   } catch (err) {
+    if (session?.inTransaction()) await session.abortTransaction();
     res.status(500).json({ success: false, message: err.message });
+  } finally {
+    if (session) await session.endSession();
   }
 };
 

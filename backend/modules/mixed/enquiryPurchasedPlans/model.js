@@ -26,6 +26,7 @@ const enquiryPurchasedPlanSchema = new mongoose.Schema(
     expiryDate:         { type: Date },               // null = never expires
     expiryDurationDays: { type: Number },
     status:             { type: String, enum: ["Active", "Expired", "Consumed", "Cancelled"], default: "Active" },
+    cancellationReason: { type: String, enum: ["User upgraded plan", "User switched role"] },
     changedPlanTo:      { type: mongoose.Schema.Types.ObjectId, ref: "EnquiryPurchasedPlan" },
   },
   { timestamps: true }

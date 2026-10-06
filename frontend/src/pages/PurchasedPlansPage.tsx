@@ -198,6 +198,7 @@ export default function ListingPurchasedPlansPage() {
                 <th className="px-5 py-3 text-left min-w-[150px]">Properties</th>
                 <th className="px-5 py-3 text-left min-w-[160px]">Expiry</th>
                 <th className="px-5 py-3 text-left min-w-[120px]">Status</th>
+                <th className="px-5 py-3 text-left min-w-[180px]">Cancellation Reason</th>
                 <th className="px-5 py-3 text-left min-w-[160px]">Purchased At</th>
               </tr>
             </thead>
@@ -232,7 +233,10 @@ export default function ListingPurchasedPlansPage() {
                       <Badge
                         variant={STATUS_COLORS[p.status] ? undefined : (STATUS_VARIANTS[p.status] ?? "secondary")}
                         className={`text-xs ${STATUS_COLORS[p.status] ?? ""}`}
-                      >{p.status}</Badge>
+                    >{p.status}</Badge>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {p.status === "Cancelled" ? p.cancellationReason || "—" : "—"}
                     </td>
                     <td className="px-5 py-3 text-xs">
                       <p>{new Date(p.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>

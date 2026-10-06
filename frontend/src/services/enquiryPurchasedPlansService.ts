@@ -19,6 +19,7 @@ export interface EnquiryPurchasedPlan {
   startDate: string;
   expiryDate: string;
   status: "Active" | "Expired" | "Consumed" | "Cancelled";
+  cancellationReason?: "User upgraded plan" | "User switched role";
   createdAt: string;
 }
 

@@ -410,6 +410,7 @@ const upgradePlan = async (req, res) => {
         await newPlan.save({ session });
 
         activePlan.status       = "Cancelled";
+        activePlan.cancellationReason = "User upgraded plan";
         activePlan.changedPlanTo = newPlan._id;
         await activePlan.save({ session });
 
@@ -457,6 +458,7 @@ const upgradePlan = async (req, res) => {
       await newPlan.save({ session });
 
       activePlan.status        = "Cancelled";
+      activePlan.cancellationReason = "User upgraded plan";
       activePlan.changedPlanTo  = newPlan._id;
       await activePlan.save({ session });
 

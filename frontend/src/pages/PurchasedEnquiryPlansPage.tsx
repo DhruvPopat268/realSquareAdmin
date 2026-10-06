@@ -192,6 +192,7 @@ export default function PurchasedEnquiryPlansPage() {
                 <th className="px-5 py-3 text-left min-w-[150px]">Enquiries</th>
                 <th className="px-5 py-3 text-left min-w-[160px]">Expiry</th>
                 <th className="px-5 py-3 text-left min-w-[120px]">Status</th>
+                <th className="px-5 py-3 text-left min-w-[180px]">Cancellation Reason</th>
                 <th className="px-5 py-3 text-left min-w-[160px]">Purchased At</th>
               </tr>
             </thead>
@@ -234,6 +235,9 @@ export default function PurchasedEnquiryPlansPage() {
                       <Badge className={`text-xs ${STATUS_COLORS[p.status] ?? "bg-muted text-muted-foreground"}`}>
                         {p.status}
                       </Badge>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {p.status === "Cancelled" ? p.cancellationReason || "—" : "—"}
                     </td>
                     <td className="px-5 py-3 text-xs">
                       <p>{new Date(p.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>

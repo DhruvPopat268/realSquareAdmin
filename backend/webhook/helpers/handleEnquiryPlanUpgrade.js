@@ -65,6 +65,7 @@ const handleEnquiryPlanUpgrade = async (txn, payment, purchaseAmount, signature)
 
     // cancel old plan and point to new one
     currentPlan.status        = "Cancelled";
+    currentPlan.cancellationReason = "User upgraded plan";
     currentPlan.changedPlanTo = newPlan._id;
     await currentPlan.save({ session });
 

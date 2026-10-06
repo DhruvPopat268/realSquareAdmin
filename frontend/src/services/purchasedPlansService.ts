@@ -15,12 +15,13 @@ export interface ListingPurchasedPlan {
     amount?: number;
   };
   propertiesUsed: number;
-  paymentMethod: "Coins" | "Online";
+  paymentMethod: "Coins" | "Online" | "Free";
   amountPaid: number;
   coinsPaid: number;
   startDate: string;
   expiryDate: string;
-  status: "Active" | "Expired" | "Consumed";
+  status: "Active" | "Expired" | "Consumed" | "Cancelled";
+  cancellationReason?: "User upgraded plan" | "User switched role";
   createdAt: string;
 }
 
