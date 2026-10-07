@@ -12,7 +12,7 @@ const coinsTransactionSchema = new mongoose.Schema(
     coins:       { type: Number, required: true },
     reason:      {
       type: String,
-      enum: ["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "InquiryPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"],
+      enum: ["ListingPlanPurchase", "ListingPlanUpgrade", "RequirementPlanPurchase", "RequirementPlanUpgrade", "RequirementPurchase", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"],
       required: true,
     },
     // reference to the related document (purchasedPlan or transaction)

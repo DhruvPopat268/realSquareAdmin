@@ -10,6 +10,18 @@ import Spinner from "@/components/Spinner";
 
 const LIMITS = [10, 20, 50, 100];
 
+const REASON_LABELS: Record<string, string> = {
+  ListingPlanPurchase:     "Listing Plan Purchase",
+  ListingPlanUpgrade:      "Listing Plan Upgrade",
+  RequirementPlanPurchase: "Requirement Plan Purchase",
+  RequirementPlanUpgrade:  "Requirement Plan Upgrade",
+  CoinsPurchase:           "Coins Purchase",
+  RequirementPurchase:     "Requirement Purchase",
+  Refund:                  "Refund",
+  AdminCredit:             "Admin Credit",
+  AdminDebit:              "Admin Debit",
+};
+
 interface Query { page: number; limit: number; type: string; reason: string; userType: string; userId: string; }
 const DEFAULT_QUERY: Query = { page: 1, limit: 10, type: "", reason: "", userType: "", userId: "" };
 
@@ -133,8 +145,8 @@ export default function CoinsTransactionsPage() {
           <SelectTrigger className="h-9 w-64 text-sm"><SelectValue placeholder="Select Transaction Reason" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Reasons</SelectItem>
-            {["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
-              <SelectItem key={r} value={r}>{r}</SelectItem>
+            {["ListingPlanPurchase", "ListingPlanUpgrade", "RequirementPlanPurchase", "RequirementPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
+              <SelectItem key={r} value={r}>{REASON_LABELS[r] ?? r}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -209,7 +221,7 @@ export default function CoinsTransactionsPage() {
                       {txn.type === "Credit" ? "+" : "-"}{txn.coins}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{txn.reason}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{REASON_LABELS[txn.reason] ?? txn.reason}</td>
                   <td className="px-4 py-3">{txn.balanceBefore}</td>
                   <td className="px-4 py-3">{txn.balanceAfter}</td>
                   <td className="px-4 py-3 text-xs">

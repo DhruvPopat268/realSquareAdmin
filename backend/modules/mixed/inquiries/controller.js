@@ -682,7 +682,7 @@ const purchaseAssignedInquiry = async (req, res) => {
         userDetails: await getUserDetailsSnapshot(req.user),
         type: "Debit",
         coins: coinsRequired,
-        reason: "InquiryPurchase",
+        reason: "RequirementPurchase",
         refId: assignment._id,
         refModel: "AssignedInquiry",
         balanceBefore: wallet.currentBalance + coinsRequired,

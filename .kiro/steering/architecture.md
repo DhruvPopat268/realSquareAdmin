@@ -140,13 +140,13 @@ Two separate plan types exist — **Listing Plans** and **Enquiry Plans** — ea
 - Purchase flow: `modules/mixed/enquiryPurchasedPlans/` → `EnquiryPurchasedPlan` model
 - Routes: `GET /active-plans`, `POST /purchase`, `POST /change-plan`, `POST /create-order`, `POST /change-plan-order`, `PATCH /cancel/:transactionId`
 - Webhook handlers: `webhook/helpers/handleEnquiryPlanPurchase.js`, `webhook/helpers/handleEnquiryPlanUpgrade.js`
-- Transaction reasons: `"EnquiryPlanPurchase"`, `"EnquiryPlanUpgrade"`
+- Transaction reasons: `"RequirementPlanPurchase"`, `"RequirementPlanUpgrade"`
 - Full flow documented in `modules/mixed/enquiryPurchasedPlans/FLOW.md`
 
 #### Assigned Inquiry Purchase
 - `PATCH /api/mixed/inquiries/purchase` accepts `assignmentId` and `purchasedVia: "plan" | "coins"` in the request body.
 - The purchase endpoint checks the linked inquiry status before using a plan credit or coins; expired, inactive, completed, and rejected inquiries are rejected with HTTP 409. Existing purchased assignments remain accessible.
-- Plan purchases consume one credit from the user's active enquiry plan; coin purchases debit the configured `coinsPerEnquiry` amount and create an `InquiryPurchase` coin transaction.
+- Plan purchases consume one credit from the user's active enquiry plan; coin purchases debit the configured `coinsPerEnquiry` amount and create a `RequirementPurchase` coin transaction.
 - Purchased assignments store `status: "purchased"`, `purchasedAt`, and `purchasedVia`; coin purchases also store `coinsUsed` with the exact amount deducted from the wallet.
 - Inquiry and status-transition integration tests read `USER_TOKEN`, `ADMIN_TOKEN`, and (for customer-only cases) `CUSTOMER_TOKEN` from the ignored backend `.env` file; no bearer tokens are embedded in those test sources.
 - Request validation, authentication, creator/admin status changes, plan and coin purchase, closed inquiry, already-purchased, and missing assignment cases are covered in the established inquiry API test files; plan and coin fixtures assert successful purchase when active or the duplicate response when already purchased.
@@ -159,9 +159,9 @@ All `reason` values in `PaymentTransaction` and `CoinsTransaction`:
 |---|---|
 | `ListingPlanPurchase` | Online/coins purchase of a listing plan (no active plan) |
 | `ListingPlanUpgrade` | Online/coins change of an existing listing plan |
-| `EnquiryPlanPurchase` | Online/coins purchase of an enquiry plan (no active plan) |
-| `EnquiryPlanUpgrade` | Online/coins change of an existing enquiry plan |
-| `InquiryPurchase` | Coins spent to unlock an assigned inquiry |
+| `RequirementPlanPurchase` | Online/coins purchase of an enquiry plan (no active plan) |
+| `RequirementPlanUpgrade` | Online/coins change of an existing enquiry plan |
+| `RequirementPurchase` | Coins spent to unlock an assigned inquiry |
 | `CoinsPurchase` | User buys coins via Razorpay |
 | `Refund` | Admin-issued refund |
 | `AdminCredit` | Manual admin credit |

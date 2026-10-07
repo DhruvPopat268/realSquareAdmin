@@ -5,7 +5,7 @@ export interface PaymentTransaction {
   user: string;
   userDetails?: { name?: string; mobile?: string } | null;
   userType: "Owner" | "Broker" | "Builder";
-  reason: "ListingPlanPurchase" | "ListingPlanUpgrade" | "EnquiryPlanPurchase" | "EnquiryPlanUpgrade" | "CoinsPurchase" | "Refund" | "AdminCredit" | "AdminDebit";
+  reason: "ListingPlanPurchase" | "ListingPlanUpgrade" | "RequirementPlanPurchase" | "RequirementPlanUpgrade" | "CoinsPurchase" | "Refund" | "AdminCredit" | "AdminDebit";
   razorpayOrderId: string;
   razorpayPaymentId?: string;
   amount: number;

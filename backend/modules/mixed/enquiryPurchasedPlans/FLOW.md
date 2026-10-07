@@ -57,7 +57,7 @@ All routes are mounted at `/api/mixed/enquiry-plans` and protected by `userProte
 - Mongoose session transaction:
   1. Deducts coins from `UserCoinsWallet`
   2. Creates `EnquiryPurchasedPlan` with `paymentMethod: "Coins"`, `coinsPaid`, `status: "Active"`
-  3. Creates `CoinsTransaction` (type `"Debit"`, reason `"EnquiryPlanPurchase"` or `"EnquiryPlanUpgrade"`)
+  3. Creates `CoinsTransaction` (type `"Debit"`, reason `"RequirementPlanPurchase"` or `"RequirementPlanUpgrade"`)
   4. If changing: marks old plan `"Cancelled"` with `changedPlanTo`
 - Returns `201` immediately
 - No webhook involved
@@ -72,7 +72,7 @@ All routes are mounted at `/api/mixed/enquiry-plans` and protected by `userProte
 **Payload:** `{ planId }`
 
 - Creates Razorpay order with `planId` (and `activePlanId` for change) embedded in `notes`
-- Creates `PaymentTransaction` with `status: "Pending"`, reason `"EnquiryPlanPurchase"` or `"EnquiryPlanUpgrade"`
+- Creates `PaymentTransaction` with `status: "Pending"`, reason `"RequirementPlanPurchase"` or `"RequirementPlanUpgrade"`
 - Returns `{ orderId, amount, currency, transactionId }` to frontend
 - Frontend opens Razorpay checkout modal
 
@@ -82,8 +82,8 @@ Razorpay fires `payment.captured` → `manageOnlinePayment.js`:
 1. Verifies HMAC-SHA256 signature
 2. Finds `PaymentTransaction` by `razorpayOrderId`
 3. Routes by `txn.reason`:
-   - `"EnquiryPlanPurchase"` → `handleEnquiryPlanPurchase.js`
-   - `"EnquiryPlanUpgrade"` → `handleEnquiryPlanUpgrade.js`
+   - `"RequirementPlanPurchase"` → `handleEnquiryPlanPurchase.js`
+   - `"RequirementPlanUpgrade"` → `handleEnquiryPlanUpgrade.js`
 
 Each handler (Mongoose session):
 - Creates `EnquiryPurchasedPlan` with `paymentMethod: "Online"`, `amountPaid`, `status: "Active"`

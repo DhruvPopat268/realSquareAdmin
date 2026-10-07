@@ -5,8 +5,8 @@ const handlers = {
   CoinsPurchase:       require("./helpers/handleCoinsPurchase"),
   ListingPlanPurchase: require("./helpers/handlePlanPurchase"),
   ListingPlanUpgrade:  require("./helpers/handlePlanUpgrade"),
-  EnquiryPlanPurchase: require("./helpers/handleEnquiryPlanPurchase"),
-  EnquiryPlanUpgrade:  require("./helpers/handleEnquiryPlanUpgrade"),
+  RequirementPlanPurchase: require("./helpers/handleEnquiryPlanPurchase"),
+  RequirementPlanUpgrade:  require("./helpers/handleEnquiryPlanUpgrade"),
 };
 
 const manageOnlinePayment = async (req, res) => {

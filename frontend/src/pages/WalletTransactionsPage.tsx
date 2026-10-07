@@ -22,21 +22,34 @@ const STATUS_COLORS: Record<string, string> = {
   Pending: "bg-yellow-100 text-yellow-700",
 };
 
-const CREDIT_REASONS = new Set(["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "AdminCredit"]);
+const CREDIT_REASONS = new Set(["ListingPlanPurchase", "ListingPlanUpgrade", "RequirementPlanPurchase", "RequirementPlanUpgrade", "CoinsPurchase", "AdminCredit"]);
 
 function txnType(reason: string) {
   return CREDIT_REASONS.has(reason) ? "Credit" : "Debit";
 }
 
+const REASON_LABELS: Record<string, string> = {
+  ListingPlanPurchase:     "Listing Plan Purchase",
+  ListingPlanUpgrade:      "Listing Plan Upgrade",
+  RequirementPlanPurchase: "Requirement Plan Purchase",
+  RequirementPlanUpgrade:  "Requirement Plan Upgrade",
+  CoinsPurchase:           "Coins Purchase",
+  RequirementPurchase:     "Requirement Purchase",
+  Refund:                  "Refund",
+  AdminCredit:             "Admin Credit",
+  AdminDebit:              "Admin Debit",
+};
+
 const REASON_COLORS: Record<string, string> = {
-  ListingPlanPurchase:  "bg-blue-100 text-blue-700",
-  ListingPlanUpgrade:   "bg-indigo-100 text-indigo-700",
-  EnquiryPlanPurchase:  "bg-cyan-100 text-cyan-700",
-  EnquiryPlanUpgrade:   "bg-teal-100 text-teal-700",
-  CoinsPurchase:        "bg-purple-100 text-purple-700",
-  Refund:               "bg-yellow-100 text-yellow-700",
-  AdminCredit:          "bg-green-100 text-green-700",
-  AdminDebit:           "bg-red-100 text-red-700",
+  ListingPlanPurchase:     "bg-blue-100 text-blue-700",
+  ListingPlanUpgrade:      "bg-indigo-100 text-indigo-700",
+  RequirementPlanPurchase: "bg-cyan-100 text-cyan-700",
+  RequirementPlanUpgrade:  "bg-teal-100 text-teal-700",
+  CoinsPurchase:           "bg-purple-100 text-purple-700",
+  RequirementPurchase:     "bg-orange-100 text-orange-700",
+  Refund:                  "bg-yellow-100 text-yellow-700",
+  AdminCredit:             "bg-green-100 text-green-700",
+  AdminDebit:              "bg-red-100 text-red-700",
 };
 
 interface Query { page: number; limit: number; status: string; reason: string; userType: string; userId: string; }
@@ -159,8 +172,8 @@ export default function WalletTransactionsPage() {
           <SelectTrigger className="h-9 w-64 text-sm"><SelectValue placeholder="Select Reason" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Reasons</SelectItem>
-            {["ListingPlanPurchase", "ListingPlanUpgrade", "EnquiryPlanPurchase", "EnquiryPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
-              <SelectItem key={r} value={r}>{r}</SelectItem>
+            {["ListingPlanPurchase", "ListingPlanUpgrade", "RequirementPlanPurchase", "RequirementPlanUpgrade", "CoinsPurchase", "Refund", "AdminCredit", "AdminDebit"].map((r) => (
+              <SelectItem key={r} value={r}>{REASON_LABELS[r] ?? r}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -230,7 +243,7 @@ export default function WalletTransactionsPage() {
                       {txnType(txn.reason)}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3"><Badge className={`text-xs ${REASON_COLORS[txn.reason] ?? "bg-muted text-muted-foreground"}`}>{txn.reason}</Badge></td>
+                  <td className="px-4 py-3"><Badge className={`text-xs ${REASON_COLORS[txn.reason] ?? "bg-muted text-muted-foreground"}`}>{REASON_LABELS[txn.reason] ?? txn.reason}</Badge></td>
                   <td className="px-4 py-3 font-semibold">₹{txn.amount.toLocaleString()}</td>
                   <td className="px-4 py-3">₹{txn.balanceBefore.toLocaleString()}</td>
                   <td className="px-4 py-3">₹{txn.balanceAfter.toLocaleString()}</td>
