@@ -6,7 +6,7 @@ const { Schema } = mongoose;
 const areaSchema = new Schema(
   {
     value: { type: Number },
-    unit: { type: String, enum: ["sqft", "sqyd", "sqmt"] },
+    unit: { type: String, enum: ["sqft", "sqyd", "sqmt"] , default: "sqft" },
   },
   { _id: false }
 );
