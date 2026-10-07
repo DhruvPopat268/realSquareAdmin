@@ -349,7 +349,7 @@ export default function CustomersPage() {
                     <span>{c.email || "—"}</span>
                     {c.email && (c.emailVerified
                       ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700"><BadgeCheck className="h-3.5 w-3.5" />Verified</span>
-                      : <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"><CircleX className="h-3.5 w-3.5" />Not verified</span>)}
+                      : <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"><CircleX className="h-3.5 w-3.5" />Not verified</span>)}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{c.mobile || "—"}</td>

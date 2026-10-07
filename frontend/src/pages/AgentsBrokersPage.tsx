@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X, Info } from "lucide-react";
+import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X, Info, BadgeCheck, CircleX } from "lucide-react";
 import { brokersService, type Broker } from "@/services/brokersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
@@ -297,13 +297,22 @@ export default function AgentsBrokersPage() {
                     : <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>}
                 </td>
                 <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{b.name || "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground">{b.email || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span>{b.email || "—"}</span>
+                    {b.email && (b.emailVerified
+                      ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700"><BadgeCheck className="h-3.5 w-3.5" />Verified</span>
+                      : <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"><CircleX className="h-3.5 w-3.5" />Not verified</span>)}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{b.mobile || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{b.brokerProfile?.agencyName || "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2 whitespace-nowrap">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${b.brokerProfile?.reraVerification?.verified ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                      {b.brokerProfile?.reraVerification?.verified ? "Verified" : "Not Verified"}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${b.brokerProfile?.reraVerification?.verified ? "bg-green-50 text-green-700" : "border border-red-200 bg-red-50 text-red-700"}`}>
+                      {b.brokerProfile?.reraVerification?.verified
+                        ? <><BadgeCheck className="h-3.5 w-3.5" />Verified</>
+                        : <><CircleX className="h-3.5 w-3.5" />Not verified</>}
                     </span>
                     {b.brokerProfile?.reraVerification && (
                       <button type="button" aria-label="View RERA verification details" onClick={() => setReraInfoTarget(b)} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -446,7 +455,12 @@ export default function AgentsBrokersPage() {
             return (
               <div className="space-y-3 text-sm">
                 <div><p className="text-xs text-muted-foreground">RERA ID</p><p className="font-medium break-all">{verification.reraId}</p></div>
-                <div><p className="text-xs text-muted-foreground">Verification</p><p className={verification.verified ? "font-medium text-green-700" : "font-medium text-amber-700"}>{verification.verified ? "Verified" : "Not Verified"}</p></div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Verification</p>
+                  <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${verification.verified ? "bg-green-50 text-green-700" : "border border-red-200 bg-red-50 text-red-700"}`}>
+                    {verification.verified ? <><BadgeCheck className="h-3.5 w-3.5" />Verified</> : <><CircleX className="h-3.5 w-3.5" />Not verified</>}
+                  </span>
+                </div>
                 {verification.reason && <p className="text-muted-foreground">{verification.reason}</p>}
                 <div className="grid grid-cols-2 gap-2">
                   {fields.map(([label, value]) => <div key={label}><p className="text-xs text-muted-foreground">{label}</p><p className="break-words">{value || "—"}</p></div>)}

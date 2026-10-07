@@ -848,6 +848,15 @@ const getMe = async (req, res) => {
     const profile = req.user.customerProfile || req.user.ownerProfile || req.user.brokerProfile || req.user.builderProfile;
     const displayName = req.user.name || profile?.fullName || profile?.name || "";
     const isProfileCompleted = !!(req.user.mobile && displayName && req.user.role);
+    const brokerProfile = req.user.brokerProfile?.toObject
+      ? req.user.brokerProfile.toObject()
+      : req.user.brokerProfile;
+    if (brokerProfile?.reraVerification) {
+      brokerProfile.reraVerification = {
+        reraId: brokerProfile.reraVerification.reraId,
+        verified: brokerProfile.reraVerification.verified,
+      };
+    }
 
     // Check if user can list property (includes profile completion, role check, and credits check)
     const LISTING_ALLOWED_ROLES = [
@@ -901,7 +910,7 @@ const getMe = async (req, res) => {
         role: req.user.role,
         customerProfile: req.user.customerProfile,
         ownerProfile: req.user.ownerProfile,
-        brokerProfile: req.user.brokerProfile,
+        brokerProfile,
         builderProfile: req.user.builderProfile,
         enquiryCities: req.user.enquiryCities ?? [],
         coinsBalance: wallet?.currentBalance ?? 0, 
