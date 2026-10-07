@@ -4,6 +4,7 @@ export interface Builder {
   _id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
   mobile: string;
   profilePhoto?: string;
   isActive: boolean;

@@ -4,6 +4,7 @@ export interface Owner {
   _id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
   mobile: string;
   profilePhoto?: string;
   isActive: boolean;

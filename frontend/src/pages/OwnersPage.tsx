@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, ChevronDown, Upload, X } from "lucide-react";
+import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, ChevronDown, Upload, X, BadgeCheck, CircleX } from "lucide-react";
 import { ownersService, type Owner } from "@/services/ownersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
@@ -364,7 +364,14 @@ export default function OwnersPage() {
                     : <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">—</div>}
                 </td>
                 <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{o.name || "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground">{o.email || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span>{o.email || "—"}</span>
+                    {o.email && (o.emailVerified
+                      ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700"><BadgeCheck className="h-3.5 w-3.5" />Verified</span>
+                      : <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"><CircleX className="h-3.5 w-3.5" />Not verified</span>)}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{o.mobile || "—"}</td>
                 <td className="px-4 py-3">
                   {o.ownerProfile?.businessDetails?.logo

@@ -10,7 +10,10 @@ const LeadEnquiryCoinsConfig   = require("./admin/leadEnquiryCoinsConfig/model")
 const { toIST }         = require("../utils/dateTime");
 const jwt               = require("jsonwebtoken");
 const mongoose          = require("mongoose");
+const crypto            = require("crypto");
+const path              = require("path");
 const { runReraVerification } = require("./mixed/reraVerification/controller");
+const { sendEmail }     = require("../utils/emailService");
 
 const DUMMY_OTP = "123456";
 
@@ -32,6 +35,11 @@ const GST_ROLES    = [process.env.OWNER_ROLE_ID, process.env.BUILDER_ROLE_ID];
 const GST_REGEX    = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const MOBILE_REGEX = /^[0-9]{10}$/;
 const OTP_REGEX    = /^[0-9]{6}$/;
+const EMAIL_REGEX  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_OTP_TEMPLATE = path.join(__dirname, "systemUsers.sendOtp.emailTemplate.html");
+const escapeHtml = (value) => value.replace(/[&<>"']/g, (char) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+}[char]));
 
 const REQUIRED_FIELDS = {
   [process.env.CUSTOMER_ROLE_ID]: ["fullName"],
@@ -243,6 +251,97 @@ const verifyOtp = async (req, res) => {
   }
 };
 
+// ── Send profile email verification OTP (protected) ──────────────────────────
+// POST /api/system-users/send-email-otp { email }
+const sendEmailOtp = async (req, res) => {
+  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (!email || !EMAIL_REGEX.test(email)) {
+    return res.status(400).json({ success: false, message: "A valid email is required" });
+  }
+
+  try {
+    const user = await SystemUser.findById(req.user._id).select("email emailVerified");
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (user.email?.toLowerCase() === email && user.emailVerified) {
+      return res.json({ success: true, verified: true, email, message: "Email is already verified" });
+    }
+
+    const existing = await SystemUser.findOne({ email, _id: { $ne: req.user._id } }).select("_id");
+    if (existing) return res.status(409).json({ success: false, message: "Email is already registered" });
+
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await SystemUser.findByIdAndUpdate(req.user._id, {
+      $set: { emailOtp: otp, emailOtpEmail: email, emailOtpExpiresAt: expiresAt },
+    });
+
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Verify your RealSquare email address",
+        templatePath: EMAIL_OTP_TEMPLATE,
+        variables: { OTP: otp, EMAIL: escapeHtml(email) },
+      });
+    } catch (mailError) {
+      await SystemUser.findOneAndUpdate(
+        { _id: req.user._id, emailOtp: otp },
+        { $unset: { emailOtp: 1, emailOtpEmail: 1, emailOtpExpiresAt: 1 } }
+      );
+      throw mailError;
+    }
+
+    return res.json({ success: true, verified: false, email, message: "Verification code sent to your email" });
+  } catch (err) {
+    console.error("Error sending profile email verification code:", err.message);
+    return res.status(500).json({ success: false, message: "Failed to send email verification code" });
+  }
+};
+
+// ── Verify profile email OTP (protected) ─────────────────────────────────────
+// POST /api/system-users/verify-email-otp { email, otp }
+const verifyEmailOtp = async (req, res) => {
+  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const { otp } = req.body;
+
+  if (!email || !EMAIL_REGEX.test(email) || !otp) {
+    return res.status(400).json({ success: false, verified: false, message: "A valid email and OTP are required" });
+  }
+  if (!OTP_REGEX.test(String(otp))) {
+    return res.status(400).json({ success: false, verified: false, message: "OTP must be exactly 6 digits" });
+  }
+
+  try {
+    const user = await SystemUser.findById(req.user._id)
+      .select("+emailOtp +emailOtpEmail +emailOtpExpiresAt email emailVerified");
+    if (!user) return res.status(404).json({ success: false, verified: false, message: "User not found" });
+
+    if (user.emailOtp !== String(otp) || user.emailOtpEmail !== email || !user.emailOtpExpiresAt || user.emailOtpExpiresAt <= new Date()) {
+      return res.status(400).json({ success: false, verified: false, message: "Invalid or expired verification code" });
+    }
+
+    const existing = await SystemUser.findOne({ email, _id: { $ne: req.user._id } }).select("_id");
+    if (existing) return res.status(409).json({ success: false, verified: false, message: "Email is already registered" });
+
+    const updated = await SystemUser.findOneAndUpdate(
+      { _id: req.user._id, emailOtp: String(otp), emailOtpEmail: email, emailOtpExpiresAt: { $gt: new Date() } },
+      {
+        $set: { email, emailVerified: true },
+        $unset: { emailOtp: 1, emailOtpEmail: 1, emailOtpExpiresAt: 1 },
+      },
+      { new: true, runValidators: true }
+    ).select("email emailVerified");
+
+    if (!updated) return res.status(400).json({ success: false, verified: false, message: "Invalid or expired verification code" });
+    return res.json({ success: true, verified: true, email: updated.email, message: "Email verified successfully" });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ success: false, verified: false, message: "Email is already registered" });
+    }
+    return res.status(500).json({ success: false, verified: false, message: err.message });
+  }
+};
+
 // ── Complete Profile (protected) ──────────────────────────────────────────────
 // POST /api/system-users/complete-profile  (multipart/form-data)
 const completeProfile = async (req, res) => {
@@ -301,14 +400,23 @@ const completeProfile = async (req, res) => {
     if (missingFields.length > 0)
       return res.status(400).json({ success: false, message: `Missing required fields: ${missingFields.join(", ")}` });
 
-    // Validate email format and uniqueness (if provided)
-    if (profileData.email) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileData.email))
-        return res.status(400).json({ success: false, message: "Invalid email format" });
-      
-      const exists = await SystemUser.findOne({ email: profileData.email, _id: { $ne: req.user._id } });
-      if (exists)
-        return res.status(409).json({ success: false, message: "Email already registered" });
+    // Email must be verified before it can be added to a profile.
+    if (profileData.email !== undefined) {
+      const submittedEmail = typeof profileData.email === "string" ? profileData.email.trim().toLowerCase() : "";
+      if (!submittedEmail) {
+        delete profileData.email;
+      } else {
+        if (!EMAIL_REGEX.test(submittedEmail))
+          return res.status(400).json({ success: false, message: "Invalid email format" });
+
+        if (req.user.email?.toLowerCase() !== submittedEmail || req.user.emailVerified !== true) {
+          return res.status(400).json({ success: false, message: "Please verify this email before saving your profile" });
+        }
+
+        const exists = await SystemUser.findOne({ email: submittedEmail, _id: { $ne: req.user._id } });
+        if (exists) return res.status(409).json({ success: false, message: "Email already registered" });
+        profileData.email = submittedEmail;
+      }
     }
 
     if (GST_ROLES.includes(role) && profileData.gstNumber) {
@@ -499,6 +607,29 @@ const updateProfile = async (req, res) => {
     const updateData = {};
     const unsetData = {};
     if (!req.userRole) updateData.role = roleId;
+
+    if (req.body.email !== undefined) {
+      const rawEmail = req.body.email;
+      const clearEmail = rawEmail === null || (typeof rawEmail === "string" && (!rawEmail.trim() || rawEmail.trim().toLowerCase() === "null"));
+      if (clearEmail) {
+        updateData.emailVerified = false;
+        unsetData.email = 1;
+        unsetData.emailOtp = 1;
+        unsetData.emailOtpEmail = 1;
+        unsetData.emailOtpExpiresAt = 1;
+      } else {
+        const submittedEmail = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+        if (!EMAIL_REGEX.test(submittedEmail)) {
+          return res.status(400).json({ success: false, message: "Invalid email format" });
+        }
+        if (req.user.email?.toLowerCase() !== submittedEmail || req.user.emailVerified !== true) {
+          return res.status(400).json({ success: false, message: "Please verify this email before saving your profile" });
+        }
+        const existing = await SystemUser.findOne({ email: submittedEmail, _id: { $ne: req.user._id } }).select("_id");
+        if (existing) return res.status(409).json({ success: false, message: "Email already registered" });
+        req.body.email = submittedEmail;
+      }
+    }
 
     if (profileField === "brokerProfile" && submittedReraId !== undefined) {
       const cleanedReraId = typeof submittedReraId === "string" ? submittedReraId.trim() : "";
@@ -764,6 +895,7 @@ const getMe = async (req, res) => {
         _id: req.user._id,
         name: req.user.name,
         email: req.user.email,
+        emailVerified: req.user.emailVerified === true,
         mobile: req.user.mobile,
         profilePhoto: req.user.profilePhoto,
         role: req.user.role,
@@ -804,7 +936,7 @@ const logout = async (req, res) => {
 };
 
 module.exports = {
-  sendOtp, verifyOtp, completeProfile, assignCustomerRole,
+  sendOtp, verifyOtp, sendEmailOtp, verifyEmailOtp, completeProfile, assignCustomerRole,
   sendChangeMobileOtp, verifyChangeMobileOtp,
   updateProfile, switchRole, logout, getMe, getActiveUsers,
 };

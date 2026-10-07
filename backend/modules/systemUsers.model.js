@@ -77,6 +77,10 @@ const systemUserSchema = new mongoose.Schema(
   {
     name:           { type: String, trim: true },
     email:          { type: String, lowercase: true, trim: true, unique: true },
+    emailVerified:  { type: Boolean, default: false },
+    emailOtp:       { type: String, select: false },
+    emailOtpEmail:  { type: String, lowercase: true, trim: true, select: false },
+    emailOtpExpiresAt: { type: Date, select: false },
     mobile:         { type: String, trim: true, required: true, unique: true },
     profilePhoto:   { type: String },
     role:           { type: mongoose.Schema.Types.ObjectId, ref: "SystemUserRole" },

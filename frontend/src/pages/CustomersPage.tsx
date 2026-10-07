@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X } from "lucide-react";
+import { Search, CircleHelp, ChevronLeft, ChevronRight, Pencil, Trash2, Upload, X, BadgeCheck, CircleX } from "lucide-react";
 import { customersService, type Customer } from "@/services/customersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
@@ -344,7 +344,14 @@ export default function CustomersPage() {
                   }
                 </td>
                 <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{c.name || "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground">{c.email || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span>{c.email || "—"}</span>
+                    {c.email && (c.emailVerified
+                      ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700"><BadgeCheck className="h-3.5 w-3.5" />Verified</span>
+                      : <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"><CircleX className="h-3.5 w-3.5" />Not verified</span>)}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{c.mobile || "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.customerProfile?.location?.name || "—"}</td>
                 <td className="px-4 py-3 w-40 max-w-[160px]">
