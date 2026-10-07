@@ -735,6 +735,18 @@ const updateListing = async (req, res) => {
       listing.residentialDetails = residentialDetails === null
         ? null
         : await resolveFurnishingsAmenities(residentialDetails, listing.residentialDetails);
+
+      // Validate carpet area ≤ built-up area for residential
+      if (listing.residentialDetails) {
+        const builtUp = listing.residentialDetails.builtUpArea?.value;
+        const carpet  = listing.residentialDetails.carpetArea?.value;
+        if (builtUp !== undefined && carpet !== undefined && Number(carpet) > Number(builtUp)) {
+          return res.status(400).json({
+            success: false,
+            message: `Carpet area (${carpet}) cannot be greater than built-up area (${builtUp}).`,
+          });
+        }
+      }
     }
 
     if (plotDetails !== undefined) {
@@ -842,6 +854,47 @@ const updateListing = async (req, res) => {
 
     const autoApprovalStatus = await resolveStatus(req.user);
     listing.status = autoApprovalStatus;
+
+    // ── Compute per sq. price ─────────────────────────────────────────────────
+    // Price: sellInfo.price for Sell listings, rentInfo.monthlyRent for Rent/PG
+    // Area:  residentialDetails.carpetArea → plotDetails.plotArea → commercialDetails.carpetArea
+    const price =
+      listing.sellInfo?.price ??
+      listing.rentInfo?.monthlyRent ??
+      null;
+
+    const area =
+      listing.residentialDetails?.carpetArea?.value != null ? listing.residentialDetails.carpetArea :
+      listing.plotDetails?.plotArea?.value         != null ? listing.plotDetails.plotArea           :
+      listing.commercialDetails?.carpetArea?.value != null ? listing.commercialDetails.carpetArea   :
+      null;
+
+    console.log("[perSqPrice] listingId:", listing._id.toString());
+    console.log("[perSqPrice] sellInfo.price:", listing.sellInfo?.price);
+    console.log("[perSqPrice] rentInfo.monthlyRent:", listing.rentInfo?.monthlyRent);
+    console.log("[perSqPrice] resolved price:", price);
+    console.log("[perSqPrice] residentialDetails.carpetArea:", listing.residentialDetails?.carpetArea);
+    console.log("[perSqPrice] plotDetails.plotArea:", listing.plotDetails?.plotArea);
+    console.log("[perSqPrice] commercialDetails.carpetArea:", listing.commercialDetails?.carpetArea);
+    console.log("[perSqPrice] resolved area:", area);
+
+    // Reset all three before recomputing
+    listing.perSqFtPrice = null;
+    listing.perSqYdPrice = null;
+    listing.perSqMtPrice = null;
+
+    if (price != null && area?.value != null && Number(area.value) > 0) {
+      const perSq = Math.round((Number(price) / Number(area.value)) * 100) / 100;
+      const unit  = area.unit ?? "sqft"; // default to sqft when unit is not set
+      console.log("[perSqPrice] computed perSq:", perSq, "for unit:", unit);
+      if      (unit === "sqft") listing.perSqFtPrice = perSq;
+      else if (unit === "sqyd") listing.perSqYdPrice = perSq;
+      else if (unit === "sqmt") listing.perSqMtPrice = perSq;
+    } else {
+      console.log("[perSqPrice] skipped — price or area missing/zero. price:", price, "area:", area);
+    }
+
+    console.log("[perSqPrice] final — perSqFtPrice:", listing.perSqFtPrice, "perSqYdPrice:", listing.perSqYdPrice, "perSqMtPrice:", listing.perSqMtPrice);
 
     await listing.save();
 

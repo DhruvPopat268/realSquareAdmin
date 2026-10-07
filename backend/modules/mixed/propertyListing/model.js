@@ -49,6 +49,7 @@ const residentialDetailsSchema = new Schema(
     societyName: { type: String, trim: true },
     bhk: { type: Number },                     // 1,2,3,4,5...
     builtUpArea: areaSchema,
+    carpetArea:  areaSchema,                   // must be <= builtUpArea when both are provided
     furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
     furnishings: [furnishingItemSchema],
     amenities:   [amenityItemSchema],
@@ -241,6 +242,11 @@ const propertyListingSchema = new Schema(
     rejectedReasons: [{ type: String, trim: true }],
     soldAt:          { type: Date, default: null },
     rentedAt:        { type: Date, default: null },
+
+    // ── Per sq. price (computed on create/update from area + price) ──────────
+    perSqFtPrice: { type: Number, default: null },
+    perSqYdPrice: { type: Number, default: null },
+    perSqMtPrice: { type: Number, default: null },
 
     // ── RERA ──────────────────────────────────────────────────────────────────
     rera: reraSchema,

@@ -68,6 +68,14 @@ const createListingValidator = [
   // builtUpArea — optional (can be filled in later via edit)
   body("residentialDetails.builtUpArea.value").if(body("residentialDetails.builtUpArea").exists()).isFloat({ min: 0 }).withMessage("Must be a positive number"),
   body("residentialDetails.builtUpArea.unit").if(body("residentialDetails.builtUpArea").exists()).isIn(["sqft", "sqyd", "sqmt"]).withMessage("Must be sqft, sqyd, or sqmt"),
+  // carpetArea — optional, must be <= builtUpArea when both provided
+  body("residentialDetails.carpetArea.value").if(body("residentialDetails.carpetArea").exists()).isFloat({ min: 0 }).withMessage("Must be a positive number").custom((val, { req }) => {
+    const builtUp = req.body.residentialDetails?.builtUpArea?.value;
+    if (builtUp !== undefined && Number(val) > Number(builtUp))
+      throw new Error("residentialDetails.carpetArea.value cannot be greater than builtUpArea.value");
+    return true;
+  }),
+  body("residentialDetails.carpetArea.unit").if(body("residentialDetails.carpetArea").exists()).isIn(["sqft", "sqyd", "sqmt"]).withMessage("Must be sqft, sqyd, or sqmt"),
   // furnishType — optional (can be filled in later via edit)
   body("residentialDetails.furnishType").if(body("residentialDetails.furnishType").exists()).isIn(["Unfurnished", "Semi-Furnished", "Fully-Furnished"]).withMessage("Invalid furnishType"),
 
