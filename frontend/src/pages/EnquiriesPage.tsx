@@ -216,7 +216,7 @@ export default function EnquiriesPage() {
       setQuery((current) => ({ ...current, page: 1 }));
       return true;
     } catch {
-      setStatusUpdateError("Could not update the enquiry status. Please try again.");
+      setStatusUpdateError("Could not update the requirement status. Please try again.");
       return false;
     } finally {
       setStatusUpdatingId(null);
@@ -250,7 +250,7 @@ export default function EnquiriesPage() {
         setStats(data.stats);
       })
       .catch(() => {
-        if (!cancelled) setError("Could not load enquiries. Please try again.");
+        if (!cancelled) setError("Could not load requirements. Please try again.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -297,8 +297,8 @@ export default function EnquiriesPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Enquiries</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">All enquiries submitted by users.</p>
+        <h1 className="text-2xl font-bold text-foreground">Requirements</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">All requirements submitted by users.</p>
       </div>
 
       {/* Stats */}
@@ -391,7 +391,7 @@ export default function EnquiriesPage() {
             </SelectContent>
           </Select>
         </div>
-        <p className="text-sm text-muted-foreground">{total} enquir{total !== 1 ? "ies" : "y"}</p>
+        <p className="text-sm text-muted-foreground">{total} requirement{total !== 1 ? "s" : ""}</p>
         <div className="flex-1" />
 
         <DropdownMenu>
@@ -456,7 +456,7 @@ export default function EnquiriesPage() {
           onChange={(event) => set("search", event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter") applyFilters(); }}
           placeholder="Search by city or area..."
-          aria-label="Search enquiries by city or area"
+          aria-label="Search requirements by city or area"
           className="h-9 w-64 rounded-md border bg-background px-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
         />
         <div className="flex-1" />
@@ -481,12 +481,12 @@ export default function EnquiriesPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
-              {pending.isProperty ? (pending.isProperty === "true" ? "Individual Property" : "Project") : "All Enquiry Types"}
+              {pending.isProperty ? (pending.isProperty === "true" ? "Individual Property" : "Project") : "All Requirement Types"}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => set("isProperty", "all")}>All Enquiry Types</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("isProperty", "all")}>All Requirement Types</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("isProperty", "true")}>Individual Property</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("isProperty", "false")}>Project</DropdownMenuItem>
           </DropdownMenuContent>
@@ -560,7 +560,7 @@ export default function EnquiriesPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Total Purchased</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Classification</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Status</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Enquiry Type</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Requirement Type</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Purpose</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Category</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Property Type</th>
@@ -577,7 +577,7 @@ export default function EnquiriesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={22} className="py-16"><Spinner fullPage={false} size="md" label="Loading enquiries..." /></td></tr>
+              <tr><td colSpan={22} className="py-16"><Spinner fullPage={false} size="md" label="Loading requirements..." /></td></tr>
             ) : error ? (
               <tr>
                 <td colSpan={22} className="py-16 text-center">
@@ -586,7 +586,7 @@ export default function EnquiriesPage() {
                 </td>
               </tr>
             ) : enquiries.length === 0 ? (
-              <tr><td colSpan={22} className="py-16 text-center text-muted-foreground">No enquiries found</td></tr>
+              <tr><td colSpan={22} className="py-16 text-center text-muted-foreground">No requirements found</td></tr>
             ) : enquiries.map((enquiry, index) => (
               <tr key={enquiry._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3">
@@ -596,8 +596,8 @@ export default function EnquiriesPage() {
                       state: { returnTo: `${location.pathname}${location.search}` },
                     })}
                     className="rounded-md bg-green-50 p-1.5 text-green-600 transition-colors hover:bg-green-100"
-                    title="View assigned enquiries"
-                    aria-label="View assigned enquiries"
+                    title="View assigned requirements"
+                    aria-label="View assigned requirements"
                   >
                     <Eye className="h-3.5 w-3.5" />
                   </button>
@@ -609,7 +609,7 @@ export default function EnquiriesPage() {
                         disabled={statusUpdatingId === enquiry._id}
                         className="rounded-md bg-amber-50 p-1.5 text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
                         title="Mark inactive"
-                        aria-label="Mark inquiry inactive"
+                        aria-label="Mark requirement inactive"
                       >
                         <Ban className="h-3.5 w-3.5" />
                       </button>
@@ -619,7 +619,7 @@ export default function EnquiriesPage() {
                         disabled={statusUpdatingId === enquiry._id}
                         className="rounded-md bg-emerald-50 p-1.5 text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
                         title="Mark completed"
-                        aria-label="Mark inquiry completed"
+                        aria-label="Mark requirement completed"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                       </button>
@@ -656,7 +656,7 @@ export default function EnquiriesPage() {
                     {enquiry.status}
                   </span>
                 </td>
-                {/* Enquiry Type */}
+                {/* Requirement Type */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                   {enquiry.isProperty ? "Individual Property" : "Project"}
                 </td>
@@ -716,10 +716,10 @@ export default function EnquiriesPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Mark this enquiry {statusConfirmation?.status}?
+              Mark this requirement {statusConfirmation?.status}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to mark this enquiry as {statusConfirmation?.status}? This status update cannot be undone.
+              Are you sure you want to mark this requirement as {statusConfirmation?.status}? This status update cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {statusUpdateError && <p className="text-sm font-medium text-destructive">{statusUpdateError}</p>}

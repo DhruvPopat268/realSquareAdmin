@@ -57,7 +57,7 @@ export default function PurchasedEnquiryPlansPage() {
         setTotal(res.data.pagination.total);
         setTotalPages(res.data.pagination.totalPages);
       } catch {
-        toast({ variant: "destructive", title: "Failed to load enquiry purchased plans" });
+        toast({ variant: "destructive", title: "Failed to load requirement purchased plans" });
       } finally {
         setLoading(false);
       }
@@ -77,8 +77,8 @@ export default function PurchasedEnquiryPlansPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Purchased Enquiry Plans</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">All enquiry plan purchases by users.</p>
+        <h1 className="text-2xl font-bold text-foreground">Purchased Requirement Plans</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">All requirement plan purchases by users.</p>
       </div>
 
       {/* Stats */}
@@ -169,11 +169,11 @@ export default function PurchasedEnquiryPlansPage() {
 
       {/* Table */}
       {loading ? (
-        <Spinner fullPage={false} size="md" label="Loading enquiry purchased plans..." />
+        <Spinner fullPage={false} size="md" label="Loading requirement purchased plans..." />
       ) : plans.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-2">
           <FileText className="h-8 w-8 opacity-30" />
-          <p className="text-base font-medium">No purchased enquiry plans found</p>
+          <p className="text-base font-medium">No purchased requirement plans found</p>
         </div>
       ) : (
         <div className="rounded-xl border overflow-x-auto">
@@ -189,7 +189,7 @@ export default function PurchasedEnquiryPlansPage() {
                 <th className="px-5 py-3 text-left min-w-[120px]">Payment Method</th>
                 <th className="px-5 py-3 text-left min-w-[120px]">Paid Amount</th>
                 <th className="px-5 py-3 text-left min-w-[120px]">Paid Coins</th>
-                <th className="px-5 py-3 text-left min-w-[150px]">Enquiries</th>
+                <th className="px-5 py-3 text-left min-w-[150px]">Requirements</th>
                 <th className="px-5 py-3 text-left min-w-[160px]">Expiry</th>
                 <th className="px-5 py-3 text-left min-w-[120px]">Status</th>
                 <th className="px-5 py-3 text-left min-w-[180px]">Cancellation Reason</th>

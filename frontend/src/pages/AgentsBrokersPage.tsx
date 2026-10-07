@@ -268,7 +268,7 @@ export default function AgentsBrokersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Agency Name</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[170px]">RERA ID</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Experience (yrs)</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Requirement Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deleted</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Auto Approval</th>
@@ -408,7 +408,7 @@ export default function AgentsBrokersPage() {
               <Input type="email" value={editForm.email} onChange={(e) => setField("email", e.target.value)} placeholder="email@example.com" />
             </div>
             <div className="space-y-1.5">
-              <Label>Enquiry Cities</Label>
+              <Label>Requirement Cities</Label>
               <EnquiryCitiesPicker value={enquiryCities} onChange={setEnquiryCities} />
               <p className="text-xs text-muted-foreground">Add cities where this broker wants to receive enquiries.</p>
             </div>

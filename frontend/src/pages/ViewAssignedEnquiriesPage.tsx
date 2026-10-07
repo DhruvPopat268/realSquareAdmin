@@ -63,7 +63,7 @@ export default function ViewAssignedEnquiriesPage() {
       })
       .catch((requestError) => {
         if (!cancelled) {
-          setError(requestError?.response?.data?.message ?? "Could not load assigned enquiries. Please try again.");
+          setError(requestError?.response?.data?.message ?? "Could not load assigned requirements. Please try again.");
         }
       })
       .finally(() => {
@@ -76,11 +76,11 @@ export default function ViewAssignedEnquiriesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3">
-        <Button variant="outline" size="icon" onClick={() => navigate(returnTo)} aria-label="Back to enquiries">
+        <Button variant="outline" size="icon" onClick={() => navigate(returnTo)} aria-label="Back to requirements">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Assigned Enquiries</h1>
+          <h1 className="text-2xl font-bold text-foreground">Assigned Requirements</h1>
         </div>
       </div>
 
@@ -144,11 +144,11 @@ export default function ViewAssignedEnquiriesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="py-16"><Spinner fullPage={false} size="md" label="Loading assigned enquiries..." /></td></tr>
+              <tr><td colSpan={9} className="py-16"><Spinner fullPage={false} size="md" label="Loading assigned requirements..." /></td></tr>
             ) : error ? (
               <tr><td colSpan={9} className="py-16 text-center text-destructive">{error}</td></tr>
             ) : assignments.length === 0 ? (
-              <tr><td colSpan={9} className="py-16 text-center text-muted-foreground">No assignments found for this enquiry.</td></tr>
+              <tr><td colSpan={9} className="py-16 text-center text-muted-foreground">No assignments found for this requirement.</td></tr>
             ) : assignments.map((assignment, index) => (
               <tr key={assignment._id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-4 py-3 text-muted-foreground">{(page - 1) * limit + index + 1}</td>

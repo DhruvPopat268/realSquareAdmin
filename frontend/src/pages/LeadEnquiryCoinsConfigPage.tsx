@@ -83,9 +83,9 @@ export default function LeadEnquiryCoinsConfigPage() {
     <div className="space-y-6 max-w-xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Lead & Enquiry Coins Config</h1>
+        <h1 className="text-2xl font-bold text-foreground">Lead & Requirement Coins Config</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Set how many coins are charged per lead and per enquiry.
+          Set how many coins are charged per lead and per requirement.
         </p>
       </div>
 
@@ -98,7 +98,7 @@ export default function LeadEnquiryCoinsConfigPage() {
             <div>
               <CardTitle className="text-base">Coins Configuration</CardTitle>
               <CardDescription className="text-xs">
-                These values are applied system-wide when a lead or enquiry is made.
+                These values are applied system-wide when a lead or requirement is made.
               </CardDescription>
             </div>
           </div>
@@ -131,10 +131,10 @@ export default function LeadEnquiryCoinsConfigPage() {
               </p>
             </div>
 
-            {/* Coins per Enquiry */}
+            {/* Coins per Requirement */}
             <div className="space-y-1.5">
               <Label htmlFor="coinsPerEnquiry">
-                Coins per Enquiry <span className="text-destructive">*</span>
+                Coins per Requirement <span className="text-destructive">*</span>
               </Label>
               <div className="relative">
                 <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -152,7 +152,7 @@ export default function LeadEnquiryCoinsConfigPage() {
                 <p className="text-xs text-destructive">{errors.coinsPerEnquiry}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Number of coins deducted from a user's wallet each time they view an enquiry. Set to <strong>0</strong> to make it free.
+                Number of coins deducted from a user's wallet each time they view a requirement. Set to <strong>0</strong> to make it free.
               </p>
             </div>
 

@@ -63,7 +63,7 @@ function PlanCard({
       <ul className="space-y-2.5">
         <FeatureRow
           icon={MessageSquare}
-          label={plan.numberOfEnquiriesGiven === -1 ? "Unlimited Enquiries" : `${plan.numberOfEnquiriesGiven} Enquiries`}
+          label={plan.numberOfEnquiriesGiven === -1 ? "Unlimited Requirements" : `${plan.numberOfEnquiriesGiven} Requirements`}
         />
         {plan.expiryInDays != null && (
           <FeatureRow
@@ -153,7 +153,7 @@ export default function EnquiryPlansPage() {
       const res = await enquiryPlansService.getAll(params);
       setPlans(res.data.data);
     } catch {
-      toast({ variant: "destructive", title: "Failed to load enquiry plans" });
+      toast({ variant: "destructive", title: "Failed to load requirement plans" });
     } finally {
       setLoading(false);
     }
@@ -273,8 +273,8 @@ export default function EnquiryPlansPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Enquiry Plans Management</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Manage enquiry plans for your users.</p>
+          <h1 className="text-2xl font-bold text-foreground">Requirement Plans Management</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage requirement plans for your users.</p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={openCreate}>
           <Plus className="h-3.5 w-3.5" /> Add Plan
@@ -298,10 +298,10 @@ export default function EnquiryPlansPage() {
 
       {/* Plans Grid */}
       {loading ? (
-        <Spinner fullPage={false} size="md" label="Loading enquiry plans..." />
+        <Spinner fullPage={false} size="md" label="Loading requirement plans..." />
       ) : plans.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-2">
-          <p className="text-base font-medium">No enquiry plans found</p>
+          <p className="text-base font-medium">No requirement plans found</p>
           <p className="text-sm">Create your first plan to get started.</p>
         </div>
       ) : (
@@ -316,7 +316,7 @@ export default function EnquiryPlansPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editTarget ? "Edit Enquiry Plan" : "Add Enquiry Plan"}</DialogTitle>
+            <DialogTitle>{editTarget ? "Edit Requirement Plan" : "Add Requirement Plan"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
@@ -333,9 +333,9 @@ export default function EnquiryPlansPage() {
               <Textarea placeholder="Brief description of the plan..." value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} className="resize-none" />
             </div>
 
-            {/* Enquiries Given */}
+            {/* Requirements Given */}
             <div className="space-y-1.5">
-              <Label>Enquiries Given <span className="text-destructive">*</span></Label>
+              <Label>Requirements Given <span className="text-destructive">*</span></Label>
               <Input
                 type="number"
                 min={-1}
@@ -344,7 +344,7 @@ export default function EnquiryPlansPage() {
                 onChange={(e) => set("numberOfEnquiriesGiven", Number(e.target.value))}
               />
               {errors.numberOfEnquiriesGiven && <p className="text-xs text-destructive">{errors.numberOfEnquiriesGiven}</p>}
-              <p className="text-xs text-muted-foreground">Use <strong>-1</strong> for unlimited enquiries, or enter a positive number.</p>
+              <p className="text-xs text-muted-foreground">Use <strong>-1</strong> for unlimited requirements, or enter a positive number.</p>
             </div>
 
             {/* Expiry */}
@@ -446,7 +446,7 @@ export default function EnquiryPlansPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete Enquiry Plan</DialogTitle>
+            <DialogTitle>Delete Requirement Plan</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground py-2">
             Are you sure you want to delete{" "}

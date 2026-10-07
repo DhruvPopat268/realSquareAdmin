@@ -335,7 +335,7 @@ export default function OwnersPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Business Name</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[180px]">Business Type</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[160px]">GST Number</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Enquiry Cities</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[200px]">Requirement Cities</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Is Active</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deleted</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground min-w-[150px]">Auto Approval</th>
@@ -461,7 +461,7 @@ export default function OwnersPage() {
               {createErrors.email && <p className="text-xs text-destructive">{createErrors.email}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>Enquiry Cities</Label>
+              <Label>Requirement Cities</Label>
               <EnquiryCitiesPicker value={createEnquiryCities} onChange={setCreateEnquiryCities} />
               <p className="text-xs text-muted-foreground">Add cities where this owner wants to receive enquiries.</p>
             </div>
@@ -543,7 +543,7 @@ export default function OwnersPage() {
               <Input value={editForm.mobile} onChange={(e) => setField("mobile", e.target.value)} placeholder="10-digit mobile" maxLength={10} />
             </div>
             <div className="space-y-1.5">
-              <Label>Enquiry Cities</Label>
+              <Label>Requirement Cities</Label>
               <EnquiryCitiesPicker value={editEnquiryCities} onChange={setEditEnquiryCities} />
               <p className="text-xs text-muted-foreground">Add cities where this owner wants to receive enquiries.</p>
             </div>

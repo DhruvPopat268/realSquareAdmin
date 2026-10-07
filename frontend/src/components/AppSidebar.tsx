@@ -125,13 +125,13 @@ const sections = [
     ],
   },
   {
-    title: "Leads & Enquiries",
+    title: "Leads & Requirements",
     items: [
-      { type: "link", to: "/enquiries",                  icon: Users, label: "Enquiries" },
+      { type: "link", to: "/enquiries",                  icon: Users, label: "Requirements" },
       { type: "link", to: "/leads",                      icon: Users, label: "Leads" },
-      { type: "link", to: "/enquiry-plans",              icon: Tag,   label: "Enquiry Plans" },
-      { type: "link", to: "/lead-enquiry-coins-config",  icon: Coins, label: "Lead & Enquiry Coins Config" },
-      { type: "link", to: "/purchased-enquiry-plans",   icon: Tag,   label: "Purchased Enquiry Plans" },
+      { type: "link", to: "/enquiry-plans",              icon: Tag,   label: "Requirement Plans" },
+      { type: "link", to: "/lead-enquiry-coins-config",  icon: Coins, label: "Lead & Requirement Coins Config" },
+      { type: "link", to: "/purchased-enquiry-plans",   icon: Tag,   label: "Purchased Requirement Plans" },
     ],
   },
   {
