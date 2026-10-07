@@ -511,81 +511,6 @@ const assignCustomerRole = async (req, res) => {
   }
 };
 
-// ── Send Change Mobile OTP (protected) ────────────────────────────────────────
-// POST /api/system-users/send-change-mobile-otp  { mobile }
-const sendChangeMobileOtp = async (req, res) => {
-  const { newMobile } = req.body;
-
-  if (!newMobile)
-    return res.status(400).json({ success: false, message: "newMobile is required" });
-
-  if (!MOBILE_REGEX.test(newMobile))
-    return res.status(400).json({ success: false, message: "newMobile must be exactly 10 digits" });
-
-  try {
-    if (newMobile === req.user.mobile)
-      return res.status(400).json({ success: false, message: "New mobile must be different from old mobile" });
-
-    const existing = await SystemUser.findOne({ $or: MOBILE_OR_QUERY(newMobile), _id: { $ne: req.user._id } });
-    if (existing)
-      return res.status(409).json({ success: false, message: "Mobile already in use" });
-
-    await SystemUserOtp.deleteMany({ userId: req.user._id });
-
-    // OTP for old mobile verification
-    await SystemUserOtp.create({ userId: req.user._id, mobile: req.user.mobile, otp: DUMMY_OTP });
-    // OTP for new mobile verification
-    await SystemUserOtp.create({ userId: req.user._id, mobile: newMobile, otp: DUMMY_OTP });
-
-    // TODO: replace with real SMS OTP delivery
-    // send DUMMY_OTP to req.user.mobile (old)
-    // send DUMMY_OTP to mobile (new)
-    res.json({ success: true, message: "OTP sent to both old and new mobile" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// ── Verify Change Mobile OTP (protected) ──────────────────────────────────────
-// POST /api/system-users/verify-change-mobile-otp  { newMobile, oldOtp, newOtp }
-const verifyChangeMobileOtp = async (req, res) => {
-  const { newMobile, oldOtp, newOtp } = req.body;
-
-  if (!newMobile || !oldOtp || !newOtp)
-    return res.status(400).json({ success: false, message: "newMobile, oldOtp and newOtp are required" });
-
-  if (!MOBILE_REGEX.test(newMobile))
-    return res.status(400).json({ success: false, message: "newMobile must be exactly 10 digits" });
-
-  if (!OTP_REGEX.test(oldOtp) || !OTP_REGEX.test(newOtp))
-    return res.status(400).json({ success: false, message: "OTPs must be exactly 6 digits" });
-
-  try {
-    const oldOtpRecord = await SystemUserOtp.findOne({ userId: req.user._id, mobile: req.user.mobile, otp: oldOtp });
-    if (!oldOtpRecord)
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP for old mobile" });
-
-    const newOtpRecord = await SystemUserOtp.findOne({ userId: req.user._id, mobile: newMobile, otp: newOtp });
-    if (!newOtpRecord)
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP for new mobile" });
-
-    await oldOtpRecord.deleteOne();
-    await newOtpRecord.deleteOne();
-
-    const currentUser = await SystemUser.findById(req.user._id);
-    const profileField = Object.values(ALLOWED_ROLES).find((field) => currentUser[field]?.mobile);
-
-    const updateData = { mobile: newMobile };
-    if (profileField) updateData[`${profileField}.mobile`] = newMobile;
-
-    await SystemUser.findByIdAndUpdate(req.user._id, { $set: updateData });
-
-    res.json({ success: true, message: "Mobile updated successfully" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
 // ── Update Profile (protected) ────────────────────────────────────────────────
 // PUT /api/system-users/update-profile  (multipart/form-data)
 const updateProfile = async (req, res) => {
@@ -948,6 +873,5 @@ const logout = async (req, res) => {
 
 module.exports = {
   sendOtp, verifyOtp, sendEmailOtp, verifyEmailOtp, completeProfile, assignCustomerRole,
-  sendChangeMobileOtp, verifyChangeMobileOtp,
   updateProfile, switchRole, logout, getMe, getActiveUsers,
 };
