@@ -848,13 +848,15 @@ const getMe = async (req, res) => {
     const profile = req.user.customerProfile || req.user.ownerProfile || req.user.brokerProfile || req.user.builderProfile;
     const displayName = req.user.name || profile?.fullName || profile?.name || "";
     const isProfileCompleted = !!(req.user.mobile && displayName && req.user.role);
-    const brokerProfile = req.user.brokerProfile?.toObject
+    let brokerProfile = req.user.brokerProfile?.toObject
       ? req.user.brokerProfile.toObject()
       : req.user.brokerProfile;
-    if (brokerProfile?.reraVerification) {
+    if (roleId === process.env.BROKER_ROLE_ID) {
+      brokerProfile = brokerProfile || {};
+      const reraId = brokerProfile.reraVerification?.reraId;
       brokerProfile.reraVerification = {
-        reraId: brokerProfile.reraVerification.reraId,
-        verified: brokerProfile.reraVerification.verified,
+        ...(reraId ? { reraId } : {}),
+        verified: Boolean(reraId && brokerProfile.reraVerification?.verified === true),
       };
     }
 
