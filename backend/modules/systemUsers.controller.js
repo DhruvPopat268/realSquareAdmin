@@ -14,6 +14,7 @@ const crypto            = require("crypto");
 const path              = require("path");
 const { runReraVerification } = require("./mixed/reraVerification/controller");
 const { sendEmail }     = require("../utils/emailService");
+const { calculateProfileCompletionPercentage } = require("./systemUsers.profileCompletion.weighate");
 
 const DUMMY_OTP = "123456";
 
@@ -773,6 +774,7 @@ const getMe = async (req, res) => {
     const profile = req.user.customerProfile || req.user.ownerProfile || req.user.brokerProfile || req.user.builderProfile;
     const displayName = req.user.name || profile?.fullName || profile?.name || "";
     const isProfileCompleted = !!(req.user.mobile && displayName && req.user.role);
+    const profileCompletionPercentage = calculateProfileCompletionPercentage(req.user, roleId);
     let brokerProfile = req.user.brokerProfile?.toObject
       ? req.user.brokerProfile.toObject()
       : req.user.brokerProfile;
@@ -848,6 +850,7 @@ const getMe = async (req, res) => {
         showEnquiryPlan,
         myPropertyListingAllowed: !!hasListings,
         isProfileCompleted,
+        profileCompletionPercentage,
         canListProperty,
         rejectedPropertiesCount,
         haveAssignedInquiries,

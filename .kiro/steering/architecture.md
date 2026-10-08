@@ -129,7 +129,7 @@ All routes are prefixed with `/api`.
 - JWT token is stored in an HTTP-only cookie
 - `middleware/auth.js` protects admin routes
 - `middleware/userAuth.js` protects system user routes
-- `GET /api/system-users/me` returns the authenticated system user's profile, wallet and active plans, plus `coinsPerEnquiry` from the singleton `LeadEnquiryCoinsConfig` (defaults to `0` when no config exists).
+- `GET /api/system-users/me` returns the authenticated system user's profile, wallet and active plans, plus `coinsPerEnquiry` from the singleton `LeadEnquiryCoinsConfig` (defaults to `0` when no config exists). It also returns `profileCompletionPercentage`, calculated with equal weights for root `name`, `mobile`, `email`, and `role` plus the active role's configured profile fields by `systemUsers.profileCompletion.weighate.js`; system-managed verification flags are excluded.
 
 ### Plans & Payments
 
