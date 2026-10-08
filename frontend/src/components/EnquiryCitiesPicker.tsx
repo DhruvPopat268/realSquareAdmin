@@ -32,7 +32,7 @@ export default function EnquiryCitiesPicker({ value, onChange }: Props) {
       return;
     }
     autocomplete.current.getPlacePredictions(
-      { input: nextQuery, types: ["(cities)"] },
+      { input: nextQuery },
       (predictions) => setSuggestions(predictions || [])
     );
   }
