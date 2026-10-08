@@ -4,6 +4,7 @@ export interface Plan {
   _id: string;
   name: string;
   description?: string;
+  benefits: string[];
   numberOfPropertiesGiven: number;
   expiryInDays?: number;
   roles: string[];
@@ -17,6 +18,7 @@ export interface Plan {
 export type CreatePlanPayload = {
   name: string;
   description?: string;
+  benefits: string[];
   numberOfPropertiesGiven: number;
   roles?: string[];
   isActive?: boolean;

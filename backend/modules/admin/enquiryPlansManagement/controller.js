@@ -31,7 +31,7 @@ function validatePayload({ name, numberOfEnquiriesGiven, expiryInDays, coins, am
 // ── Create Plan ───────────────────────────────────────────────────────────────
 const createPlan = async (req, res) => {
   try {
-    const { name, description, numberOfEnquiriesGiven, expiryInDays, roles, coins, amount, isActive } = req.body;
+    const { name, description, numberOfEnquiriesGiven, expiryInDays, roles, coins, amount, isActive, benefits } = req.body;
 
     const error = validatePayload({ name, numberOfEnquiriesGiven, expiryInDays, coins, amount });
     if (error) return res.status(400).json({ success: false, message: error });
@@ -42,6 +42,7 @@ const createPlan = async (req, res) => {
     const plan = await Plan.create({
       name:                   String(name).trim(),
       description,
+      benefits: Array.isArray(benefits) ? benefits.map((benefit) => String(benefit).trim()).filter(Boolean) : [],
       numberOfEnquiriesGiven: Number(numberOfEnquiriesGiven),
       expiryInDays:           Number(expiryInDays),
       coins:                  Number(coins),
@@ -85,7 +86,7 @@ const getPlanById = async (req, res) => {
 // ── Update Plan ───────────────────────────────────────────────────────────────
 const updatePlan = async (req, res) => {
   try {
-    const { name, description, numberOfEnquiriesGiven, expiryInDays, roles, coins, amount, isActive } = req.body;
+    const { name, description, numberOfEnquiriesGiven, expiryInDays, roles, coins, amount, isActive, benefits } = req.body;
 
     const error = validatePayload({ name, numberOfEnquiriesGiven, expiryInDays, coins, amount });
     if (error) return res.status(400).json({ success: false, message: error });
@@ -102,6 +103,7 @@ const updatePlan = async (req, res) => {
         $set: {
           name:                   String(name).trim(),
           description,
+          benefits: Array.isArray(benefits) ? benefits.map((benefit) => String(benefit).trim()).filter(Boolean) : [],
           numberOfEnquiriesGiven: Number(numberOfEnquiriesGiven),
           expiryInDays:           Number(expiryInDays),
           coins:                  Number(coins),

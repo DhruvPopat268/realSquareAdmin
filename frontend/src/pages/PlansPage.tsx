@@ -11,6 +11,7 @@ import { Plus, Search, Check, Building2, Calendar, Users, Coins, IndianRupee, Pe
 import { plansService, type Plan, type CreatePlanPayload } from "@/services/plansService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
+import BenefitsEditor from "@/components/BenefitsEditor";
 import { cn } from "@/lib/utils";
 
 const ROLE_OPTIONS = [
@@ -25,6 +26,7 @@ function roleLabel(id: string) {
 
 const defaultForm = (): CreatePlanPayload => ({
   name: "", description: "",
+  benefits: [],
   numberOfPropertiesGiven: 0,
   roles: [], isActive: true,
   expiryInDays: -1, coins: 0, amount: 0,
@@ -41,6 +43,16 @@ function PlanCard({ plan, onToggle, onEdit, onDelete }: { plan: Plan; onToggle: 
           <h3 className="text-lg font-bold text-foreground leading-tight">{plan.name}</h3>
           {plan.description && (
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{plan.description}</p>
+          )}
+          {plan.benefits?.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {plan.benefits.map((benefit, index) => (
+                <li key={`${index}-${benefit}`} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span>{benefit}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         <button
@@ -134,6 +146,7 @@ export default function PlansPage() {
   const [open, setOpen]             = useState(false);
   const [editTarget, setEditTarget]  = useState<Plan | null>(null);
   const [form, setForm]              = useState<CreatePlanPayload>(defaultForm());
+  const [benefits, setBenefits]      = useState<string[]>([]);
   const [errors, setErrors]          = useState<Record<string, string>>({});
   const [submitting, setSubmitting]  = useState(false);
 
@@ -164,6 +177,7 @@ export default function PlansPage() {
 
   function openEdit(plan: Plan) {
     setEditTarget(plan);
+    setBenefits(plan.benefits ?? []);
     setForm({
       name:                    plan.name,
       description:             plan.description ?? "",
@@ -180,6 +194,7 @@ export default function PlansPage() {
 
   function openCreate() {
     setEditTarget(null);
+    setBenefits([]);
     setForm(defaultForm());
     setErrors({});
     setOpen(true);
@@ -219,11 +234,11 @@ export default function PlansPage() {
     setSubmitting(true);
     try {
       if (editTarget) {
-        const res = await plansService.update(editTarget._id, form);
+        const res = await plansService.update(editTarget._id, { ...form, benefits });
         setPlans((prev) => prev.map((p) => p._id === editTarget._id ? res.data.data : p));
         toast({ title: "Plan updated successfully" });
       } else {
-        const res = await plansService.create(form);
+        const res = await plansService.create({ ...form, benefits });
         setPlans((prev) => [res.data.data, ...prev]);
         toast({ title: "Plan created successfully" });
       }
@@ -331,6 +346,8 @@ export default function PlansPage() {
               <Label>Description</Label>
               <Textarea placeholder="Brief description of the plan..." value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} className="resize-none" />
             </div>
+
+            <BenefitsEditor benefits={benefits} onChange={setBenefits} />
 
             {/* Properties */}
             <div className="space-y-1.5">

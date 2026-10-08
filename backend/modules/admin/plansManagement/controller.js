@@ -6,7 +6,7 @@ const createPlan = async (req, res) => {
     const {
       name, description,
       numberOfPropertiesGiven, expiryInDays,
-      roles, coins, amount, isActive,
+      roles, coins, amount, isActive, benefits,
     } = req.body;
 
     // Required fields
@@ -37,6 +37,7 @@ const createPlan = async (req, res) => {
     const plan = await Plan.create({
       name: name.trim(),
       description,
+      benefits: Array.isArray(benefits) ? benefits.map((benefit) => String(benefit).trim()).filter(Boolean) : [],
       numberOfPropertiesGiven,
       expiryInDays: expiry,
       coins:  coinsVal,
@@ -84,7 +85,7 @@ const updatePlan = async (req, res) => {
     const {
       name, description,
       numberOfPropertiesGiven, expiryInDays,
-      roles, coins, amount, isActive,
+      roles, coins, amount, isActive, benefits,
     } = req.body;
 
     // Required fields
@@ -121,6 +122,7 @@ const updatePlan = async (req, res) => {
         $set: {
           name: name.trim(),
           description,
+          benefits: Array.isArray(benefits) ? benefits.map((benefit) => String(benefit).trim()).filter(Boolean) : [],
           numberOfPropertiesGiven,
           expiryInDays: expiry,
           coins:  coinsVal,

@@ -4,6 +4,7 @@ export interface EnquiryPlan {
   _id: string;
   name: string;
   description?: string;
+  benefits: string[];
   numberOfEnquiriesGiven: number;
   expiryInDays?: number;
   roles: string[];
@@ -17,6 +18,7 @@ export interface EnquiryPlan {
 export type CreateEnquiryPlanPayload = {
   name: string;
   description?: string;
+  benefits: string[];
   numberOfEnquiriesGiven: number;
   roles?: string[];
   isActive?: boolean;
