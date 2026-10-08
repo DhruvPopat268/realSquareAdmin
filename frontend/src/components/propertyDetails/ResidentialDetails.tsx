@@ -45,6 +45,7 @@ export default function ResidentialDetails({ data, rentInfo }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm">
           <InfoItem label="BHK Configuration"   value={bhkLabel} />
           <InfoItem label="Built-up Area"        value={formatArea(data.builtUpArea)} />
+          <InfoItem label="Carpet Area"          value={formatArea(data.carpetArea)} />
           <InfoItem label="Society / Building"   value={data.societyName} />
           <InfoItem label="Construction Status"
             value={
@@ -53,11 +54,11 @@ export default function ResidentialDetails({ data, rentInfo }: Props) {
               undefined
             }
           />
-          <InfoItem label="Listing Status" value={data.propertyStatus === "NewlyAdded" ? "Newly Added" : data.propertyStatus === "Relaunch" ? "Re-release" : undefined} />
+          <InfoItem label="Property Status" value={data.propertyStatus === "NewlyAdded" ? "Newly Added" : data.propertyStatus === "Relaunch" ? "Re-release" : undefined} />
           <InfoItem label="Age of Property"
             value={data.ageOfProperty != null ? `${data.ageOfProperty} year${data.ageOfProperty !== 1 ? "s" : ""}` : null}
           />
-          <InfoItem label="Available From" value={formatDate(data.constructionStatus === "UnderConstruction" ? data.availableFrom : rentInfo?.availableFrom)} />
+          <InfoItem label="Available From" value={formatDate(data.constructionStatus === "UnderConstruction" && data.availableFrom ? data.availableFrom : rentInfo?.availableFrom)} />
           <InfoItem
             label="Security Deposit"
             value={securityDeposit == null ? null : securityDeposit === 0 ? "None" : `₹${securityDeposit.toLocaleString("en-IN")}`}

@@ -418,6 +418,7 @@ export default function PropertyDetailPage() {
               <DetailItem label="Purpose"      value={p.listingType?.name} />
               <DetailItem label="Category"     value={p.category?.name} />
               <DetailItem label="Type"         value={p.propertyType?.name} />
+              <DetailItem label="Zero Brokerage" value={p.zeroBrokerage == null ? undefined : p.zeroBrokerage ? "Yes" : "No"} />
               <DetailItem label="City"         value={p.cityName} />
               {p.locality?.address ? (
                 <div>

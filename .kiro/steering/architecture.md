@@ -123,6 +123,7 @@ All routes are prefixed with `/api`.
 - `rentInfo.securityDeposit` is an optional numeric rupee amount. Create validation rejects non-numeric or negative amounts; listing updates validate the amount and merge it into the existing `rentInfo` subdocument.
 - `constructionStatus`, `ageOfProperty`, and construction `availableFrom` belong to `residentialDetails`, `commercialDetails`, or `pgDetails`; they are not fields in `sellInfo`. Edit validation accepts `availableFrom` only when that detail section has `constructionStatus: "UnderConstruction"`. The detail GET response maps legacy values from `sellInfo` into the matching detail section for backward compatibility. `rentInfo.availableFrom` remains separate.
 - Residential and commercial details also support optional `propertyStatus` values `NewlyAdded` and `Relaunch`; PG and plot details do not.
+- `backend/modules/mixed/propertyListing/completionPercentage.js` exports `calculatePropertyCompletionPercentage(listing)`. It scores the one populated residential, plot, PG, or commercial detail section and shared listing fields (`category`, applicable `propertyType`, `listingType`, `cityName`, `locality`, `listedBy`, `media`, `rera`, plus applicable `sellInfo.price` or `rentInfo.monthlyRent`) with equal field weights. Conditional fields are omitted when they do not apply; PG does not require `propertyType` or a root sell/rent price field. It returns `0` when no supported detail section is present. The `GET /api/mixed/property-listings/my-listings` endpoint adds `propertyCompletionPercentage` to each result in preview and paginated modes.
 
 ### Auth Flow
 - Login uses OTP-based authentication
@@ -231,7 +232,7 @@ frontend/src/
 | `AgentsBrokersPage.tsx` | Broker/agent management |
 | `BuildersDevelopersPage.tsx` | Builder/developer management |
 | `PropertiesPage.tsx` | Property listings management |
-| `PropertyDetailPage.tsx` | Single property detail view |
+| `PropertyDetailPage.tsx` | Single property detail view with listing metadata, RERA data, zero-brokerage status, and category-specific property details |
 | `ProjectsPage.tsx` | Project listings management |
 | `ProjectDetailPage.tsx` | Single project detail view |
 | `LeadsPage.tsx` | Lead management |
@@ -278,10 +279,10 @@ frontend/src/
 | Component | Purpose |
 |---|---|
 | `PropertyTypeDetails.tsx` | Switcher — selects correct detail component based on `category.name` and `listingType.name` |
-| `ResidentialDetails.tsx` | Renders residential-specific fields: BHK, builtUpArea, construction status, property age, furnishings, amenities, sellInfo/rentInfo |
-| `PlotDetails.tsx` | Renders plot-specific fields: plotArea, dimensions, ownership, zone |
-| `PGDetails.tsx` | Renders PG-specific fields: rooms+pricing, construction status, property age, meals, commonAreas, notice/lock-in period |
-| `CommercialDetails.tsx` | Renders commercial-specific fields: areas, construction status, property age, floor info, ownership, zone, office seats/cabins |
+| `ResidentialDetails.tsx` | Renders residential-specific fields: BHK, built-up/carpet areas, property and construction status, age, availability, furnishing, furnishings, amenities, and rent deposit |
+| `PlotDetails.tsx` | Renders plot area, dimensions, layout, and applicable commercial ownership, zone, and location-hub data |
+| `PGDetails.tsx` | Renders PG fields: rooms and pricing/deposits, occupancy, construction status, age, meals, common areas, furnishing, amenities, and tenancy rules |
+| `CommercialDetails.tsx` | Renders commercial fields: custom type, areas and dimensions, property/construction status, age, availability, floor data, ownership, zoning, furnishing, amenities, and office capacity |
 
 ### Services Pattern
 Each domain has a dedicated service file in `src/services/` that wraps Axios calls:

@@ -41,7 +41,8 @@ export default function PGDetails({ data, rentInfo }: Props) {
           <InfoItem label="Best Suited For"    value={data.bestSuitedFor?.join(", ")} />
           <InfoItem label="Notice Period"      value={data.noticePeriod != null ? `${data.noticePeriod} days` : null} />
           <InfoItem label="Lock-in Period"     value={data.lockInPeriod != null ? `${data.lockInPeriod} days` : null} />
-          <InfoItem label="Available From"     value={formatDate(data.constructionStatus === "UnderConstruction" ? data.availableFrom : rentInfo?.availableFrom)} />
+          <InfoItem label="Available From"     value={formatDate(data.constructionStatus === "UnderConstruction" && data.availableFrom ? data.availableFrom : rentInfo?.availableFrom)} />
+          <InfoItem label="Security Deposit" value={rentInfo?.securityDeposit == null ? null : rentInfo.securityDeposit === 0 ? "None" : `₹${rentInfo.securityDeposit.toLocaleString("en-IN")}`} />
           <InfoItem label="Meals Included"
             value={
               data.mealsAvailable && data.meals?.length

@@ -73,9 +73,11 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
         <p className="text-xs text-muted-foreground mb-4">Key specifications for this commercial property</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm">
           <InfoItem label="Building / Project"  value={data.societyName} />
+          <InfoItem label="Other Property Type" value={data.propertyType} />
           <InfoItem label="Built-up Area"        value={formatArea(data.builtUpArea)} />
           <InfoItem label="Carpet Area"          value={formatArea(data.carpetArea)} />
           <InfoItem label="Plot Area"            value={formatArea(data.plotArea)} />
+          <InfoItem label="Dimensions"           value={data.length != null && data.width != null ? `${data.length} × ${data.width} ft` : null} />
           <InfoItem label="Ownership"            value={formatOwnership(data.ownership)} />
           <InfoItem label="Zone Type"            value={formatZone(data.zoneType)} />
           <InfoItem label="Location Hub"         value={data.locationHub} />
@@ -86,11 +88,11 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
               undefined
             }
           />
-          <InfoItem label="Listing Status" value={data.propertyStatus === "NewlyAdded" ? "Newly Added" : data.propertyStatus === "Relaunch" ? "Re-release" : undefined} />
+          <InfoItem label="Property Status" value={data.propertyStatus === "NewlyAdded" ? "Newly Added" : data.propertyStatus === "Relaunch" ? "Re-release" : undefined} />
           <InfoItem label="Age of Property"
             value={data.ageOfProperty != null ? `${data.ageOfProperty} year${data.ageOfProperty !== 1 ? "s" : ""}` : null}
           />
-          <InfoItem label="Available From" value={formatDate(data.constructionStatus === "UnderConstruction" ? data.availableFrom : rentInfo?.availableFrom)} />
+          <InfoItem label="Available From" value={formatDate(data.constructionStatus === "UnderConstruction" && data.availableFrom ? data.availableFrom : rentInfo?.availableFrom)} />
           <InfoItem
             label="Security Deposit"
             value={rentInfo?.securityDeposit == null ? null : rentInfo.securityDeposit === 0 ? "None" : `₹${rentInfo.securityDeposit.toLocaleString("en-IN")}`}

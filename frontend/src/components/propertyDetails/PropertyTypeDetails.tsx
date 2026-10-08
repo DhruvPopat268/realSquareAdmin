@@ -19,6 +19,7 @@ interface Props {
 export default function PropertyTypeDetails({ listing }: Props) {
   const category = (listing.category?.name ?? "").toLowerCase();
   const listingType = (listing.listingType?.name ?? "").toLowerCase();
+  const propertyType = (listing.propertyType?.name ?? "").toLowerCase();
 
   // PG / Co-living — check listing type first since PG can have residential category
   if (listingType.includes("pg") || listingType.includes("co-living")) {
@@ -27,6 +28,18 @@ export default function PropertyTypeDetails({ listing }: Props) {
       <PGDetails
         data={listing.pgDetails}
         rentInfo={listing.rentInfo}
+      />
+    );
+  }
+
+  // Plot listings may be categorized as Residential or Commercial, so route by
+  // property type before the broader category checks.
+  if (propertyType.includes("plot") || propertyType.includes("land") || propertyType.includes("agricultural")) {
+    if (!listing.plotDetails && !listing.commercialDetails) return null;
+    return (
+      <PlotDetails
+        data={listing.plotDetails ?? listing.commercialDetails!}
+        commercialDetails={listing.commercialDetails}
       />
     );
   }

@@ -13,6 +13,7 @@ const FreeListingConfig  = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser         = require("../../systemUsers.model");
 const { runReraVerification } = require("../reraVerification/controller");
+const { calculatePropertyCompletionPercentage } = require("./completionPercentage");
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const AUTO_INACTIVE_STATUSES = ["Active", "UnderReview", "Rejected"];
@@ -476,7 +477,7 @@ function normalizeListingCard(listing) {
     createdAt:     listing.createdAt,
     listedBy:      listing.listedBy ?? null,
     // Additional property-specific info
-    furnishType: listing.residentialDetails?.furnishType ?? null, // Only for residential
+    furnishType: listing.residentialDetails?.furnishType ?? listing.commercialDetails?.furnishType ?? listing.pgDetails?.furnishType ?? null,
     pgFor:       listing.pgDetails?.pgFor ?? null, // Only for PG
     builtUpArea: listing.residentialDetails?.builtUpArea || listing.commercialDetails?.builtUpArea || null,
     plotArea:    listing.plotDetails?.plotArea || listing.commercialDetails?.plotArea || null,
@@ -489,6 +490,13 @@ function formatPrice(n) {
   if (n >= 100000)   return (n / 100000).toFixed(2).replace(/\.?0+$/, "") + " L";
   if (n >= 1000)     return (n / 1000).toFixed(1).replace(/\.?0+$/, "") + "K";
   return n.toString();
+}
+
+function normalizeMyListingCard(listing) {
+  return {
+    ...normalizeListingCard(listing),
+    propertyCompletionPercentage: calculatePropertyCompletionPercentage(listing),
+  };
 }
 
 // ── GET /property-listings/:id (public) ──────────────────────────────────────
@@ -550,11 +558,11 @@ const getMyListings = async (req, res) => {
       const limit = parseInt(req.query.limit);
       if (limit > 0) {
         const listings = await PropertyListing.find({ "listedBy.id": req.user._id })
-          .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo createdAt listedBy")
+          .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy")
           .sort({ createdAt: -1 })
           .limit(limit)
           .lean();
-        return res.json({ success: true, data: { properties: listings.map(normalizeListingCard) } });
+        return res.json({ success: true, data: { properties: listings.map(normalizeMyListingCard) } });
       }
     }
 
@@ -577,7 +585,7 @@ const getMyListings = async (req, res) => {
     const baseFilter = { "listedBy.id": req.user._id };
     const parallelTasks = [
       PropertyListing.find(filter)
-        .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo createdAt listedBy")
+        .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(PAGE_LIMIT)
@@ -598,7 +606,7 @@ const getMyListings = async (req, res) => {
     const listings   = results[0];
     const totalCount = results[1];
 
-    const properties = listings.map(normalizeListingCard);
+    const properties = listings.map(normalizeMyListingCard);
     const hasMore    = skip + listings.length < totalCount;
 
     const response = {

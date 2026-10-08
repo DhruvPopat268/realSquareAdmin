@@ -25,6 +25,7 @@ export interface ResidentialDetails extends PropertyStatusDetails {
   societyName?: string;
   bhk?: number;
   builtUpArea?: AreaValue;
+  carpetArea?: AreaValue;
   furnishType?: "Unfurnished" | "Semi-Furnished" | "Fully-Furnished";
   furnishings?: FurnishingItem[];
   amenities?: FurnishingItem[];
@@ -53,6 +54,9 @@ export interface PGDetails extends PropertyStatusDetails {
   meals?: string[];
   noticePeriod?: number;
   lockInPeriod?: number;
+  furnishType?: "Unfurnished" | "Semi-Furnished" | "Fully-Furnished";
+  furnishings?: FurnishingItem[];
+  amenities?: FurnishingItem[];
   commonAreas?: string[];
   rooms?: PGRoom[];
 }
@@ -74,6 +78,9 @@ export interface CommercialDetails extends PropertyStatusDetails {
   minSeats?: number;
   minCabins?: number;
   minMeetingRooms?: number;
+  furnishType?: "Unfurnished" | "Semi-Furnished" | "Fully-Furnished";
+  furnishings?: FurnishingItem[];
+  amenities?: FurnishingItem[];
 }
 
 export interface SellInfo {
@@ -123,6 +130,7 @@ export interface PropertyListing {
     role?: { id: string; name: string };
   };
   media?: { images: string[] };
+  zeroBrokerage?: boolean;
   residentialDetails?: ResidentialDetails;
   plotDetails?: PlotDetails;
   pgDetails?: PGDetails;
