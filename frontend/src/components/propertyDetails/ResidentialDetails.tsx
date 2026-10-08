@@ -1,10 +1,9 @@
 import { Home } from "lucide-react";
-import type { ResidentialDetails as ResidentialDetailsType, SellInfo, RentInfo } from "@/services/propertyListingService";
+import type { ResidentialDetails as ResidentialDetailsType, RentInfo } from "@/services/propertyListingService";
 import FurnishingsAmenitiesDisplay from "./FurnishingsAmenitiesDisplay";
 
 interface Props {
   data: ResidentialDetailsType;
-  sellInfo?: SellInfo;
   rentInfo?: RentInfo;
 }
 
@@ -29,16 +28,8 @@ function InfoItem({ label, value }: { label: string; value?: string | number | n
   );
 }
 
-export default function ResidentialDetails({ data, sellInfo, rentInfo }: Props) {
-  const securityDepositLabel = () => {
-    const sd = rentInfo?.securityDeposit;
-    if (!sd) return null;
-    if (sd.type === "None")    return "None";
-    if (sd.type === "1Month")  return "1 Month";
-    if (sd.type === "2Month")  return "2 Months";
-    if (sd.amount)             return `₹${sd.amount.toLocaleString("en-IN")}`;
-    return "As per agreement";
-  };
+export default function ResidentialDetails({ data, rentInfo }: Props) {
+  const securityDeposit = rentInfo?.securityDeposit;
 
   const bhkLabel = data.bhk === 0 ? "1 RK" : data.bhk ? `${data.bhk} BHK` : null;
 
@@ -57,16 +48,20 @@ export default function ResidentialDetails({ data, sellInfo, rentInfo }: Props) 
           <InfoItem label="Society / Building"   value={data.societyName} />
           <InfoItem label="Construction Status"
             value={
-              sellInfo?.constructionStatus === "ReadyToMove"       ? "Ready to Move" :
-              sellInfo?.constructionStatus === "UnderConstruction" ? "Under Construction" :
+              data.constructionStatus === "ReadyToMove"       ? "Ready to Move" :
+              data.constructionStatus === "UnderConstruction" ? "Under Construction" :
               undefined
             }
           />
+          <InfoItem label="Listing Status" value={data.propertyStatus === "NewlyAdded" ? "Newly Added" : data.propertyStatus === "Relaunch" ? "Re-release" : undefined} />
           <InfoItem label="Age of Property"
-            value={sellInfo?.ageOfProperty != null ? `${sellInfo.ageOfProperty} year${sellInfo.ageOfProperty !== 1 ? "s" : ""}` : null}
+            value={data.ageOfProperty != null ? `${data.ageOfProperty} year${data.ageOfProperty !== 1 ? "s" : ""}` : null}
           />
-          <InfoItem label="Available From"      value={formatDate(sellInfo?.availableFrom ?? rentInfo?.availableFrom)} />
-          <InfoItem label="Security Deposit"    value={securityDepositLabel()} />
+          <InfoItem label="Available From" value={formatDate(data.constructionStatus === "UnderConstruction" ? data.availableFrom : rentInfo?.availableFrom)} />
+          <InfoItem
+            label="Security Deposit"
+            value={securityDeposit == null ? null : securityDeposit === 0 ? "None" : `₹${securityDeposit.toLocaleString("en-IN")}`}
+          />
         </div>
       </section>
 

@@ -116,6 +116,14 @@ All routes are prefixed with `/api`.
 - The six-month job marks listings older than 180 days by `updatedAt` as `Inactive` when their status is `Active`, `UnderReview`, or `Rejected`. It disables automatic `updatedAt` changes so the yearly cleanup still measures time since actual listing activity.
 - The one-year job processes eligible listings older than 365 days, including already-`Inactive` listings, removes local image files under `/var/www/storage/images`, and removes those local URLs from `media.images`. External media references are preserved. File failures leave the listing eligible for a later retry.
 
+### Broker Zero Brokerage
+- `PropertyListing.zeroBrokerage` is an optional root-level boolean with no schema default.
+- New broker listings explicitly store `zeroBrokerage: false`; non-broker listing creation leaves the field unset.
+- `PATCH /api/mixed/property-listings` accepts `zeroBrokerage` only as a boolean on broker-owned listings. The customer Edit Property page sends it only when the user changes the toggle.
+- `rentInfo.securityDeposit` is an optional numeric rupee amount. Create validation rejects non-numeric or negative amounts; listing updates validate the amount and merge it into the existing `rentInfo` subdocument.
+- `constructionStatus`, `ageOfProperty`, and construction `availableFrom` belong to `residentialDetails`, `commercialDetails`, or `pgDetails`; they are not fields in `sellInfo`. Edit validation accepts `availableFrom` only when that detail section has `constructionStatus: "UnderConstruction"`. The detail GET response maps legacy values from `sellInfo` into the matching detail section for backward compatibility. `rentInfo.availableFrom` remains separate.
+- Residential and commercial details also support optional `propertyStatus` values `NewlyAdded` and `Relaunch`; PG and plot details do not.
+
 ### Auth Flow
 - Login uses OTP-based authentication
 - JWT token is stored in an HTTP-only cookie
@@ -270,10 +278,10 @@ frontend/src/
 | Component | Purpose |
 |---|---|
 | `PropertyTypeDetails.tsx` | Switcher — selects correct detail component based on `category.name` and `listingType.name` |
-| `ResidentialDetails.tsx` | Renders residential-specific fields: BHK, builtUpArea, furnishings, amenities, sellInfo/rentInfo |
+| `ResidentialDetails.tsx` | Renders residential-specific fields: BHK, builtUpArea, construction status, property age, furnishings, amenities, sellInfo/rentInfo |
 | `PlotDetails.tsx` | Renders plot-specific fields: plotArea, dimensions, ownership, zone |
-| `PGDetails.tsx` | Renders PG-specific fields: rooms+pricing, meals, commonAreas, notice/lock-in period |
-| `CommercialDetails.tsx` | Renders commercial-specific fields: areas, floor info, ownership, zone, office seats/cabins |
+| `PGDetails.tsx` | Renders PG-specific fields: rooms+pricing, construction status, property age, meals, commonAreas, notice/lock-in period |
+| `CommercialDetails.tsx` | Renders commercial-specific fields: areas, construction status, property age, floor info, ownership, zone, office seats/cabins |
 
 ### Services Pattern
 Each domain has a dedicated service file in `src/services/` that wraps Axios calls:

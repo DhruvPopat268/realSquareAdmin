@@ -37,7 +37,6 @@ export default function PropertyTypeDetails({ listing }: Props) {
     return (
       <ResidentialDetails
         data={listing.residentialDetails}
-        sellInfo={listing.sellInfo}
         rentInfo={listing.rentInfo}
       />
     );
@@ -50,7 +49,6 @@ export default function PropertyTypeDetails({ listing }: Props) {
       <PlotDetails
         data={listing.plotDetails}
         commercialDetails={listing.commercialDetails}
-        sellInfo={listing.sellInfo}
       />
     );
   }
@@ -61,7 +59,6 @@ export default function PropertyTypeDetails({ listing }: Props) {
     return (
       <CommercialDetails
         data={listing.commercialDetails}
-        sellInfo={listing.sellInfo}
         rentInfo={listing.rentInfo}
         propertyTypeName={listing.propertyType?.name}
       />

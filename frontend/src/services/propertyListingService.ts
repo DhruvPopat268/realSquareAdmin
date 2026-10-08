@@ -14,7 +14,14 @@ export interface FurnishingItem {
   count?: number;
 }
 
-export interface ResidentialDetails {
+export interface PropertyStatusDetails {
+  constructionStatus?: "UnderConstruction" | "ReadyToMove";
+  ageOfProperty?: number;
+  availableFrom?: string;
+}
+
+export interface ResidentialDetails extends PropertyStatusDetails {
+  propertyStatus?: "NewlyAdded" | "Relaunch";
   societyName?: string;
   bhk?: number;
   builtUpArea?: AreaValue;
@@ -37,7 +44,7 @@ export interface PGRoom {
   securityDeposit?: number;
 }
 
-export interface PGDetails {
+export interface PGDetails extends PropertyStatusDetails {
   pgName?: string;
   totalBedsAvailable?: number;
   pgFor?: "Girls" | "Boys" | "Both";
@@ -50,7 +57,8 @@ export interface PGDetails {
   rooms?: PGRoom[];
 }
 
-export interface CommercialDetails {
+export interface CommercialDetails extends PropertyStatusDetails {
+  propertyStatus?: "NewlyAdded" | "Relaunch";
   societyName?: string;
   propertyType?: string;
   zoneType?: string;
@@ -70,18 +78,12 @@ export interface CommercialDetails {
 
 export interface SellInfo {
   price?: number;
-  constructionStatus?: "UnderConstruction" | "ReadyToMove";
-  ageOfProperty?: number;
-  availableFrom?: string;
 }
 
 export interface RentInfo {
   monthlyRent?: number;
   availableFrom?: string;
-  securityDeposit?: {
-    type: "None" | "1Month" | "2Month" | "Custom";
-    amount?: number;
-  };
+  securityDeposit?: number;
 }
 
 export interface ReraProjectDetails {

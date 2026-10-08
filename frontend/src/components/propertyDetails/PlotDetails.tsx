@@ -1,21 +1,15 @@
 import { Maximize2, Map } from "lucide-react";
-import type { PlotDetails as PlotDetailsType, CommercialDetails, SellInfo } from "@/services/propertyListingService";
+import type { PlotDetails as PlotDetailsType, CommercialDetails } from "@/services/propertyListingService";
 
 interface Props {
   data: PlotDetailsType;
   commercialDetails?: CommercialDetails; // commercial plots may have ownership/zone info
-  sellInfo?: SellInfo;
 }
 
 function formatArea(area?: { value: number; unit: string }) {
   if (!area?.value) return null;
   const unitLabel: Record<string, string> = { sqft: "sq.ft", sqyd: "sq.yd", sqmt: "sq.m" };
   return `${area.value} ${unitLabel[area.unit] ?? area.unit}`;
-}
-
-function formatDate(dateStr?: string) {
-  if (!dateStr) return null;
-  return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function formatOwnership(val?: string) {
@@ -38,7 +32,7 @@ function InfoItem({ label, value }: { label: string; value?: string | number | n
   );
 }
 
-export default function PlotDetails({ data, commercialDetails, sellInfo }: Props) {
+export default function PlotDetails({ data, commercialDetails }: Props) {
   return (
     <div className="space-y-6">
 
@@ -57,14 +51,6 @@ export default function PlotDetails({ data, commercialDetails, sellInfo }: Props
           <InfoItem label="Ownership"        value={formatOwnership(commercialDetails?.ownership)} />
           <InfoItem label="Zone Type"        value={commercialDetails?.zoneType} />
           <InfoItem label="Location Hub"     value={commercialDetails?.locationHub} />
-          <InfoItem label="Status"
-            value={
-              sellInfo?.constructionStatus === "ReadyToMove" ? "Ready for Construction" :
-              sellInfo?.constructionStatus === "UnderConstruction" ? "Approved for Development" :
-              undefined
-            }
-          />
-          <InfoItem label="Available From"   value={formatDate(sellInfo?.availableFrom)} />
         </div>
       </section>
 

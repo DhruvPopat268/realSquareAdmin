@@ -44,6 +44,45 @@ const resolveStoredImagePath = (imageUrl) => {
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
 
+function normalizePropertyStatusUpdate(section, incoming, existing) {
+  if (incoming === undefined || incoming === null) return null;
+  if (typeof incoming !== "object" || Array.isArray(incoming)) return `${section} must be an object`;
+
+  if (incoming.constructionStatus !== undefined && !["UnderConstruction", "ReadyToMove"].includes(incoming.constructionStatus)) {
+    return `${section}.constructionStatus must be UnderConstruction or ReadyToMove`;
+  }
+
+  if (incoming.propertyStatus !== undefined) {
+    if (section === "pgDetails") return "propertyStatus is only supported for residential and commercial listings";
+    if (!["NewlyAdded", "Relaunch"].includes(incoming.propertyStatus)) {
+      return `${section}.propertyStatus must be NewlyAdded or Relaunch`;
+    }
+  }
+
+  if (incoming.ageOfProperty !== undefined && incoming.ageOfProperty !== null && incoming.ageOfProperty !== "") {
+    const age = Number(incoming.ageOfProperty);
+    if (!Number.isInteger(age) || age < 0) return `${section}.ageOfProperty must be a non-negative integer`;
+    incoming.ageOfProperty = age;
+  } else if (incoming.ageOfProperty === "") {
+    incoming.ageOfProperty = null;
+  }
+
+  if (incoming.availableFrom !== undefined && incoming.availableFrom !== null && incoming.availableFrom !== "") {
+    const availableFrom = new Date(incoming.availableFrom);
+    if (Number.isNaN(availableFrom.getTime())) return `${section}.availableFrom must be a valid date`;
+    const constructionStatus = incoming.constructionStatus ?? existing?.constructionStatus;
+    if (constructionStatus !== "UnderConstruction") {
+      return `${section}.availableFrom is only allowed when constructionStatus is UnderConstruction`;
+    }
+    incoming.availableFrom = availableFrom;
+  } else if (incoming.availableFrom === "") {
+    incoming.availableFrom = null;
+  }
+
+  if (incoming.constructionStatus === "ReadyToMove") incoming.availableFrom = null;
+  return null;
+}
+
 // ── IST date helper ───────────────────────────────────────────────────────────
 function nowIST() {
   // returns current time as a Date object aligned to IST offset
@@ -243,6 +282,7 @@ const create = async (req, res) => {
       commercialDetails,
       sellInfo,
       rentInfo,
+      zeroBrokerage: req.userRole === process.env.BROKER_ROLE_ID ? false : undefined,
       status,
     });
 
@@ -461,6 +501,23 @@ const getListingById = async (req, res) => {
     const listing = await PropertyListing.findById(req.params.id).lean();
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
 
+    // Keep legacy listings readable while construction fields move from sellInfo
+    // into the matching property detail section.
+    const statusSection = listing.residentialDetails
+      ? "residentialDetails"
+      : listing.commercialDetails
+        ? "commercialDetails"
+        : listing.pgDetails
+          ? "pgDetails"
+          : null;
+    if (statusSection && listing.sellInfo) {
+      for (const field of ["constructionStatus", "ageOfProperty", "availableFrom"]) {
+        if (listing[statusSection][field] == null && listing.sellInfo[field] != null) {
+          listing[statusSection][field] = listing.sellInfo[field];
+        }
+      }
+    }
+
     // Merge normalized title & price into the full listing doc
     const normalized = normalizeListingCard(listing);
 
@@ -577,6 +634,7 @@ const updateListing = async (req, res) => {
       cityName, locality,
       residentialDetails, plotDetails, pgDetails, commercialDetails,
       sellInfo, rentInfo,
+      zeroBrokerage,
       reraId,
     } = req.body;
 
@@ -595,6 +653,23 @@ const updateListing = async (req, res) => {
     // Only the owner can edit their own listing
     if (listing.listedBy.id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not allowed to edit this listing" });
+    }
+
+    for (const section of ["residentialDetails", "commercialDetails", "pgDetails"]) {
+      const validationMessage = normalizePropertyStatusUpdate(section, req.body[section], listing[section]);
+      if (validationMessage) {
+        return res.status(400).json({ success: false, message: validationMessage });
+      }
+    }
+
+    if (zeroBrokerage !== undefined) {
+      if (typeof zeroBrokerage !== "boolean") {
+        return res.status(400).json({ success: false, message: "zeroBrokerage must be a boolean" });
+      }
+      if (listing.listedBy.role?.id?.toString() !== process.env.BROKER_ROLE_ID) {
+        return res.status(403).json({ success: false, message: "Only broker listings can update zero brokerage" });
+      }
+      listing.zeroBrokerage = zeroBrokerage;
     }
 
     // ── purpose / category / type are locked — derive from existing listing ──
@@ -671,6 +746,18 @@ const updateListing = async (req, res) => {
     }
     if (rentInfo !== undefined && (listingTypeId !== process.env.LISTING_TYPE_RENT_ID && listingTypeId !== process.env.LISTING_TYPE_PG_ID)) {
       return res.status(400).json({ success: false, message: "rentInfo only allowed for Rent/PG listings" });
+    }
+    if (rentInfo !== undefined && rentInfo !== null && (typeof rentInfo !== "object" || Array.isArray(rentInfo))) {
+      return res.status(400).json({ success: false, message: "rentInfo must be an object" });
+    }
+    if (rentInfo?.securityDeposit !== undefined && rentInfo.securityDeposit !== null && rentInfo.securityDeposit !== "") {
+      const securityDeposit = Number(rentInfo.securityDeposit);
+      if (!Number.isFinite(securityDeposit) || securityDeposit < 0) {
+        return res.status(400).json({ success: false, message: "rentInfo.securityDeposit must be a non-negative number" });
+      }
+      rentInfo.securityDeposit = securityDeposit;
+    } else if (rentInfo?.securityDeposit === "") {
+      rentInfo.securityDeposit = null;
     }
 
     // ── Update simple scalar fields (only if sent) ───────────────────────────
@@ -800,6 +887,12 @@ const updateListing = async (req, res) => {
         listing.rentInfo = null;
       } else {
         listing.rentInfo = { ...listing.rentInfo?.toObject?.() ?? {}, ...rentInfo };
+      }
+    }
+
+    for (const section of ["residentialDetails", "commercialDetails", "pgDetails"]) {
+      if (listing[section]?.constructionStatus !== "UnderConstruction" && listing[section]?.availableFrom != null) {
+        listing[section].availableFrom = undefined;
       }
     }
 

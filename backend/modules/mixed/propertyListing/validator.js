@@ -10,6 +10,34 @@ const existsAndActive = (Model, label) => async (id) => {
   if (!doc.isActive)  throw new Error(`${label} is inactive`);
 };
 
+const propertyStatusValidators = (section) => [
+  body(`${section}.constructionStatus`)
+    .if(body(`${section}.constructionStatus`).exists())
+    .isIn(["UnderConstruction", "ReadyToMove"])
+    .withMessage(`${section}.constructionStatus must be UnderConstruction or ReadyToMove`),
+  body(`${section}.ageOfProperty`)
+    .if(body(`${section}.ageOfProperty`).exists())
+    .isInt({ min: 0 })
+    .withMessage(`${section}.ageOfProperty must be a non-negative integer`),
+  body(`${section}.availableFrom`)
+    .if(body(`${section}.availableFrom`).exists())
+    .isISO8601()
+    .withMessage(`${section}.availableFrom must be a valid date`)
+    .bail()
+    .custom((_, { req }) => {
+      if (req.body[section]?.constructionStatus !== "UnderConstruction") {
+        throw new Error(`${section}.availableFrom is only allowed when constructionStatus is UnderConstruction`);
+      }
+      return true;
+    }),
+];
+
+const listingPropertyStatusValidators = (section) =>
+  body(`${section}.propertyStatus`)
+    .if(body(`${section}.propertyStatus`).exists())
+    .isIn(["NewlyAdded", "Relaunch"])
+    .withMessage(`${section}.propertyStatus must be NewlyAdded or Relaunch`);
+
 const createListingValidator = [
   // ── Top-level required IDs ──────────────────────────────────────────────────
   body("categoryId").notEmpty().withMessage("categoryId is required").isMongoId().withMessage("categoryId must be a valid ID").bail().custom(existsAndActive(PropertyCategory, "Category")),
@@ -78,6 +106,8 @@ const createListingValidator = [
   body("residentialDetails.carpetArea.unit").if(body("residentialDetails.carpetArea").exists()).isIn(["sqft", "sqyd", "sqmt"]).withMessage("Must be sqft, sqyd, or sqmt"),
   // furnishType — optional (can be filled in later via edit)
   body("residentialDetails.furnishType").if(body("residentialDetails.furnishType").exists()).isIn(["Unfurnished", "Semi-Furnished", "Fully-Furnished"]).withMessage("Invalid furnishType"),
+  ...propertyStatusValidators("residentialDetails"),
+  listingPropertyStatusValidators("residentialDetails"),
 
   // ── plotDetails (when present) ──────────────────────────────────────────────
   // societyName — optional (can be filled in later via edit)
@@ -119,6 +149,7 @@ const createListingValidator = [
     return true;
   }),
   body("pgDetails.rooms.*.securityDeposit").notEmpty().withMessage("Each room must have a securityDeposit").isFloat({ min: 0 }).withMessage("securityDeposit must be a non-negative number"),
+  ...propertyStatusValidators("pgDetails"),
 
   // ── commercialDetails (when present) ───────────────────────────────────────
   // societyName — optional (can be filled in later via edit)
@@ -222,6 +253,8 @@ const createListingValidator = [
     if (!Number.isInteger(Number(_)) || Number(_) < 0) throw new Error("commercialDetails.minMeetingRooms must be a non-negative integer");
     return true;
   }),
+  ...propertyStatusValidators("commercialDetails"),
+  listingPropertyStatusValidators("commercialDetails"),
 
   // ── sellInfo (required for Sell, not allowed otherwise) ──────────────────────
   body("sellInfo").custom((_, { req }) => {
@@ -232,13 +265,6 @@ const createListingValidator = [
     return true;
   }),
   body("sellInfo.price").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.price is required").isFloat({ min: 0 }).withMessage("sellInfo.price must be a positive number"),
-  // constructionStatus — optional (can be filled in later via edit)
-  body("sellInfo.constructionStatus").if(body("sellInfo.constructionStatus").exists()).isIn(["UnderConstruction", "ReadyToMove"]).withMessage("Invalid constructionStatus"),
-  // ageOfProperty — optional (can be filled in later via edit)
-  body("sellInfo.ageOfProperty").if(body("sellInfo.ageOfProperty").exists()).isInt({ min: 0 }).withMessage("Must be a non-negative integer"),
-  // availableFrom — optional (can be filled in later via edit)
-  body("sellInfo.availableFrom").if(body("sellInfo.availableFrom").exists()).isISO8601().withMessage("Must be a valid date"),
-
   // ── rentInfo (required for Rent, not allowed otherwise) ──────────────────────
   body("rentInfo").custom((_, { req }) => {
     if (req.body.listingTypeId === process.env.LISTING_TYPE_RENT_ID && !_)
@@ -250,9 +276,8 @@ const createListingValidator = [
   body("rentInfo.monthlyRent").if(body("rentInfo").exists()).notEmpty().withMessage("rentInfo.monthlyRent is required").isFloat({ min: 0 }).withMessage("rentInfo.monthlyRent must be a positive number"),
   // availableFrom — optional (can be filled in later via edit)
   body("rentInfo.availableFrom").if(body("rentInfo.availableFrom").exists()).isISO8601().withMessage("rentInfo.availableFrom must be a valid date"),
-  // securityDeposit — optional (can be filled in later via edit)
-  body("rentInfo.securityDeposit.type").if(body("rentInfo.securityDeposit.type").exists()).isIn(["None", "1Month", "2Month", "Custom"]).withMessage("Invalid securityDeposit type"),
-  body("rentInfo.securityDeposit.amount").if(body("rentInfo.securityDeposit.type").equals("Custom")).notEmpty().withMessage("rentInfo.securityDeposit.amount is required when type is Custom").isFloat({ min: 0 }).withMessage("Must be a positive number"),
+  // securityDeposit — optional rupee amount (can be filled in later via edit)
+  body("rentInfo.securityDeposit").if(body("rentInfo.securityDeposit").exists()).isFloat({ min: 0 }).withMessage("rentInfo.securityDeposit must be a non-negative number"),
 ];
 
 module.exports = { createListingValidator };

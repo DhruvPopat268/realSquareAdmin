@@ -50,6 +50,10 @@ const residentialDetailsSchema = new Schema(
     bhk: { type: Number },                     // 1,2,3,4,5...
     builtUpArea: areaSchema,
     carpetArea:  areaSchema,                   // must be <= builtUpArea when both are provided
+    constructionStatus: { type: String, enum: ["UnderConstruction", "ReadyToMove"] },
+    propertyStatus: { type: String, enum: ["NewlyAdded", "Relaunch"] },
+    ageOfProperty: { type: Number },
+    availableFrom: { type: Date },             // only when constructionStatus is UnderConstruction
     furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
     furnishings: [furnishingItemSchema],
     amenities:   [amenityItemSchema],
@@ -93,6 +97,9 @@ const pgDetailsSchema = new Schema(
     lockInPeriod: { type: Number },                   // in days
     commonAreas: [{ type: String, enum: ["Living Room", "Kitchen", "Dining Area", "Bathroom", "Balcony", "Terrace", "Laundry Room", "Study Room", "Gym", "Parking"] }],
     rooms: [pgRoomSchema],
+    constructionStatus: { type: String, enum: ["UnderConstruction", "ReadyToMove"] },
+    ageOfProperty: { type: Number },
+    availableFrom: { type: Date },             // only when constructionStatus is UnderConstruction
     furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
     furnishings: [furnishingItemSchema],               // PG-level furnishings (Bed, Wardrobe, etc.)
     amenities:   [amenityItemSchema],                  // PG-level amenities (WiFi, Laundry, etc.)
@@ -111,6 +118,10 @@ const commercialDetailsSchema = new Schema(
     builtUpArea: areaSchema,
     carpetArea: areaSchema,
     plotArea: areaSchema,                        // plot
+    constructionStatus: { type: String, enum: ["UnderConstruction", "ReadyToMove"] },
+    propertyStatus: { type: String, enum: ["NewlyAdded", "Relaunch"] },
+    ageOfProperty: { type: Number },
+    availableFrom: { type: Date },               // only when constructionStatus is UnderConstruction
     length: { type: Number },
     width: { type: Number },
     ownership: { type: String, enum: ["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"] },
@@ -131,9 +142,6 @@ const commercialDetailsSchema = new Schema(
 const sellInfoSchema = new Schema(
   {
     price: { type: Number },
-    constructionStatus: { type: String, enum: ["UnderConstruction", "ReadyToMove"] },
-    ageOfProperty: { type: Number },        // in years, only when ReadyToMove
-    availableFrom: { type: Date },          // only when UnderConstruction
   },
   { _id: false }
 );
@@ -144,10 +152,7 @@ const rentInfoSchema = new Schema(
   {
     monthlyRent: { type: Number },
     availableFrom: { type: Date },
-    securityDeposit: {
-      type: { type: String, enum: ["None", "1Month", "2Month", "Custom"] },
-      amount: { type: Number },                         // only when type = Custom
-    },
+    securityDeposit: { type: Number },
   },
   { _id: false }
 );
@@ -215,6 +220,7 @@ const propertyListingSchema = new Schema(
         name: { type: String, trim: true },
       },
     },
+    zeroBrokerage: { type: Boolean },
 
     // ── Media ─────────────────────────────────────────────────────────────────
     media: {

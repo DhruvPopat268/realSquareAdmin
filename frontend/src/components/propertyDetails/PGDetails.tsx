@@ -36,10 +36,12 @@ export default function PGDetails({ data, rentInfo }: Props) {
           <InfoItem label="PG Name"           value={data.pgName} />
           <InfoItem label="Total Beds"         value={data.totalBedsAvailable != null ? `${data.totalBedsAvailable} beds` : null} />
           <InfoItem label="Accommodation For"  value={data.pgFor} />
+          <InfoItem label="Construction Status" value={data.constructionStatus === "ReadyToMove" ? "Ready to Move" : data.constructionStatus === "UnderConstruction" ? "Under Construction" : undefined} />
+          <InfoItem label="Age of Property" value={data.ageOfProperty != null ? `${data.ageOfProperty} year${data.ageOfProperty !== 1 ? "s" : ""}` : null} />
           <InfoItem label="Best Suited For"    value={data.bestSuitedFor?.join(", ")} />
           <InfoItem label="Notice Period"      value={data.noticePeriod != null ? `${data.noticePeriod} days` : null} />
           <InfoItem label="Lock-in Period"     value={data.lockInPeriod != null ? `${data.lockInPeriod} days` : null} />
-          <InfoItem label="Available From"     value={formatDate(rentInfo?.availableFrom)} />
+          <InfoItem label="Available From"     value={formatDate(data.constructionStatus === "UnderConstruction" ? data.availableFrom : rentInfo?.availableFrom)} />
           <InfoItem label="Meals Included"
             value={
               data.mealsAvailable && data.meals?.length
