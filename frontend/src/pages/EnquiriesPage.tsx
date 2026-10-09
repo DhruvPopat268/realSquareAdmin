@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, CalendarDays, CheckCircle2, Clock3, Flame, Sun, Snowflake, Eye, Ban } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CalendarDays, FileText, CheckCircle2, Clock3, Flame, Sun, Snowflake, Eye, Ban } from "lucide-react";
 import { inquiriesService, type AdminInquiry, type AdminInquiryFilters } from "@/services/inquiriesService";
 import api from "@/lib/axiosInterceptor";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
@@ -302,7 +302,11 @@ export default function EnquiriesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-8">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-9">
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100"><FileText className="h-5 w-5 text-blue-600" /></div>
+          <div><p className="text-xs text-muted-foreground">Total</p><p className="text-xl font-bold text-blue-600">{total.toLocaleString()}</p></div>
+        </div>
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           <div><p className="text-xs text-muted-foreground">Active</p><p className="text-xl font-bold text-green-600">{stats.active.toLocaleString()}</p></div>
@@ -474,7 +478,6 @@ export default function EnquiriesPage() {
             <DropdownMenuItem onClick={() => set("status", "inactive")}>Inactive</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("status", "completed")}>Completed</DropdownMenuItem>
             <DropdownMenuItem onClick={() => set("status", "expired")}>Expired</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => set("status", "rejected")}>Rejected</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -705,11 +708,11 @@ export default function EnquiriesPage() {
 
       <div className="flex items-center justify-end gap-2">
         <span className="text-sm text-muted-foreground">Page {query.page} of {Math.max(1, totalPages)}</span>
-        <Button variant="outline" size="sm" onClick={() => goToPage(query.page - 1)} disabled={loading || query.page <= 1}>
-          Previous
+        <Button variant="outline" size="sm" onClick={() => goToPage(query.page - 1)} disabled={loading || query.page <= 1} aria-label="Previous page">
+          <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={() => goToPage(query.page + 1)} disabled={loading || query.page >= totalPages}>
-          Next
+        <Button variant="outline" size="sm" onClick={() => goToPage(query.page + 1)} disabled={loading || query.page >= totalPages} aria-label="Next page">
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
       <AlertDialog open={Boolean(statusConfirmation)} onOpenChange={(open) => { if (!open && !statusUpdatingId) setStatusConfirmation(null); }}>

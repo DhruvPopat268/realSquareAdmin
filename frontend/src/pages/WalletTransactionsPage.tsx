@@ -113,7 +113,7 @@ export default function WalletTransactionsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Wallet Transactions</h1>
+        <h1 className="text-2xl font-bold text-foreground">Payment Transactions</h1>
         <p className="text-sm text-muted-foreground mt-0.5">All payment transactions and admin wallet balance.</p>
       </div>
 

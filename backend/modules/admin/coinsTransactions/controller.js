@@ -1,4 +1,5 @@
 const CoinsTransaction = require("../../mixed/coinsTransactions/model");
+const mongoose = require("mongoose");
 
 // ── Get All Coins Transactions ────────────────────────────────────────────────
 const getCoinsTransactions = async (req, res) => {
@@ -7,7 +8,13 @@ const getCoinsTransactions = async (req, res) => {
     if (req.query.type)     filter.type     = req.query.type;
     if (req.query.reason)   filter.reason   = req.query.reason;
     if (req.query.userType) filter.userType = req.query.userType;
-    if (req.query.userId)   filter.user     = req.query.userId;
+    if (req.query.userId) {
+      if (!mongoose.isValidObjectId(req.query.userId)) {
+        return res.status(400).json({ success: false, message: "userId must be a valid ID" });
+      }
+      // Mongoose casts find() filters, but aggregation $match does not.
+      filter.user = new mongoose.Types.ObjectId(req.query.userId);
+    }
 
     const page  = Math.max(1, parseInt(req.query.page)  || 1);
     const limit = Math.max(1, parseInt(req.query.limit) || 10);

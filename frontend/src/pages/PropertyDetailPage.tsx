@@ -49,6 +49,63 @@ function formatDate(dateStr?: string) {
   return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function getYouTubeEmbedUrl(value?: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (host !== "youtu.be" && host !== "youtube.com" && !host.endsWith(".youtube.com")) return null;
+
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const videoId = host === "youtu.be"
+      ? pathParts[0]
+      : url.searchParams.get("v") ?? (pathParts[0] === "watch" ? null : pathParts[1]);
+    if (!videoId || !/^[a-zA-Z0-9_-]{6,20}$/.test(videoId)) return null;
+    return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0`;
+  } catch {
+    return null;
+  }
+}
+
+function ListingVideo({ title, fileUrl, youtubeUrl }: { title: string; fileUrl?: string; youtubeUrl?: string }) {
+  const youtubeEmbedUrl = getYouTubeEmbedUrl(youtubeUrl);
+  if (!fileUrl && !youtubeEmbedUrl) return null;
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-base font-bold text-foreground">{title}</h2>
+        <p className="text-xs text-muted-foreground">Uploaded video and YouTube links</p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {fileUrl && (
+          <video
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full aspect-video rounded-xl bg-black object-contain"
+            aria-label={title}
+          >
+            <source src={fileUrl} />
+            Your browser does not support video playback.
+          </video>
+        )}
+        {youtubeEmbedUrl && (
+          <iframe
+            src={youtubeEmbedUrl}
+            title={`${title} on YouTube`}
+            className="w-full aspect-video rounded-xl bg-black"
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
 function DetailItem({ label, value }: { label: string; value?: string | number | null }) {
   if (value === undefined || value === null || value === "") return null;
   return (
@@ -267,38 +324,57 @@ export default function PropertyDetailPage() {
 
       {/* Image Gallery — show first 4, 4th blurred with +N overlay */}
       {imgs.length > 0 && (
-        <div className="grid grid-cols-4 gap-2 rounded-xl overflow-hidden">
-          {imgs.slice(0, 4).map((src, i) => {
-            const isLast    = i === 3;
-            const remaining = imgs.length - 4; // how many hidden beyond 4
-            const showOverlay = isLast && remaining > 0;
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-bold text-foreground">Property Images</h2>
+            <p className="text-xs text-muted-foreground">Uploaded property photos</p>
+          </div>
+          <div className="grid grid-cols-4 gap-2 rounded-xl overflow-hidden">
+            {imgs.slice(0, 4).map((src, i) => {
+              const isLast    = i === 3;
+              const remaining = imgs.length - 4; // how many hidden beyond 4
+              const showOverlay = isLast && remaining > 0;
 
-            return (
-              <div
-                key={i}
-                className="relative cursor-pointer overflow-hidden h-56 rounded-lg"
-                onClick={() => setLightbox(i)}
-              >
-                <img
-                  src={src}
-                  alt={`Property ${i + 1}`}
-                  className={`w-full h-full object-cover transition
-                    ${showOverlay ? "blur-sm brightness-50 scale-105" : "hover:brightness-95"}`}
-                />
-                {showOverlay && (
-                  <div
-                    className="absolute inset-0 flex flex-col items-center justify-center gap-1 cursor-pointer"
-                    onClick={() => setLightbox(3)}
-                  >
-                    <span className="text-white text-3xl font-bold drop-shadow">+{remaining}</span>
-                    <span className="text-white/80 text-xs font-medium">more photos</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              return (
+                <div
+                  key={i}
+                  className="relative cursor-pointer overflow-hidden h-56 rounded-lg"
+                  onClick={() => setLightbox(i)}
+                >
+                  <img
+                    src={src}
+                    alt={`Property ${i + 1}`}
+                    className={`w-full h-full object-cover transition
+                      ${showOverlay ? "blur-sm brightness-50 scale-105" : "hover:brightness-95"}`}
+                  />
+                  {showOverlay && (
+                    <div
+                      className="absolute inset-0 flex flex-col items-center justify-center gap-1 cursor-pointer"
+                      onClick={() => setLightbox(3)}
+                    >
+                      <span className="text-white text-3xl font-bold drop-shadow">+{remaining}</span>
+                      <span className="text-white/80 text-xs font-medium">more photos</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
+
+      <div className="space-y-6">
+        <ListingVideo
+          title="Property Videos"
+          fileUrl={p.media?.videos?.videoUrl}
+          youtubeUrl={p.media?.videos?.ytVideoUrl}
+        />
+        <ListingVideo
+          title="Property Reels"
+          fileUrl={p.media?.reelVideo?.reelUrl}
+          youtubeUrl={p.media?.reelVideo?.ytReelUrl}
+        />
+      </div>
 
       {/* Lightbox — rendered via portal so it covers sidebar/header too */}
       {lightbox !== null && imgs[lightbox] && createPortal(

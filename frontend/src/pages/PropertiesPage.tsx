@@ -851,9 +851,9 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { setPendingRoleId(""); setPendingUserId(""); }}>All Roles</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setPendingRoleId("")}>All Roles</DropdownMenuItem>
               {roles.map((r) => (
-                <DropdownMenuItem key={r._id} onClick={() => { setPendingRoleId(r._id); setPendingUserId(""); }}>
+                <DropdownMenuItem key={r._id} onSelect={() => setPendingRoleId(r._id)}>
                   {r.name}
                 </DropdownMenuItem>
               ))}
@@ -940,9 +940,9 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => { setPendingRoleId(""); setPendingUserId(""); }}>All Roles</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setPendingRoleId("")}>All Roles</DropdownMenuItem>
             {roles.map((r) => (
-              <DropdownMenuItem key={r._id} onClick={() => { setPendingRoleId(r._id); setPendingUserId(""); }}>
+              <DropdownMenuItem key={r._id} onSelect={() => setPendingRoleId(r._id)}>
                 {r.name}
               </DropdownMenuItem>
             ))}

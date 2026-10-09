@@ -1334,6 +1334,7 @@ const get1YearInactiveProperties = async (_req, res) => {
     let deletedFileCount = 0;
     let missingFileCount = 0;
     let preservedNonLocalImageCount = 0;
+    let preservedNonLocalVideoCount = 0;
     let failedListingCount = 0;
     let failedFileCount = 0;
 
@@ -1342,6 +1343,8 @@ const get1YearInactiveProperties = async (_req, res) => {
       const currentImages = listing.media?.images ?? [];
       const imagesToKeep = [];
       const failedImages = [];
+      const videosToKeep = {};
+      const failedVideos = {};
       let listingHasFileError = false;
 
       for (const imageUrl of currentImages) {
@@ -1368,10 +1371,44 @@ const get1YearInactiveProperties = async (_req, res) => {
         }
       }
 
+      // Remove locally uploaded property videos and reels too. Keep external
+      // URLs and YouTube links; only `videoUrl` and `reelUrl` are file uploads.
+      const uploadedVideos = [
+        ["media.videos.videoUrl", listing.media?.videos?.videoUrl],
+        ["media.reelVideo.reelUrl", listing.media?.reelVideo?.reelUrl],
+      ];
+
+      for (const [mediaField, videoUrl] of uploadedVideos) {
+        if (!videoUrl) continue;
+
+        const videoPath = resolveStoredVideoPath(videoUrl);
+        if (!videoPath) {
+          videosToKeep[mediaField] = videoUrl;
+          preservedNonLocalVideoCount += 1;
+          continue;
+        }
+
+        try {
+          await fs.unlink(videoPath);
+          deletedFileCount += 1;
+        } catch (error) {
+          if (error.code === "ENOENT") {
+            missingFileCount += 1;
+            continue;
+          }
+          listingHasFileError = true;
+          failedFileCount += 1;
+          failedVideos[mediaField] = videoUrl;
+          console.error(`[Property Listing Cron] Could not remove media for listing ${listing._id}:`, error.message);
+        }
+      }
+
       if (listingHasFileError) {
         // Keep failed paths so the next cron run can retry them. Keep updatedAt
         // unchanged and leave status eligible for retry.
         listing.set("media.images", [...imagesToKeep, ...failedImages]);
+        listing.set("media.videos.videoUrl", videosToKeep["media.videos.videoUrl"] ?? failedVideos["media.videos.videoUrl"]);
+        listing.set("media.reelVideo.reelUrl", videosToKeep["media.reelVideo.reelUrl"] ?? failedVideos["media.reelVideo.reelUrl"]);
         try {
           await listing.save({ timestamps: false });
         } catch (error) {
@@ -1382,6 +1419,8 @@ const get1YearInactiveProperties = async (_req, res) => {
       }
 
       listing.set("media.images", imagesToKeep);
+      listing.set("media.videos.videoUrl", videosToKeep["media.videos.videoUrl"]);
+      listing.set("media.reelVideo.reelUrl", videosToKeep["media.reelVideo.reelUrl"]);
       listing.status = "Inactive";
       try {
         await listing.save();
@@ -1403,6 +1442,7 @@ const get1YearInactiveProperties = async (_req, res) => {
         deletedFileCount,
         missingFileCount,
         preservedNonLocalImageCount,
+        preservedNonLocalVideoCount,
         failedListingCount,
         failedFileCount,
         cutoffDate,

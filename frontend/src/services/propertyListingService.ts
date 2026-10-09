@@ -129,7 +129,11 @@ export interface PropertyListing {
     profilePhoto?: string;
     role?: { id: string; name: string };
   };
-  media?: { images: string[] };
+  media?: {
+    images: string[];
+    videos?: { videoUrl?: string; ytVideoUrl?: string };
+    reelVideo?: { reelUrl?: string; ytReelUrl?: string };
+  };
   zeroBrokerage?: boolean;
   residentialDetails?: ResidentialDetails;
   plotDetails?: PlotDetails;

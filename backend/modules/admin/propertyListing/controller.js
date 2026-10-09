@@ -95,10 +95,9 @@ const getPaginatedListings = async (req, res, listingTypeId = null) => {
 
     const query = buildQuery(req.query, listingTypeId);
 
-    // Stats query — same filters as main query but WITHOUT status
-    // so counts reflect all statuses under the current filter set
-    const { status: _omit, ...reqQueryWithoutStatus } = req.query;
-    const statsQuery = buildQuery(reqQueryWithoutStatus, listingTypeId);
+    // Stats use the same filters as listings (excluding only pagination),
+    // including the selected status filter.
+    const statsQuery = buildQuery(req.query, listingTypeId);
 
     const [listings, total, stats] = await Promise.all([
       PropertyListing.find(query)

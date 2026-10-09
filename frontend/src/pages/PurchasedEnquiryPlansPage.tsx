@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Archive, Ban } from "lucide-react";
+import { FileText, ChevronDown, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Archive, Ban } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { enquiryPurchasedPlansService, type EnquiryPurchasedPlan } from "@/services/enquiryPurchasedPlansService";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { useToast } from "@/hooks/use-toast";
@@ -10,8 +11,8 @@ import Spinner from "@/components/Spinner";
 
 const LIMITS = [10, 20, 50, 100];
 
-interface Query { page: number; limit: number; status: string; userType: string; userId: string; }
-const DEFAULT_QUERY: Query = { page: 1, limit: 10, status: "", userType: "", userId: "" };
+interface Query { page: number; limit: number; planType: string; status: string; userType: string; userId: string; }
+const DEFAULT_QUERY: Query = { page: 1, limit: 10, planType: "", status: "", userType: "", userId: "" };
 
 const STATUS_COLORS: Record<string, string> = {
   Active:    "bg-green-100 text-green-700",
@@ -30,23 +31,37 @@ export default function PurchasedEnquiryPlansPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [userSearch, setUserSearch] = useState("");
 
   const [pending, setPending] = useState<Query>(DEFAULT_QUERY);
   const [query, setQuery]     = useState<Query>(DEFAULT_QUERY);
 
-  const hasFilters = query.status || query.userType || query.userId;
+  const hasFilters = query.planType || query.status || query.userType || query.userId;
 
   useEffect(() => {
-    systemUsersService.getActiveUsers()
-      .then((res) => setActiveUsers(res.data.data))
-      .catch(() => {});
-  }, []);
+    if (!userSearch.trim()) {
+      systemUsersService.getActiveUsers()
+        .then((res) => { if (res.data.success) setActiveUsers(res.data.data); })
+        .catch(() => {});
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await systemUsersService.getActiveUsers({ search: userSearch.trim() });
+        if (res.data.success) setActiveUsers(res.data.data);
+      } catch (err) {
+        console.error("Failed to search users:", err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
         const params: Record<string, string | number> = { page: query.page, limit: query.limit };
+        if (query.planType) params.planType = query.planType;
         if (query.status)   params.status   = query.status;
         if (query.userType) params.userType = query.userType;
         if (query.userId)   params.userId   = query.userId;
@@ -82,7 +97,16 @@ export default function PurchasedEnquiryPlansPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+            <FileText className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total</p>
+            <p className="text-xl font-bold text-blue-600">{total.toLocaleString()}</p>
+          </div>
+        </div>
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -134,6 +158,14 @@ export default function PurchasedEnquiryPlansPage() {
         </div>
         <p className="text-sm text-muted-foreground">{total} record{total !== 1 ? "s" : ""}</p>
         <div className="flex-1" />
+        <Select value={pending.planType} onValueChange={(v) => set("planType", v)}>
+          <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="Select Plan Type" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Plan Types</SelectItem>
+            <SelectItem value="Free">Free</SelectItem>
+            <SelectItem value="Paid">Paid</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={pending.status} onValueChange={(v) => set("status", v)}>
           <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="Select Status" /></SelectTrigger>
           <SelectContent>
@@ -148,17 +180,25 @@ export default function PurchasedEnquiryPlansPage() {
             {["Owner", "Broker", "Builder"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={pending.userId} onValueChange={(v) => set("userId", v)}>
-          <SelectTrigger className="h-9 w-56 text-sm"><SelectValue placeholder="Select User" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Users</SelectItem>
+        <DropdownMenu onOpenChange={(open) => { if (!open) setUserSearch(""); }}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 font-medium focus-visible:ring-0 focus-visible:ring-offset-0">
+              <span className="text-sm font-medium">{pending.userId ? (activeUsers.find((u) => u._id === pending.userId)?.name ?? activeUsers.find((u) => u._id === pending.userId)?.mobile ?? "All Users") : "All Users"}</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <div className="px-2 py-1.5">
+              <input autoFocus value={userSearch} onChange={(e) => setUserSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} placeholder="Search by name..." className="w-full rounded-md border px-2.5 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30" />
+            </div>
+            <DropdownMenuItem onSelect={() => set("userId", "all")}>All Users</DropdownMenuItem>
             {activeUsers.map((u) => (
-              <SelectItem key={u._id} value={u._id}>
+              <DropdownMenuItem key={u._id} onSelect={() => set("userId", u._id)}>
                 {u.name ?? u.mobile} — {u.roleName}
-              </SelectItem>
+              </DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
         {hasFilters && (
           <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={clearFilters}>

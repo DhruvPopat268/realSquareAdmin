@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, TrendingDown, Coins, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { TrendingUp, TrendingDown, Coins, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { coinsTransactionsService, type CoinsTransaction } from "@/services/coinsTransactionsService";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,7 @@ export default function CoinsTransactionsPage() {
   const [totalPages, setTotalPages]     = useState(1);
 
   const [activeUsers, setActiveUsers]   = useState<ActiveUser[]>([]);
+  const [userSearch, setUserSearch] = useState("");
 
   // pending = what user has selected in dropdowns (not yet applied)
   const [pending, setPending] = useState<Query>(DEFAULT_QUERY);
@@ -44,10 +46,22 @@ export default function CoinsTransactionsPage() {
   const hasFilters = query.type || query.reason || query.userType || query.userId;
 
   useEffect(() => {
-    systemUsersService.getActiveUsers()
-      .then((res) => setActiveUsers(res.data.data))
-      .catch(() => {});
-  }, []);
+    if (!userSearch.trim()) {
+      systemUsersService.getActiveUsers()
+        .then((res) => { if (res.data.success) setActiveUsers(res.data.data); })
+        .catch(() => {});
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await systemUsersService.getActiveUsers({ search: userSearch.trim() });
+        if (res.data.success) setActiveUsers(res.data.data);
+      } catch (err) {
+        console.error("Failed to search users:", err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
 
   useEffect(() => {
     async function load() {
@@ -159,17 +173,25 @@ export default function CoinsTransactionsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={pending.userId} onValueChange={(v) => set("userId", v)}>
-          <SelectTrigger className="h-9 w-56 text-sm"><SelectValue placeholder="Select User" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Users</SelectItem>
+        <DropdownMenu onOpenChange={(open) => { if (!open) setUserSearch(""); }}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 font-medium focus-visible:ring-0 focus-visible:ring-offset-0">
+              <span className="text-sm font-medium">{pending.userId ? (activeUsers.find((u) => u._id === pending.userId)?.name ?? activeUsers.find((u) => u._id === pending.userId)?.mobile ?? "All Users") : "All Users"}</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <div className="px-2 py-1.5">
+              <input autoFocus value={userSearch} onChange={(e) => setUserSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} placeholder="Search by name..." className="w-full rounded-md border px-2.5 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30" />
+            </div>
+            <DropdownMenuItem onSelect={() => set("userId", "all")}>All Users</DropdownMenuItem>
             {activeUsers.map((u) => (
-              <SelectItem key={u._id} value={u._id}>
+              <DropdownMenuItem key={u._id} onSelect={() => set("userId", u._id)}>
                 {u.name ?? u.mobile} — {u.roleName}
-              </SelectItem>
+              </DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>
         {hasFilters && (
           <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={clearFilters}>

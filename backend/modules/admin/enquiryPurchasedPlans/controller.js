@@ -1,12 +1,31 @@
 const EnquiryPurchasedPlan = require("../../mixed/enquiryPurchasedPlans/model");
+const mongoose = require("mongoose");
 
 // ── Get All Enquiry Purchased Plans ───────────────────────────────────────────
 const getEnquiryPurchasedPlans = async (req, res) => {
   try {
     const filter = {};
+    if (req.query.planType) {
+      if (!["Free", "Paid"].includes(req.query.planType)) {
+        return res.status(400).json({ success: false, message: "planType must be Free or Paid" });
+      }
+      // Plan type is derived from the snapshot values, matching the admin UI.
+      filter.$nor = [{ "plan.amount": 0, "plan.coins": 0 }];
+      if (req.query.planType === "Free") {
+        delete filter.$nor;
+        filter["plan.amount"] = 0;
+        filter["plan.coins"] = 0;
+      }
+    }
     if (req.query.status)   filter.status   = req.query.status;
     if (req.query.userType) filter.userType = req.query.userType;
-    if (req.query.userId)   filter.user     = req.query.userId;
+    if (req.query.userId) {
+      if (!mongoose.isValidObjectId(req.query.userId)) {
+        return res.status(400).json({ success: false, message: "userId must be a valid ID" });
+      }
+      // Mongoose casts find() filters, but aggregation $match does not.
+      filter.user = new mongoose.Types.ObjectId(req.query.userId);
+    }
 
     const page  = Math.max(1, parseInt(req.query.page)  || 1);
     const limit = Math.max(1, parseInt(req.query.limit) || 10);
