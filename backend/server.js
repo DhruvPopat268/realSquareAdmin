@@ -6,6 +6,7 @@ const connectDB = require("./database/config");
 const { connectRedis } = require("./redis/config");
 const routes                = require("./routes/index");
 const { manageOnlinePayment } = require("./webhook/manageOnlinePayment");
+const { getUploadSizeErrorMessage } = require("./utils/upload");
 
 const app = express();
 
@@ -47,9 +48,10 @@ app.use((req, res) => {
 // ── Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(err.status || 500).json({
+  const isFileTooLarge = err.code === "LIMIT_FILE_SIZE";
+  res.status(isFileTooLarge ? 413 : err.status || 500).json({
     success: false,
-    message: err.message || "Internal Server Error",
+    message: isFileTooLarge ? getUploadSizeErrorMessage(err.field) : err.message || "Internal Server Error",
   });
 });
 

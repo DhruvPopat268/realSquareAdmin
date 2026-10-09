@@ -225,6 +225,14 @@ const propertyListingSchema = new Schema(
     // ── Media ─────────────────────────────────────────────────────────────────
     media: {
       images: [{ type: String, trim: true }],           // S3/CDN URLs (first is primary/cover)
+      videos: {
+        videoUrl: { type: String, trim: true },
+        ytVideoUrl: { type: String, trim: true },
+      },
+      reelVideo: {
+        reelUrl: { type: String, trim: true },
+        ytReelUrl: { type: String, trim: true },
+      },
     },
 
     // ── Type-specific details (only one will be populated per listing) ────────

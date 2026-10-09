@@ -119,9 +119,9 @@ const sections = [
     ],
   },
   {
-    title: "Wallet Management",
+    title: "Payments Management",
     items: [
-      { type: "link", to: "/wallet/transactions", icon: Wallet, label: "Wallet Transactions" },
+      { type: "link", to: "/wallet/transactions", icon: Wallet, label: "Payment Transactions" },
     ],
   },
   {

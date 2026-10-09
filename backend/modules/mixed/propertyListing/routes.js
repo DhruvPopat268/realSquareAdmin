@@ -1,8 +1,8 @@
 const express  = require("express");
-const { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
+const { canList, create, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
 const { createListingValidator }        = require("./validator");
 const { userProtect }                   = require("../../../middleware/userAuth");
-const { uploadImage }                   = require("../../../utils/upload");
+const { uploadImage, handlePropertyMediaUpload } = require("../../../utils/upload");
 
 const router = express.Router();
 
@@ -28,7 +28,7 @@ router.get("/cron-1-year-inactive",          cronProtect, get1YearInactiveProper
 router.post("/",      userProtect, createListingValidator, create);
 router.patch("/",     userProtect, updateListing); // PATCH with ID in body
 router.post("/media", userProtect, uploadImage.array("images", 20), uploadMedia);
-router.patch("/media", userProtect, uploadImage.array("images", 20), appendMedia); // PATCH with ID in body for media upload
+router.patch("/media", userProtect, handlePropertyMediaUpload, updateMedia); // image, video, and reel media update
 
 // ── Status transition routes (must be before /:id wildcard) ─────────────────
 router.patch("/mark-inactive/:id", userProtect, markInactive);

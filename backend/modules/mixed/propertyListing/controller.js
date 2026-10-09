@@ -3,7 +3,7 @@ const mongoose           = require("mongoose");
 const fs                 = require("fs/promises");
 const path               = require("path");
 const PropertyListing    = require("./model");
-const { IMAGES_DIR }     = require("../../../utils/upload");
+const { IMAGES_DIR, VIDEOS_DIR } = require("../../../utils/upload");
 const AutoApprovalConfig = require("../../admin/autoApprovalConfig/model");
 const PropertyCategory   = require("../../admin/propertyCategories/model");
 const PropertyPurpose    = require("../../admin/propertyPurposes/model");
@@ -37,6 +37,29 @@ const resolveStoredImagePath = (imageUrl) => {
     const resolvedImagesDir = path.resolve(IMAGES_DIR);
     const resolvedImagePath = path.resolve(resolvedImagesDir, filename);
     return path.dirname(resolvedImagePath) === resolvedImagesDir ? resolvedImagePath : null;
+  } catch {
+    return null;
+  }
+};
+
+const resolveStoredVideoPath = (videoUrl) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL;
+    if (!backendUrl || typeof videoUrl !== "string") return null;
+
+    const backend = new URL(backendUrl);
+    const parsedVideoUrl = new URL(videoUrl, backend);
+    const videoPathPrefix = "/storage/videos/";
+    if (parsedVideoUrl.origin !== backend.origin || !parsedVideoUrl.pathname.startsWith(videoPathPrefix)) {
+      return null;
+    }
+
+    const filename = decodeURIComponent(parsedVideoUrl.pathname.slice(videoPathPrefix.length));
+    if (!filename || filename !== path.basename(filename)) return null;
+
+    const resolvedVideosDir = path.resolve(VIDEOS_DIR);
+    const resolvedVideoPath = path.resolve(resolvedVideosDir, filename);
+    return path.dirname(resolvedVideoPath) === resolvedVideosDir ? resolvedVideoPath : null;
   } catch {
     return null;
   }
@@ -1012,7 +1035,7 @@ const updateListing = async (req, res) => {
   }
 };
 
-// ── POST/PATCH /property-listings/:id/media (append new images) ──────────────
+// ── POST /property-listings/:id/media (append new images) ────────────────────
 const appendMedia = async (req, res) => {
   try {
     const { propertyListingId } = req.body;
@@ -1080,6 +1103,185 @@ const appendMedia = async (req, res) => {
       data: { images: listing.media.images },
     });
   } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /property-listings/media (update images, videos, and reels) ────────
+const updateMedia = async (req, res) => {
+  const uploadedFiles = Object.values(req.files ?? {}).flat();
+  const removeUploadedFiles = async () => {
+    await Promise.all(uploadedFiles.map((file) => fs.unlink(file.path).catch(() => {})));
+  };
+
+  try {
+    const { propertyListingId, ytVideoUrl, ytReelUrl } = req.body;
+    const id = propertyListingId || req.params.id;
+
+    if (!mongoose.isValidObjectId(id)) {
+      await removeUploadedFiles();
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+    }
+
+    const listing = await PropertyListing.findById(id);
+    if (!listing) {
+      await removeUploadedFiles();
+      return res.status(404).json({ success: false, message: "Listing not found" });
+    }
+
+    if (listing.listedBy.id.toString() !== req.user._id.toString()) {
+      await removeUploadedFiles();
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    const currentImages = listing.media?.images ?? [];
+    const imageFiles = req.files?.images ?? [];
+    const imagesWereSent = req.body.existingImages !== undefined || imageFiles.length > 0;
+    let nextImages = currentImages;
+
+    if (imagesWereSent) {
+      let existingImages = currentImages;
+      if (req.body.existingImages !== undefined) {
+        try {
+          existingImages = typeof req.body.existingImages === "string"
+            ? JSON.parse(req.body.existingImages)
+            : req.body.existingImages;
+        } catch {
+          await removeUploadedFiles();
+          return res.status(400).json({ success: false, message: "existingImages must be a valid JSON array" });
+        }
+        if (!Array.isArray(existingImages)) {
+          await removeUploadedFiles();
+          return res.status(400).json({ success: false, message: "existingImages must be an array" });
+        }
+      }
+
+      const newImageUrls = imageFiles.map((file) => toUrl(file.path));
+      let hasPrimary = false;
+      if (req.body.isPrimary !== undefined) {
+        try {
+          const primaryFlags = typeof req.body.isPrimary === "string"
+            ? JSON.parse(req.body.isPrimary)
+            : req.body.isPrimary;
+          if (!Array.isArray(primaryFlags)) throw new Error("isPrimary must be an array");
+          hasPrimary = primaryFlags[0] === true;
+        } catch {
+          await removeUploadedFiles();
+          return res.status(400).json({ success: false, message: "isPrimary must be a valid JSON array" });
+        }
+      }
+
+      nextImages = hasPrimary
+        ? [...newImageUrls, ...existingImages]
+        : [...existingImages, ...newImageUrls];
+    }
+
+    const validateYouTubeUrl = (value, label) => {
+      if (value === undefined) return { valid: true };
+      if (typeof value !== "string") return { valid: false, message: `${label} must be a URL` };
+      if (!value.trim()) return { valid: true, value: undefined };
+
+      try {
+        const parsed = new URL(value.trim());
+        const host = parsed.hostname.toLowerCase();
+        const isYouTube = host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com");
+        if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || !isYouTube) {
+          return { valid: false, message: `${label} must be a YouTube URL` };
+        }
+        return { valid: true, value: value.trim() };
+      } catch {
+        return { valid: false, message: `${label} must be a valid YouTube URL` };
+      }
+    };
+
+    const normalizedVideoUrl = validateYouTubeUrl(ytVideoUrl, "ytVideoUrl");
+    const normalizedReelUrl = validateYouTubeUrl(ytReelUrl, "ytReelUrl");
+    if (!normalizedVideoUrl.valid || !normalizedReelUrl.valid) {
+      await removeUploadedFiles();
+      return res.status(400).json({
+        success: false,
+        message: normalizedVideoUrl.message ?? normalizedReelUrl.message,
+      });
+    }
+
+    const parseClearFlag = (value, fieldName) => {
+      if (value === undefined || value === "false" || value === false) return { valid: true, value: false };
+      if (value === "true" || value === true) return { valid: true, value: true };
+      return { valid: false, message: `${fieldName} must be true or false` };
+    };
+
+    const clearVideo = parseClearFlag(req.body.clearVideo, "clearVideo");
+    const clearReelVideo = parseClearFlag(req.body.clearReelVideo, "clearReelVideo");
+    if (!clearVideo.valid || !clearReelVideo.valid) {
+      await removeUploadedFiles();
+      return res.status(400).json({ success: false, message: clearVideo.message ?? clearReelVideo.message });
+    }
+
+    const videoFile = req.files?.video?.[0];
+    const reelFile = req.files?.reelVideo?.[0];
+    if ((videoFile && clearVideo.value) || (reelFile && clearReelVideo.value)) {
+      await removeUploadedFiles();
+      return res.status(400).json({ success: false, message: "Choose either a replacement video or remove it, not both" });
+    }
+
+    const existingImagesSerialized = JSON.stringify(currentImages);
+    const existingVideos = listing.media?.videos?.toObject?.() ?? listing.media?.videos ?? {};
+    const existingReel = listing.media?.reelVideo?.toObject?.() ?? listing.media?.reelVideo ?? {};
+    const oldVideoUrl = existingVideos.videoUrl;
+    const oldReelUrl = existingReel.reelUrl;
+
+    const nextVideos = { ...existingVideos };
+    const nextReel = { ...existingReel };
+    if (normalizedVideoUrl.value !== undefined || ytVideoUrl !== undefined) {
+      nextVideos.ytVideoUrl = normalizedVideoUrl.value;
+    }
+    if (normalizedReelUrl.value !== undefined || ytReelUrl !== undefined) {
+      nextReel.ytReelUrl = normalizedReelUrl.value;
+    }
+    if (videoFile) nextVideos.videoUrl = toUrl(videoFile.path);
+    else if (clearVideo.value) nextVideos.videoUrl = undefined;
+    if (reelFile) nextReel.reelUrl = toUrl(reelFile.path);
+    else if (clearReelVideo.value) nextReel.reelUrl = undefined;
+
+    const changed =
+      JSON.stringify(nextImages) !== existingImagesSerialized ||
+      nextVideos.videoUrl !== oldVideoUrl ||
+      nextVideos.ytVideoUrl !== existingVideos.ytVideoUrl ||
+      nextReel.reelUrl !== oldReelUrl ||
+      nextReel.ytReelUrl !== existingReel.ytReelUrl;
+
+    if (!changed) {
+      await removeUploadedFiles();
+      return res.json({
+        success: true,
+        message: "No media changes detected",
+        data: { images: currentImages, videos: existingVideos, reelVideo: existingReel },
+      });
+    }
+
+    listing.media = listing.media ?? {};
+    listing.media.images = nextImages;
+    listing.media.videos = nextVideos;
+    listing.media.reelVideo = nextReel;
+    listing.status = await resolveStatus(req.user);
+    await listing.save();
+
+    for (const [oldUrl, nextUrl] of [[oldVideoUrl, nextVideos.videoUrl], [oldReelUrl, nextReel.reelUrl]]) {
+      if (oldUrl && oldUrl !== nextUrl) {
+        const oldPath = resolveStoredVideoPath(oldUrl);
+        if (oldPath) await fs.unlink(oldPath).catch((error) => {
+          if (error.code !== "ENOENT") console.error("[updateMedia] Could not remove replaced video:", error.message);
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: listing.status === "Active" ? "Property media updated successfully" : "Property media updated and listing sent for review",
+      data: { images: listing.media.images, videos: listing.media.videos, reelVideo: listing.media.reelVideo },
+    });
+  } catch (err) {
+    await removeUploadedFiles();
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -1319,4 +1521,4 @@ const markRented = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, uploadMedia, appendMedia, updateListing, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };
+module.exports = { canList, create, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };
