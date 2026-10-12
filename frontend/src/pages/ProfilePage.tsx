@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Spinner from "@/components/Spinner";
 import { toast } from "sonner";
-import { UserCircle, User, Lock, X, Eye, EyeOff } from "lucide-react";
+import { UserCircle, User, Lock, X, Eye, EyeOff, FileText } from "lucide-react";
 import api from "@/lib/axiosInterceptor";
 import { useProfile } from "@/context/ProfileContext";
 import { cn } from "@/lib/utils";
+import { invoiceConfigService, type InvoiceConfig } from "@/services/invoiceConfigService";
 
 const formatIST = (iso: string) => {
   return new Date(iso).toLocaleString("en-IN", {
@@ -92,11 +93,12 @@ interface SystemUser {
   myPropertyListingAllowed?: boolean;
 }
 
-type Section = "profile" | "security";
+type Section = "profile" | "security" | "invoiceConfig";
 
 const NAV: { key: Section; label: string; icon: React.ReactNode }[] = [
-  { key: "profile",  label: "Update Profile",    icon: <User className="h-4 w-4" /> },
-  { key: "security", label: "Security Settings", icon: <Lock className="h-4 w-4" /> },
+  { key: "profile",       label: "Update Profile",    icon: <User     className="h-4 w-4" /> },
+  { key: "security",      label: "Security Settings", icon: <Lock     className="h-4 w-4" /> },
+  { key: "invoiceConfig", label: "Invoice Config",    icon: <FileText className="h-4 w-4" /> },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -109,6 +111,7 @@ const ProfilePage = () => {
   const { refreshProfile } = useProfile();
   const [subProfile,  setSubProfile]  = useState(false);
   const [subSecurity, setSubSecurity] = useState(false);
+  const [subInvoice,  setSubInvoice]  = useState(false);
 
   // profile form
   const [name, setName]   = useState("");
@@ -125,10 +128,16 @@ const ProfilePage = () => {
   const [showNew, setShowNew]       = useState(false);
   const [showCon, setShowCon]       = useState(false);
 
+  // invoice config form
+  const [invoiceConfig, setInvoiceConfig] = useState<InvoiceConfig>({});
+  const [invoiceLogo, setInvoiceLogo]     = useState<File | null>(null);
+  const invoiceLogoRef                    = useRef<HTMLInputElement>(null);
+
   // section refs for scroll
   const sectionRefs: Record<Section, React.RefObject<HTMLDivElement>> = {
-    profile:  useRef<HTMLDivElement>(null),
-    security: useRef<HTMLDivElement>(null),
+    profile:       useRef<HTMLDivElement>(null),
+    security:      useRef<HTMLDivElement>(null),
+    invoiceConfig: useRef<HTMLDivElement>(null),
   };
 
   useEffect(() => {
@@ -139,6 +148,10 @@ const ProfilePage = () => {
       })
       .catch(() => toast.error("Failed to load profile"))
       .finally(() => setLoading(false));
+
+    invoiceConfigService.get()
+      .then(res => { if (res.data.success) setInvoiceConfig(res.data.data); })
+      .catch(() => {});
   }, []);
 
   // IntersectionObserver — highlight nav as sections scroll into view
@@ -195,6 +208,32 @@ const ProfilePage = () => {
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to change password");
     } finally { setSubSecurity(false); }
+  };
+
+  const handleSaveInvoiceConfig = async () => {
+    setSubInvoice(true);
+    try {
+      let payload: FormData | Omit<InvoiceConfig, "_id">;
+      if (invoiceLogo) {
+        const fd = new FormData();
+        fd.append("companyLogo",    invoiceLogo);
+        fd.append("companyName",    invoiceConfig.companyName    ?? "");
+        fd.append("companyMobile",  invoiceConfig.companyMobile  ?? "");
+        fd.append("companyEmail",   invoiceConfig.companyEmail   ?? "");
+        fd.append("companyAddress", invoiceConfig.companyAddress ?? "");
+        payload = fd;
+      } else {
+        const { _id, companyLogo, ...rest } = invoiceConfig;
+        payload = rest;
+      }
+      const res = await invoiceConfigService.update(payload);
+      setInvoiceConfig(res.data.data);
+      setInvoiceLogo(null);
+      if (invoiceLogoRef.current) invoiceLogoRef.current.value = "";
+      toast.success("Invoice config saved");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to save invoice config");
+    } finally { setSubInvoice(false); }
   };
 
   if (loading) return <Spinner />;
@@ -381,6 +420,102 @@ const ProfilePage = () => {
             <div className="px-6 pb-5 flex justify-end">
               <Button onClick={handleSaveSecurity} disabled={subSecurity} className="px-8">
                 {subSecurity ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        {/* Invoice Config */}
+        <div ref={sectionRefs.invoiceConfig}>
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Invoice Config
+              </CardTitle>
+            </CardHeader>
+            <Separator />
+            <CardContent className="pt-4 space-y-4">
+
+              {/* Company Logo */}
+              <div className="space-y-1.5">
+                <Label>Company Logo</Label>
+                <div className="flex items-center gap-4">
+                  {/* Preview */}
+                  {(invoiceLogo ? URL.createObjectURL(invoiceLogo) : invoiceConfig.companyLogo) ? (
+                    <img
+                      src={invoiceLogo ? URL.createObjectURL(invoiceLogo) : invoiceConfig.companyLogo}
+                      alt="Company Logo"
+                      className="h-14 w-14 rounded-md object-contain border border-border bg-muted"
+                    />
+                  ) : (
+                    <div className="h-14 w-14 rounded-md border border-border bg-muted flex items-center justify-center">
+                      <FileText className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      ref={invoiceLogoRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => setInvoiceLogo(e.target.files?.[0] ?? null)}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={() => invoiceLogoRef.current?.click()}>
+                      {invoiceLogo ? "Change" : "Upload Logo"}
+                    </Button>
+                    {invoiceLogo && (
+                      <button
+                        onClick={() => { setInvoiceLogo(null); if (invoiceLogoRef.current) invoiceLogoRef.current.value = ""; }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" /> Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Text fields */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Company Name</Label>
+                  <Input
+                    value={invoiceConfig.companyName ?? ""}
+                    onChange={(e) => setInvoiceConfig(p => ({ ...p, companyName: e.target.value }))}
+                    placeholder="Acme Realty Pvt Ltd"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Company Mobile</Label>
+                  <Input
+                    value={invoiceConfig.companyMobile ?? ""}
+                    onChange={(e) => setInvoiceConfig(p => ({ ...p, companyMobile: e.target.value }))}
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Company Email</Label>
+                  <Input
+                    type="email"
+                    value={invoiceConfig.companyEmail ?? ""}
+                    onChange={(e) => setInvoiceConfig(p => ({ ...p, companyEmail: e.target.value }))}
+                    placeholder="hello@acmerealty.in"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Company Address</Label>
+                <Input
+                  value={invoiceConfig.companyAddress ?? ""}
+                  onChange={(e) => setInvoiceConfig(p => ({ ...p, companyAddress: e.target.value }))}
+                  placeholder="12 Main Road, City, State 000000"
+                />
+              </div>
+
+            </CardContent>
+            <div className="px-6 pb-5 flex justify-end">
+              <Button onClick={handleSaveInvoiceConfig} disabled={subInvoice} className="px-8">
+                {subInvoice ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </Card>

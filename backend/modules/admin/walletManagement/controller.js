@@ -13,19 +13,31 @@ const getPaymentTransactions = async (req, res) => {
     if (req.query.reason)   filter.reason   = req.query.reason;
     if (req.query.userId)   filter.user     = req.query.userId;
 
-    const [wallet, transactions, total] = await Promise.all([
+    const [wallet, transactions, total, taxAgg] = await Promise.all([
       AdminWallet.findOne(),
       PaymentTransaction.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       PaymentTransaction.countDocuments(filter),
+      PaymentTransaction.aggregate([
+        { $match: { status: "Success" } },
+        {
+          $group: {
+            _id:                null,
+            totalTaxCollected:  { $sum: "$taxBreakdown.taxAmount" },
+            totalBaseAmount:    { $sum: "$baseAmount" },
+          },
+        },
+      ]),
     ]);
 
     const stats = {
-      currentBalance: wallet?.currentBalance ?? 0,
-      totalCredited:  wallet?.totalCredited  ?? 0,
-      totalDebited:   wallet?.totalDebited   ?? 0,
+      currentBalance:    wallet?.currentBalance    ?? 0,
+      totalCredited:     wallet?.totalCredited     ?? 0,
+      totalDebited:      wallet?.totalDebited      ?? 0,
+      totalTaxCollected: taxAgg[0]?.totalTaxCollected ?? 0,
+      totalBaseAmount:   taxAgg[0]?.totalBaseAmount   ?? 0,
     };
 
     res.json({

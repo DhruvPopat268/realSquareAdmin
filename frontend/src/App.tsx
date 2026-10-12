@@ -36,6 +36,7 @@ import FreeListingPage from "./pages/FreeListingPage";
 import EnquiryPlansPage from "./pages/EnquiryPlansPage";
 import PurchasedEnquiryPlansPage from "./pages/PurchasedEnquiryPlansPage";
 import LeadEnquiryCoinsConfigPage from "./pages/LeadEnquiryCoinsConfigPage";
+import GstConfigPage from "./pages/GstConfigPage";
 import NotFound from "./pages/NotFound";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -106,6 +107,7 @@ const App = () => (
 
             {/* Wallet */}
             <Route path="/wallet/transactions" element={<WalletTransactionsPage />} />
+            <Route path="/gst-config"          element={<GstConfigPage />} />
 
             {/* People */}
             <Route path="/contacts"  element={<Soon title="Contacts & Organizations" />} />

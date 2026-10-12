@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice {{invoiceNumber}}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#e9ebef;color:#222;padding:20px}
+.inv{max-width:800px;margin:0 auto;background:#fff;padding:40px;box-shadow:0 4px 20px #0002;font-size:14px}
+table{width:100%;border-collapse:collapse}
+.r{text-align:right}
+.flex{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+h1{font-size:30px;letter-spacing:2px}
+th{background:#f1f1f1;text-align:left;padding:10px;border-bottom:2px solid #222}
+td{padding:10px;border-bottom:1px solid #ddd}
+.meta{margin:24px 0}
+.tot td{padding:6px 0;border:0}
+.logo{height:52px;width:52px;object-fit:contain}
+@media print{body{background:#fff;padding:0}.inv{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="inv">
+  <div class="flex">
+    <div style="display:flex;align-items:center;gap:12px">
+      {{#if companyLogo}}<img class="logo" src="{{companyLogo}}" alt="{{companyName}}">{{/if}}
+      <div><h1>INVOICE</h1><p style="color:#666;margin-top:4px">#{{invoiceNumber}}</p></div>
+    </div>
+    <div class="r"><b>{{companyName}}</b><br>{{companyAddress}}<br>{{companyEmail}}<br>{{companyMobile}}</div>
+  </div>
+  <div class="flex meta">
+    <div><b>Bill to</b><br>{{customerName}}<br>{{customerMobile}}<br>{{userType}}</div>
+    <div class="r">Date: {{invoiceDate}}<br>Order ID: {{razorpayOrderId}}<br>Payment ID: {{razorpayPaymentId}}</div>
+  </div>
+  <table>
+    <tr><th>Description</th><th class="r">Amount</th></tr>
+    <tr><td>{{itemDescription}}</td><td class="r">{{currency}} {{amount}}</td></tr>
+  </table>
+  <table class="tot" style="width:260px;margin:20px 0 0 auto">
+    <tr><td>Subtotal</td><td class="r">{{currency}} {{amount}}</td></tr>
+    <tr><td>Tax</td><td class="r">—</td></tr>
+    <tr style="font-weight:700;font-size:17px;border-top:2px solid #222"><td>Total</td><td class="r">{{currency}} {{amount}}</td></tr>
+  </table>
+  <p style="margin-top:40px;color:#666;font-size:12px">Generated on {{generatedAt}}. Thank you for your business.</p>
+</div>
+</body>
+</html>

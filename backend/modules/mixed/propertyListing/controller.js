@@ -1178,8 +1178,11 @@ const updateMedia = async (req, res) => {
 
     const validateYouTubeUrl = (value, label) => {
       if (value === undefined) return { valid: true };
+      if (value === null) return { valid: true, value: null };
       if (typeof value !== "string") return { valid: false, message: `${label} must be a URL` };
-      if (!value.trim()) return { valid: true, value: undefined };
+      if (!value.trim() || value.trim().toLowerCase() === "null") {
+        return { valid: true, value: null };
+      }
 
       try {
         const parsed = new URL(value.trim());

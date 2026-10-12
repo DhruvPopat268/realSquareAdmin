@@ -2,6 +2,7 @@ const mongoose      = require("mongoose");
 const Plan          = require("../../modules/admin/plansManagement/model");
 const AdminWallet   = require("../../modules/admin/adminWallet/model");
 const ListingPurchasedPlan = require("../../modules/mixed/purchasedPlans/model");
+const GstConfig     = require("../../modules/admin/gstConfig/model");
 const getUserDetailsSnapshot = require("../../modules/mixed/userDetailsSnapshot");
 
 const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
@@ -12,13 +13,22 @@ const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
   if (!planId)       throw new Error("planId missing in payment notes");
   if (!activePlanId) throw new Error("activePlanId missing in payment notes");
 
-  const [plan, currentPlan] = await Promise.all([
+  const [plan, currentPlan, gstConfig] = await Promise.all([
     Plan.findById(planId),
     ListingPurchasedPlan.findById(activePlanId),
+    GstConfig.findOne().lean(),
   ]);
 
   if (!plan)        throw new Error(`Plan not found: ${planId}`);
   if (!currentPlan) throw new Error(`Active purchased plan not found: ${activePlanId}`);
+
+  // ── Tax breakdown ─────────────────────────────────────────────────────────
+  const cgst      = gstConfig?.cgst      ?? 0;
+  const sgst      = gstConfig?.sgst      ?? 0;
+  const igst      = gstConfig?.igst      ?? 0;
+  const taxRate   = igst > 0 ? igst : (cgst + sgst);
+  const taxAmount = parseFloat(((txn.amount * taxRate) / (100 + taxRate)).toFixed(2));
+  const baseAmount = parseFloat((txn.amount - taxAmount).toFixed(2));
 
   const expiryDurationDays = plan.expiryInDays ?? 0;
   const startDate          = new Date();
@@ -40,7 +50,6 @@ const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
       { new: true, upsert: true, session }
     );
 
-    // create the new plan first so we have its _id
     const newPlan = new ListingPurchasedPlan({
       user:          txn.user,
       userType:      txn.userType,
@@ -64,18 +73,18 @@ const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
     });
     await newPlan.save({ session });
 
-    // mark the old plan as cancelled and point upgradedPlan to the new one
-    currentPlan.status       = "Cancelled";
+    currentPlan.status             = "Cancelled";
     currentPlan.cancellationReason = "User upgraded plan";
-    currentPlan.changedPlanTo = newPlan._id;
+    currentPlan.changedPlanTo      = newPlan._id;
     await currentPlan.save({ session });
 
-    // finalise the payment transaction
     txn.razorpayPaymentId = payment.id;
     txn.razorpaySignature = signature;
     txn.status            = "Success";
     txn.refId             = newPlan._id;
     txn.refModel          = "ListingPlan";
+    txn.baseAmount        = baseAmount;
+    txn.taxBreakdown      = { cgst, sgst, igst, taxAmount };
     txn.balanceBefore     = adminWallet.currentBalance - purchaseAmount;
     txn.balanceAfter      = adminWallet.currentBalance;
     await txn.save({ session });

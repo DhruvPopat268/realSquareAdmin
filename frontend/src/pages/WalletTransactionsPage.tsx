@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wallet, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Wallet, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, Info } from "lucide-react";
 import { walletManagementService, type PaymentTransaction } from "@/services/walletManagementService";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { useToast } from "@/hooks/use-toast";
@@ -59,7 +60,7 @@ export default function WalletTransactionsPage() {
   const { toast } = useToast();
 
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
-  const [stats, setStats]               = useState({ currentBalance: 0, totalCredited: 0, totalDebited: 0 });
+  const [stats, setStats] = useState({ currentBalance: 0, totalCredited: 0, totalDebited: 0, totalTaxCollected: 0, totalBaseAmount: 0 });
   const [loading, setLoading]           = useState(true);
   const [total, setTotal]               = useState(0);
   const [totalPages, setTotalPages]     = useState(1);
@@ -118,7 +119,7 @@ export default function WalletTransactionsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
         <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
             <Wallet className="h-5 w-5 text-blue-600" />
@@ -144,6 +145,24 @@ export default function WalletTransactionsPage() {
           <div>
             <p className="text-xs text-muted-foreground">Total Debited</p>
             <p className="text-xl font-bold text-red-500">₹{stats.totalDebited.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+            <Info className="h-5 w-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total Tax Collected</p>
+            <p className="text-xl font-bold text-purple-600">₹{stats.totalTaxCollected.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+            <TrendingUp className="h-5 w-5 text-orange-500" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total Base Amount</p>
+            <p className="text-xl font-bold text-orange-500">₹{stats.totalBaseAmount.toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -221,7 +240,9 @@ export default function WalletTransactionsPage() {
                 <th className="px-4 py-3 text-left">User Type</th>
                 <th className="px-4 py-3 text-left">Transaction Type</th>
                 <th className="px-4 py-3 text-left">Reason</th>
-                <th className="px-4 py-3 text-left">Amount</th>
+                <th className="px-4 py-3 text-left">Amount captured</th>
+                <th className="px-4 py-3 text-left">Tax Amount</th>
+                <th className="px-4 py-3 text-left">Base Amount</th>
                 <th className="px-4 py-3 text-left">Balance Before</th>
                 <th className="px-4 py-3 text-left">Balance After</th>
                 <th className="px-4 py-3 text-left">Razorpay Order ID</th>
@@ -245,6 +266,40 @@ export default function WalletTransactionsPage() {
                   </td>
                   <td className="px-4 py-3"><Badge className={`text-xs ${REASON_COLORS[txn.reason] ?? "bg-muted text-muted-foreground"}`}>{REASON_LABELS[txn.reason] ?? txn.reason}</Badge></td>
                   <td className="px-4 py-3 font-semibold">₹{txn.amount.toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    {txn.taxBreakdown ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">₹{txn.taxBreakdown.taxAmount.toLocaleString()}</span>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="text-muted-foreground hover:text-foreground transition-colors">
+                              <Info className="h-3.5 w-3.5" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-44 p-3 text-xs space-y-1.5" align="start">
+                            <p className="font-semibold text-foreground mb-1">GST Breakdown</p>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">CGST</span>
+                              <span className="font-medium">{txn.taxBreakdown.cgst}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">SGST</span>
+                              <span className="font-medium">{txn.taxBreakdown.sgst}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">IGST</span>
+                              <span className="font-medium">{txn.taxBreakdown.igst}%</span>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {txn.baseAmount != null ? `₹${txn.baseAmount.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                  </td>
                   <td className="px-4 py-3">₹{txn.balanceBefore.toLocaleString()}</td>
                   <td className="px-4 py-3">₹{txn.balanceAfter.toLocaleString()}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{txn.razorpayOrderId}</td>

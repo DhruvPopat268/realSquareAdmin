@@ -9,6 +9,8 @@ export interface PaymentTransaction {
   razorpayOrderId: string;
   razorpayPaymentId?: string;
   amount: number;
+  baseAmount?: number;
+  taxBreakdown?: { cgst: number; sgst: number; igst: number; taxAmount: number };
   currency: string;
   balanceBefore: number;
   balanceAfter: number;
@@ -19,7 +21,13 @@ export interface PaymentTransaction {
 
 export interface WalletTransactionsResponse {
   success: boolean;
-  stats: { currentBalance: number; totalCredited: number; totalDebited: number };
+  stats: {
+    currentBalance: number;
+    totalCredited: number;
+    totalDebited: number;
+    totalTaxCollected: number;
+    totalBaseAmount: number;
+  };
   data: PaymentTransaction[];
   pagination: { total: number; page: number; limit: number; totalPages: number };
 }

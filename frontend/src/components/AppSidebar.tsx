@@ -121,7 +121,8 @@ const sections = [
   {
     title: "Payments Management",
     items: [
-      { type: "link", to: "/wallet/transactions", icon: Wallet, label: "Payment Transactions" },
+      { type: "link", to: "/wallet/transactions", icon: Wallet,   label: "Payment Transactions" },
+      { type: "link", to: "/gst-config",          icon: Settings, label: "GST Config" },
     ],
   },
   {

@@ -15,6 +15,13 @@ const paymentTransactionSchema = new mongoose.Schema(
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },
     amount:            { type: Number, required: true },
+    baseAmount:        { type: Number },          // plan/coins price before tax
+    taxBreakdown: {
+      cgst:      { type: Number},
+      sgst:      { type: Number },
+      igst:      { type: Number},
+      taxAmount: { type: Number },   // total tax added (cgst+sgst or igst applied on baseAmount)
+    },
     currency:          { type: String, default: "INR" },
     balanceBefore:     { type: Number, required: true },
     balanceAfter:      { type: Number, required: true },
