@@ -75,7 +75,6 @@ export default function PlotDetails({ data, commercialDetails }: Props) {
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
               <p className="text-xs font-semibold text-blue-700 mb-1">Plot Dimensions</p>
               <p className="text-xl font-bold text-blue-600">{length} ft × {width} ft</p>
-              <p className="text-xs text-blue-500 mt-1">Perimeter: {2 * (length + width)} ft</p>
             </div>
           )}
         </div>
