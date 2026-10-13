@@ -168,7 +168,9 @@ async function generateInvoice(transactionId) {
   let pdfBuffer;
   try {
     const page = await browser.newPage();
-    await page.setContent(renderedHtml, { waitUntil: "networkidle0" });
+    // The invoice only needs its HTML and inline styles. Waiting for network idle
+    // can time out on the optional company logo or other external resources.
+    await page.setContent(renderedHtml, { waitUntil: "domcontentloaded" });
     pdfBuffer = await page.pdf({
       format:               "A4",
       printBackground:      true,
