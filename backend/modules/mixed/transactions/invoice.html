@@ -145,9 +145,14 @@
   .invoice-date {
     white-space: nowrap;
     flex-shrink: 0;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 600;
     color: #111;
+  }
+
+  .invoice-date-label {
+    color: #aaa;
+    font-weight: 600;
   }
 
   /* ── Body */
@@ -318,7 +323,7 @@
       {{/if}}
     </div>
     <div class="info-block invoice-date" style="text-align:right">
-      {{invoiceDate}}
+      <span class="invoice-date-label">Date:&nbsp;</span><span>{{invoiceDate}}</span>
     </div>
   </div>
 
