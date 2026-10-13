@@ -16,6 +16,8 @@ export interface Owner {
   createdAt: string;
   updatedAt: string;
   ownerProfile: {
+    location?: { name: string; latitude: number; longitude: number };
+    state?: string;
     businessDetails?: {
       logo?: string;
       name?: string;

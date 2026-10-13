@@ -1,4 +1,5 @@
 import api from "@/lib/axiosInterceptor";
+import type { LocationValue } from "@/components/LocationPicker";
 
 export interface InvoiceConfig {
   _id?: string;
@@ -6,7 +7,8 @@ export interface InvoiceConfig {
   companyName?: string;
   companyMobile?: string;
   companyEmail?: string;
-  companyAddress?: string;
+  companyAddress?: LocationValue | string;
+  companyState?: string;
 }
 
 export const invoiceConfigService = {

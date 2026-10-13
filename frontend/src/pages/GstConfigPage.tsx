@@ -32,13 +32,6 @@ export default function GstConfigPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const activeMode = (): "cgst_sgst" | "igst" | "none" => {
-    if (!config) return "none";
-    if (config.igst > 0) return "igst";
-    if (config.cgst > 0 || config.sgst > 0) return "cgst_sgst";
-    return "none";
-  };
-
   const handleSave = async () => {
     const cgst = form.cgst !== "" ? Number(form.cgst) : undefined;
     const sgst = form.sgst !== "" ? Number(form.sgst) : undefined;
@@ -49,10 +42,6 @@ export default function GstConfigPage() {
     if (igst !== undefined && (isNaN(igst) || igst < 0 || igst > 100)) { toast.error("IGST must be between 0 and 100"); return; }
 
     if (cgst === undefined && sgst === undefined && igst === undefined) { toast.error("Fill at least one field to update"); return; }
-
-    if (igst !== undefined && igst > 0 && ((cgst !== undefined && cgst > 0) || (sgst !== undefined && sgst > 0))) {
-      toast.error("IGST cannot be set together with CGST or SGST"); return;
-    }
 
     const payload: Record<string, number> = {};
     if (cgst !== undefined) payload.cgst = cgst;
@@ -73,14 +62,12 @@ export default function GstConfigPage() {
 
   if (loading) return <Spinner fullPage={false} size="md" label="Loading GST config..." />;
 
-  const mode = activeMode();
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">GST Configuration</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Configure CGST + SGST or IGST applied on payments.</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Configure GST rates for in-state and out-of-state payments.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -110,14 +97,10 @@ export default function GstConfigPage() {
                   <span className={`text-sm font-semibold ${config.igst > 0 ? "text-foreground" : "text-muted-foreground"}`}>{config.igst}%</span>
                 </div>
 
-                <div className={`rounded-lg px-4 py-2 text-xs font-medium ${
-                  mode === "cgst_sgst" ? "bg-blue-50 text-blue-700 border border-blue-200" :
-                  mode === "igst"      ? "bg-purple-50 text-purple-700 border border-purple-200" :
-                                        "bg-muted text-muted-foreground border"
-                }`}>
-                  {mode === "cgst_sgst" && `Active: CGST (${config.cgst}%) + SGST (${config.sgst}%) = ${config.cgst + config.sgst}%`}
-                  {mode === "igst"      && `Active: IGST (${config.igst}%)`}
-                  {mode === "none"      && "No tax active (all set to 0)"}
+                <div className="rounded-lg border bg-muted px-4 py-3 text-xs text-muted-foreground space-y-1">
+                  <p><strong>In-state:</strong> CGST ({config.cgst}%) + SGST ({config.sgst}%) = {config.cgst + config.sgst}% total GST.</p>
+                  <p><strong>Out-of-state:</strong> IGST ({config.igst}%) applies instead.</p>
+                  {config.cgst === 0 && config.sgst === 0 && config.igst === 0 && <p>No GST is currently configured.</p>}
                 </div>
 
                 {config.updatedAt && (
@@ -133,8 +116,10 @@ export default function GstConfigPage() {
           <CardContent className="pt-6 space-y-4">
             <p className="text-sm font-semibold mb-2">Update GST Values</p>
 
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Use either <strong>CGST + SGST</strong> or <strong>IGST</strong> — not both. Leave unused fields empty.
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 space-y-1">
+              <p><strong>In-state transactions:</strong> CGST and SGST are both applied.</p>
+              <p><strong>Out-of-state transactions:</strong> IGST is applied instead of CGST and SGST.</p>
+              <p>Set all three rates here. The applicable rates are chosen for each transaction based on whether it is in-state or out-of-state.</p>
             </div>
 
             <div className="space-y-3">

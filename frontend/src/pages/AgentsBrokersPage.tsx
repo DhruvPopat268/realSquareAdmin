@@ -10,6 +10,7 @@ import { brokersService, type Broker } from "@/services/brokersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
 import EnquiryCitiesPicker from "@/components/EnquiryCitiesPicker";
+import LocationPicker, { type LocationValue } from "@/components/LocationPicker";
 import UserStatusStats, { type UserStatusCounts } from "@/components/UserStatusStats";
 
 const PAGE_SIZES = [10, 25, 50];
@@ -50,6 +51,7 @@ export default function AgentsBrokersPage() {
   const photoRef                        = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting]     = useState(false);
   const [enquiryCities, setEnquiryCities] = useState<string[]>([]);
+  const [location, setLocation] = useState<LocationValue | null>(null);
   const [reraInfoTarget, setReraInfoTarget] = useState<Broker | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Broker | null>(null);
@@ -93,6 +95,7 @@ export default function AgentsBrokersPage() {
     setPhotoFile(null);
     setPhotoPreview("");
     setEnquiryCities([]);
+    setLocation(null);
     setEditOpen(true);
   }
 
@@ -108,6 +111,7 @@ export default function AgentsBrokersPage() {
       yearsOfExperience: b.brokerProfile?.yearsOfExperience?.toString() || "",
       bio:               b.brokerProfile?.bio                          || "",
     });
+    setLocation(b.brokerProfile?.location || null);
     setEditErrors({});
     setPhotoFile(null);
     setPhotoPreview(b.profilePhoto || "");
@@ -143,6 +147,10 @@ export default function AgentsBrokersPage() {
     if (!editForm.fullName.trim()) errs.fullName = "Name is required";
     if (!editForm.mobile.trim())   errs.mobile   = "Mobile is required";
     if (Object.keys(errs).length) { setEditErrors(errs); return; }
+    if (!location) {
+      toast({ variant: "destructive", title: "Select a location before saving the broker" });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -161,6 +169,7 @@ export default function AgentsBrokersPage() {
       if (editForm.yearsOfExperience.trim()) fd.append("yearsOfExperience", editForm.yearsOfExperience.trim());
       if (editForm.bio.trim())               fd.append("bio",               editForm.bio.trim());
       fd.append("enquiryCities", JSON.stringify(enquiryCities));
+      fd.append("location", JSON.stringify(location));
       if (photoFile)                         fd.append("profilePhoto",      photoFile);
 
       if (isCreating) {
@@ -411,6 +420,11 @@ export default function AgentsBrokersPage() {
               <Label>Requirement Cities</Label>
               <EnquiryCitiesPicker value={enquiryCities} onChange={setEnquiryCities} />
               <p className="text-xs text-muted-foreground">Add cities where this broker wants to receive enquiries.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Location <span className="text-destructive">*</span></Label>
+              <LocationPicker value={location} onChange={setLocation} />
+              <p className="text-xs text-muted-foreground">Select a location suggestion so its state can be saved.</p>
             </div>
             <div className="space-y-1.5">
               <Label>Agency Name</Label>

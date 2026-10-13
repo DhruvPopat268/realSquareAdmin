@@ -231,23 +231,23 @@ export default function WalletTransactionsPage() {
           <p className="text-base font-medium">No transactions found</p>
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-3 text-left">#</th>
-                <th className="px-4 py-3 text-left">User</th>
-                <th className="px-4 py-3 text-left">User Type</th>
-                <th className="px-4 py-3 text-left">Transaction Type</th>
-                <th className="px-4 py-3 text-left">Reason</th>
-                <th className="px-4 py-3 text-left">Amount captured</th>
-                <th className="px-4 py-3 text-left">Tax Amount</th>
-                <th className="px-4 py-3 text-left">Base Amount</th>
-                <th className="px-4 py-3 text-left">Balance Before</th>
-                <th className="px-4 py-3 text-left">Balance After</th>
-                <th className="px-4 py-3 text-left">Razorpay Order ID</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Transacted At</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">#</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">User</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">User Type</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Transaction Type</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Reason</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Amount Captured</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Tax Amount</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Base Amount</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Balance Before</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Balance After</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Razorpay Order ID</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Status</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Transacted At</th>
               </tr>
             </thead>
             <tbody className="divide-y">

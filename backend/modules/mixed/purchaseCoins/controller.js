@@ -3,6 +3,7 @@ const CoinsOffer         = require("../../admin/coinsOffersManagement/model");
 const PaymentTransaction = require("../transactions/model");
 const AdminWallet        = require("../../admin/adminWallet/model");
 const getUserDetailsSnapshot = require("../userDetailsSnapshot");
+const { resolveOrderTax } = require("../transactions/taxJurisdiction");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -44,6 +45,8 @@ const createCoinsOrder = async (req, res) => {
       purchaseAmount = coins;
     }
 
+    const taxJurisdiction = await resolveOrderTax(req.user, userType);
+
     // create razorpay order (amount in paise)
     const razorpayOrder = await razorpay.orders.create({
       amount:   purchaseAmount * 100,
@@ -69,6 +72,8 @@ const createCoinsOrder = async (req, res) => {
       reason:          "CoinsPurchase",
       razorpayOrderId: razorpayOrder.id,
       amount:          purchaseAmount,
+      taxState:         { userState: taxJurisdiction.userState, companyState: taxJurisdiction.companyState },
+      taxBreakdown:     taxJurisdiction.taxBreakdown,
       currency:        "INR",
       balanceBefore,
       balanceAfter:    balanceBefore + purchaseAmount,
@@ -92,7 +97,7 @@ const createCoinsOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("createCoinsOrder error:", err);
-    res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
   }
 };
 

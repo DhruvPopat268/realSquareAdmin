@@ -11,6 +11,7 @@ import { ownersService, type Owner } from "@/services/ownersService";
 import { useToast } from "@/hooks/use-toast";
 import Spinner from "@/components/Spinner";
 import EnquiryCitiesPicker from "@/components/EnquiryCitiesPicker";
+import LocationPicker, { type LocationValue } from "@/components/LocationPicker";
 import UserStatusStats, { type UserStatusCounts } from "@/components/UserStatusStats";
 
 const PAGE_SIZES = [10, 25, 50];
@@ -60,12 +61,14 @@ export default function OwnersPage() {
   const logoRef                         = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting]     = useState(false);
   const [editEnquiryCities, setEditEnquiryCities] = useState<string[]>([]);
+  const [editLocation, setEditLocation] = useState<LocationValue | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(INIT_EDIT);
   const [createErrors, setCreateErrors] = useState<Partial<typeof INIT_EDIT>>({});
   const [creating, setCreating] = useState(false);
   const [createEnquiryCities, setCreateEnquiryCities] = useState<string[]>([]);
+  const [createLocation, setCreateLocation] = useState<LocationValue | null>(null);
   const [createProfilePhoto, setCreateProfilePhoto] = useState<File | null>(null);
   const [createProfilePhotoPreview, setCreateProfilePhotoPreview] = useState("");
   const [createBusinessLogo, setCreateBusinessLogo] = useState<File | null>(null);
@@ -135,6 +138,7 @@ export default function OwnersPage() {
       bizWebsite: o.ownerProfile?.businessDetails?.website      || "",
     });
     setEditEnquiryCities(o.enquiryCities || []);
+    setEditLocation(o.ownerProfile?.location || null);
     setEditErrors({});
     setEditProfilePhoto(null);
     setEditProfilePhotoPreview(o.profilePhoto || "");
@@ -171,6 +175,10 @@ export default function OwnersPage() {
     const errs: Partial<typeof INIT_EDIT> = {};
     if (!editForm.fullName.trim()) errs.fullName = "Name is required";
     if (Object.keys(errs).length) { setEditErrors(errs); return; }
+    if (!editLocation) {
+      toast({ variant: "destructive", title: "Select a location before saving the owner" });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -185,6 +193,7 @@ export default function OwnersPage() {
       if (editForm.bizMobile.trim())  fd.append("bizMobile", editForm.bizMobile.trim());
       if (editForm.bizWebsite.trim()) fd.append("bizWebsite",editForm.bizWebsite.trim());
       fd.append("enquiryCities", JSON.stringify(editEnquiryCities));
+      fd.append("location", JSON.stringify(editLocation));
       if (editProfilePhoto)        fd.append("profilePhoto", editProfilePhoto);
       if (logoFile)                   fd.append("businessLogo", logoFile);
 
@@ -213,6 +222,10 @@ export default function OwnersPage() {
       errors.bizMobile = "Business mobile must be exactly 10 digits";
     }
     if (Object.keys(errors).length) { setCreateErrors(errors); return; }
+    if (!createLocation) {
+      toast({ variant: "destructive", title: "Select a location before creating the owner" });
+      return;
+    }
 
     setCreating(true);
     try {
@@ -226,6 +239,7 @@ export default function OwnersPage() {
       if (createForm.bizMobile.trim()) fd.append("bizMobile", createForm.bizMobile.trim());
       if (createForm.bizWebsite.trim()) fd.append("bizWebsite", createForm.bizWebsite.trim());
       fd.append("enquiryCities", JSON.stringify(createEnquiryCities));
+      fd.append("location", JSON.stringify(createLocation));
       if (createProfilePhoto) fd.append("profilePhoto", createProfilePhoto);
       if (createBusinessLogo) fd.append("businessLogo", createBusinessLogo);
 
@@ -239,6 +253,7 @@ export default function OwnersPage() {
       setCreateForm(INIT_EDIT);
       setCreateErrors({});
       setCreateEnquiryCities([]);
+      setCreateLocation(null);
       setCreateProfilePhoto(null);
       setCreateProfilePhotoPreview("");
       setCreateBusinessLogo(null);
@@ -281,7 +296,7 @@ export default function OwnersPage() {
           <h1 className="text-2xl font-bold text-foreground">Owners</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage all registered property owners.</p>
         </div>
-        <Button onClick={() => { setCreateErrors({}); setCreateOpen(true); }}>+ Add Owner</Button>
+        <Button onClick={() => { setCreateErrors({}); setCreateLocation(null); setCreateOpen(true); }}>+ Add Owner</Button>
       </div>
 
       <UserStatusStats stats={stats} />
@@ -465,6 +480,11 @@ export default function OwnersPage() {
               <EnquiryCitiesPicker value={createEnquiryCities} onChange={setCreateEnquiryCities} />
               <p className="text-xs text-muted-foreground">Add cities where this owner wants to receive enquiries.</p>
             </div>
+            <div className="space-y-1.5">
+              <Label>Location <span className="text-destructive">*</span></Label>
+              <LocationPicker value={createLocation} onChange={setCreateLocation} />
+              <p className="text-xs text-muted-foreground">Select a location suggestion so its state can be saved.</p>
+            </div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">Business Details</p>
             <div className="space-y-1.5">
               <Label>Business Logo</Label>
@@ -546,6 +566,11 @@ export default function OwnersPage() {
               <Label>Requirement Cities</Label>
               <EnquiryCitiesPicker value={editEnquiryCities} onChange={setEditEnquiryCities} />
               <p className="text-xs text-muted-foreground">Add cities where this owner wants to receive enquiries.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Location <span className="text-destructive">*</span></Label>
+              <LocationPicker value={editLocation} onChange={setEditLocation} />
+              <p className="text-xs text-muted-foreground">Select a location suggestion so its state can be saved.</p>
             </div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">Business Details</p>
             <div className="space-y-1.5">

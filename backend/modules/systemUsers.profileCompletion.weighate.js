@@ -19,6 +19,10 @@ const PROFILE_COMPLETION_CONFIGS = [
       "ownerProfile.businessDetails.gstNumber",
       "ownerProfile.businessDetails.mobile",
       "ownerProfile.businessDetails.website",
+      "ownerProfile.location.name",
+      "ownerProfile.location.latitude",
+      "ownerProfile.location.longitude",
+      "ownerProfile.state",
     ],
   },
   {
@@ -29,6 +33,10 @@ const PROFILE_COMPLETION_CONFIGS = [
       "brokerProfile.agencyName",
       "brokerProfile.bio",
       "brokerProfile.reraVerification.reraId",
+      "brokerProfile.location.name",
+      "brokerProfile.location.latitude",
+      "brokerProfile.location.longitude",
+      "brokerProfile.state",
     ],
   },
   {
@@ -42,6 +50,7 @@ const PROFILE_COMPLETION_CONFIGS = [
       "builderProfile.location.name",
       "builderProfile.location.latitude",
       "builderProfile.location.longitude",
+      "builderProfile.state",
     ],
   },
 ].filter(({ roleId }) => Boolean(roleId));

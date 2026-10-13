@@ -9,27 +9,31 @@ export interface LocationValue {
   name: string;
   latitude: number;
   longitude: number;
+  state?: string;
 }
 
 interface Props {
-  value: LocationValue | null;
+  value: LocationValue | string | null;
   onChange: (loc: LocationValue) => void;
+  includeState?: boolean;
+  onError?: (message: string) => void;
 }
 
-export default function LocationPicker({ value, onChange }: Props) {
+export default function LocationPicker({ value, onChange, includeState = false, onError }: Props) {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: LIBRARIES,
   });
 
-  const [query, setQuery] = useState(value?.name || "");
+  const locationName = typeof value === "string" ? value : value?.name || "";
+  const [query, setQuery] = useState(locationName);
   const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const autocomplete = useRef<google.maps.places.AutocompleteService | null>(null);
   const geocoder     = useRef<google.maps.Geocoder | null>(null);
 
   useEffect(() => {
-    setQuery(value?.name || "");
-  }, [value?.name]);
+    setQuery(locationName);
+  }, [locationName]);
 
   if (isLoaded && !autocomplete.current) {
     autocomplete.current = new google.maps.places.AutocompleteService();
@@ -38,6 +42,7 @@ export default function LocationPicker({ value, onChange }: Props) {
 
   function handleChange(q: string) {
     setQuery(q);
+    if (includeState) onError?.("Select an address suggestion to save the company state.");
     if (!q.trim() || !autocomplete.current) { setSuggestions([]); return; }
     autocomplete.current.getPlacePredictions({ input: q }, (preds) => setSuggestions(preds || []));
   }
@@ -46,9 +51,20 @@ export default function LocationPicker({ value, onChange }: Props) {
     setQuery(pred.description);
     setSuggestions([]);
     geocoder.current?.geocode({ placeId: pred.place_id }, (results) => {
-      if (!results?.[0]) return;
+      if (!results?.[0]) {
+        onError?.("Could not resolve this address. Please select another suggestion.");
+        return;
+      }
       const loc = results[0].geometry.location;
-      onChange({ name: pred.description, latitude: loc.lat(), longitude: loc.lng() });
+      const addressComponents = results[0].address_components || [];
+      const state = addressComponents.find((component) =>
+        component.types.includes("administrative_area_level_1"))?.long_name;
+      if (includeState && (addressComponents.length < 3 || !state)) {
+        onError?.("Could not determine the state from this address. Please choose a more specific location.");
+        return;
+      }
+      onError?.("");
+      onChange({ name: pred.description, latitude: loc.lat(), longitude: loc.lng(), ...(includeState ? { state } : {}) });
     });
   }
 

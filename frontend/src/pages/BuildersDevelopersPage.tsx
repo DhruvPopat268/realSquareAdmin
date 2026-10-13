@@ -146,6 +146,10 @@ export default function BuildersDevelopersPage() {
     if (!editForm.name.trim())   errs.name   = "Name is required";
     if (!editForm.mobile.trim()) errs.mobile = "Mobile is required";
     if (Object.keys(errs).length) { setEditErrors(errs); return; }
+    if (!location) {
+      toast({ variant: "destructive", title: "Select a location before saving the builder" });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -158,7 +162,7 @@ export default function BuildersDevelopersPage() {
       if (editForm.foundedYear.trim())            fd.append("foundedYear",            editForm.foundedYear.trim());
       if (editForm.totalProjectsDelivered.trim()) fd.append("totalProjectsDelivered", editForm.totalProjectsDelivered.trim());
       fd.append("enquiryCities", JSON.stringify(enquiryCities));
-      if (location) fd.append("location", JSON.stringify(location));
+      fd.append("location", JSON.stringify(location));
       if (photoFile)                              fd.append("profilePhoto",           photoFile);
 
       if (isCreating) {
@@ -400,8 +404,9 @@ export default function BuildersDevelopersPage() {
               <p className="text-xs text-muted-foreground">Add cities where this builder wants to receive enquiries.</p>
             </div>
             <div className="space-y-1.5">
-              <Label>Location</Label>
+              <Label>Location <span className="text-destructive">*</span></Label>
               <LocationPicker value={location} onChange={setLocation} />
+              <p className="text-xs text-muted-foreground">Select a location suggestion so its state can be saved.</p>
             </div>
             <div className="space-y-1.5">
               <Label>GST Number</Label>

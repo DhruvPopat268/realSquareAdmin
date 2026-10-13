@@ -6,6 +6,8 @@ export interface GstConfig {
   sgst: number;
   igst: number;
   totalGst?: number;
+  inStateTotalGst?: number;
+  outOfStateTotalGst?: number;
   updatedAt?: string;
 }
 

@@ -16,6 +16,10 @@ const paymentTransactionSchema = new mongoose.Schema(
     razorpaySignature: { type: String },
     amount:            { type: Number, required: true },
     baseAmount:        { type: Number },          // plan/coins price before tax
+    taxState: {
+      userState:    { type: String, trim: true },
+      companyState: { type: String, trim: true },
+    },
     taxBreakdown: {
       cgst:      { type: Number},
       sgst:      { type: Number },
@@ -27,6 +31,8 @@ const paymentTransactionSchema = new mongoose.Schema(
     balanceAfter:      { type: Number, required: true },
     status:            { type: String, enum: ["Pending", "Success", "Failed"], default: "Pending" },
     failureReason:     { type: String },
+    invoiceNumber:     { type: String },           // e.g. "RSVI-1"
+    invoiceUrl:        { type: String },           // e.g. "/storage/documents/invoice-RSVI-1-....pdf"
   },
   { timestamps: true }
 );

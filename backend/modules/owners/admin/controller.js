@@ -1,6 +1,7 @@
 const SystemUser = require("../../systemUsers.model");
 const SystemUserSession = require("../../systemUsers.session.model");
 const getAdminUserStats = require("../../../utils/adminUserStats");
+const { resolveRequiredProfileLocation } = require("../../../utils/locationState");
 
 const OWNER_ROLE_ID = process.env.OWNER_ROLE_ID;
 
@@ -84,6 +85,8 @@ const createOwner = async (req, res) => {
       return res.status(400).json({ success: false, message: "enquiryCities must be an array" });
     enquiryCities = [...new Set(enquiryCities.map((city) => String(city).trim()).filter(Boolean))];
 
+    const { location, state } = await resolveRequiredProfileLocation(req.body.location);
+
     const existingMobile = await SystemUser.findOne({ mobile });
     if (existingMobile)
       return res.status(409).json({ success: false, message: "Mobile already registered" });
@@ -110,7 +113,11 @@ const createOwner = async (req, res) => {
       ...(profilePhoto ? { profilePhoto: toUrl(profilePhoto.path) } : {}),
       enquiryCities,
       role: OWNER_ROLE_ID,
-      ...(Object.keys(businessDetails).length ? { ownerProfile: { businessDetails } } : {}),
+      ownerProfile: {
+        location,
+        state,
+        ...(Object.keys(businessDetails).length ? { businessDetails } : {}),
+      },
     });
     await owner.populate("role", "name permissions isActive");
     return res.status(201).json({ success: true, data: owner });
@@ -119,7 +126,7 @@ const createOwner = async (req, res) => {
       const field = Object.keys(err.keyPattern || {})[0];
       return res.status(409).json({ success: false, message: field === "email" ? "Email already registered" : "Mobile already registered" });
     }
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -128,8 +135,11 @@ const updateOwner = async (req, res) => {
     const { id } = req.params;
     const { fullName, email, mobile, bizName, bizType, bizGst, bizEmail, bizMobile, bizWebsite } = req.body;
     let { enquiryCities } = req.body;
+    const { location, state } = await resolveRequiredProfileLocation(req.body.location);
 
     const updateData = {};
+    updateData["ownerProfile.location"] = location;
+    updateData["ownerProfile.state"] = state;
     if (fullName   !== undefined) updateData["name"]                                         = fullName;
     if (email      !== undefined) updateData["email"]                                        = email;
     if (mobile     !== undefined) updateData["mobile"]                                       = mobile;
@@ -171,7 +181,7 @@ const updateOwner = async (req, res) => {
 
     res.json({ success: true, data: owner });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 

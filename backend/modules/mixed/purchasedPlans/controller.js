@@ -7,6 +7,7 @@ const UserCoinsWallet    = require("../userCoinsWallet/model");
 const CoinsTransaction   = require("../coinsTransactions/model");
 const ListingPurchasedPlan = require("./model");
 const getUserDetailsSnapshot = require("../userDetailsSnapshot");
+const { resolveOrderTax } = require("../transactions/taxJurisdiction");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -46,6 +47,8 @@ const createPlanOrder = async (req, res) => {
 
     const purchaseAmount = plan.amount;
 
+    const taxJurisdiction = await resolveOrderTax(req.user, userType);
+
     // create razorpay order (amount in paise)
     const razorpayOrder = await razorpay.orders.create({
       amount:   purchaseAmount * 100,
@@ -70,6 +73,8 @@ const createPlanOrder = async (req, res) => {
       reason:          "ListingPlanPurchase",
       razorpayOrderId: razorpayOrder.id,
       amount:          purchaseAmount,
+      taxState:         { userState: taxJurisdiction.userState, companyState: taxJurisdiction.companyState },
+      taxBreakdown:     taxJurisdiction.taxBreakdown,
       currency:        "INR",
       balanceBefore,
       balanceAfter:    balanceBefore + purchaseAmount,
@@ -93,7 +98,7 @@ const createPlanOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("createPlanOrder error:", err);
-    res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
   }
 };
 
@@ -127,6 +132,8 @@ const upgradePlanOrder = async (req, res) => {
 
     const purchaseAmount = plan.amount;
 
+    const taxJurisdiction = await resolveOrderTax(req.user, userType);
+
     const razorpayOrder = await razorpay.orders.create({
       amount:   purchaseAmount * 100,
       currency: "INR",
@@ -150,6 +157,8 @@ const upgradePlanOrder = async (req, res) => {
       reason:          "ListingPlanUpgrade",
       razorpayOrderId: razorpayOrder.id,
       amount:          purchaseAmount,
+      taxState:         { userState: taxJurisdiction.userState, companyState: taxJurisdiction.companyState },
+      taxBreakdown:     taxJurisdiction.taxBreakdown,
       currency:        "INR",
       balanceBefore,
       balanceAfter:    balanceBefore + purchaseAmount,
@@ -174,7 +183,7 @@ const upgradePlanOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("upgradePlanOrder error:", err);
-    res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
   }
 };
 

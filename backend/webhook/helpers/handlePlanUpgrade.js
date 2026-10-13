@@ -2,7 +2,8 @@ const mongoose      = require("mongoose");
 const Plan          = require("../../modules/admin/plansManagement/model");
 const AdminWallet   = require("../../modules/admin/adminWallet/model");
 const ListingPurchasedPlan = require("../../modules/mixed/purchasedPlans/model");
-const GstConfig     = require("../../modules/admin/gstConfig/model");
+const { getTransactionTax } = require("../../modules/mixed/transactions/taxJurisdiction");
+const { generateInvoice } = require("../../modules/mixed/transactions/generateInvoiceHelper");
 const getUserDetailsSnapshot = require("../../modules/mixed/userDetailsSnapshot");
 
 const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
@@ -13,22 +14,15 @@ const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
   if (!planId)       throw new Error("planId missing in payment notes");
   if (!activePlanId) throw new Error("activePlanId missing in payment notes");
 
-  const [plan, currentPlan, gstConfig] = await Promise.all([
+  const [plan, currentPlan] = await Promise.all([
     Plan.findById(planId),
     ListingPurchasedPlan.findById(activePlanId),
-    GstConfig.findOne().lean(),
   ]);
 
   if (!plan)        throw new Error(`Plan not found: ${planId}`);
   if (!currentPlan) throw new Error(`Active purchased plan not found: ${activePlanId}`);
 
-  // ── Tax breakdown ─────────────────────────────────────────────────────────
-  const cgst      = gstConfig?.cgst      ?? 0;
-  const sgst      = gstConfig?.sgst      ?? 0;
-  const igst      = gstConfig?.igst      ?? 0;
-  const taxRate   = igst > 0 ? igst : (cgst + sgst);
-  const taxAmount = parseFloat(((txn.amount * taxRate) / (100 + taxRate)).toFixed(2));
-  const baseAmount = parseFloat((txn.amount - taxAmount).toFixed(2));
+  const { baseAmount, taxBreakdown } = await getTransactionTax(txn);
 
   const expiryDurationDays = plan.expiryInDays ?? 0;
   const startDate          = new Date();
@@ -84,7 +78,7 @@ const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
     txn.refId             = newPlan._id;
     txn.refModel          = "ListingPlan";
     txn.baseAmount        = baseAmount;
-    txn.taxBreakdown      = { cgst, sgst, igst, taxAmount };
+    txn.taxBreakdown      = taxBreakdown;
     txn.balanceBefore     = adminWallet.currentBalance - purchaseAmount;
     txn.balanceAfter      = adminWallet.currentBalance;
     await txn.save({ session });
@@ -94,7 +88,13 @@ const handlePlanUpgrade = async (txn, payment, purchaseAmount, signature) => {
     await session.abortTransaction();
     throw err;
   } finally {
-    session.endSession();
+    await session.endSession();
+  }
+
+  try {
+    await generateInvoice(txn._id);
+  } catch (invoiceError) {
+    console.error("[handlePlanUpgrade] invoice generation failed for transaction", txn._id, invoiceError);
   }
 };
 

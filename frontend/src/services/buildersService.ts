@@ -21,6 +21,7 @@ export interface Builder {
     foundedYear?: number;
     totalProjectsDelivered?: number;
     location?: { name: string; latitude: number; longitude: number };
+    state?: string;
   } | null;
 }
 

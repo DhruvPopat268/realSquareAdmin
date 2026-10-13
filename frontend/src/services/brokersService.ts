@@ -19,6 +19,8 @@ export interface Broker {
     yearsOfExperience?: number;
     agencyName?: string;
     bio?: string;
+    location?: { name: string; latitude: number; longitude: number };
+    state?: string;
     reraVerification?: {
       reraId: string;
       verified: boolean;

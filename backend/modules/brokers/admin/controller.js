@@ -2,6 +2,7 @@ const SystemUser = require("../../systemUsers.model");
 const SystemUserSession = require("../../systemUsers.session.model");
 const getAdminUserStats = require("../../../utils/adminUserStats");
 const { runReraVerification } = require("../../mixed/reraVerification/controller");
+const { resolveRequiredProfileLocation } = require("../../../utils/locationState");
 
 const BROKER_ROLE_ID = process.env.BROKER_ROLE_ID;
 
@@ -84,6 +85,8 @@ const createBroker = async (req, res) => {
       return res.status(400).json({ success: false, message: "enquiryCities must be an array" });
     enquiryCities = [...new Set(enquiryCities.map((city) => String(city).trim()).filter(Boolean))];
 
+    const { location, state } = await resolveRequiredProfileLocation(req.body.location);
+
     const existing = await SystemUser.findOne({ mobile });
     if (existing)
       return res.status(409).json({ success: false, message: "Mobile already registered" });
@@ -91,7 +94,7 @@ const createBroker = async (req, res) => {
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     const brokerProfile = {
       yearsOfExperience: yearsOfExperience ? Number(yearsOfExperience) : undefined,
-      agencyName, bio,
+      agencyName, bio, location, state,
     };
     if (reraId) brokerProfile.reraVerification = await verifyBrokerRera(reraId, "createBroker");
 
@@ -109,7 +112,7 @@ const createBroker = async (req, res) => {
     const populated = await broker.populate("role", "name permissions isActive");
     res.status(201).json({ success: true, data: populated });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -119,9 +122,12 @@ const updateBroker = async (req, res) => {
     const { fullName, email, mobile, yearsOfExperience, agencyName, bio } = req.body;
     const submittedReraId = req.body.reraId;
     let { enquiryCities } = req.body;
+    const { location, state } = await resolveRequiredProfileLocation(req.body.location);
 
     const updateData = {};
     const unsetData = {};
+    updateData["brokerProfile.location"] = location;
+    updateData["brokerProfile.state"] = state;
     if (fullName          !== undefined) updateData["name"]                            = fullName;
     if (email             !== undefined) updateData["email"]                           = email;
     if (agencyName        !== undefined) updateData["brokerProfile.agencyName"]        = agencyName;
@@ -175,7 +181,7 @@ const updateBroker = async (req, res) => {
 
     res.json({ success: true, data: broker });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 

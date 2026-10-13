@@ -1,6 +1,7 @@
 const SystemUser = require("../../systemUsers.model");
 const SystemUserSession = require("../../systemUsers.session.model");
 const getAdminUserStats = require("../../../utils/adminUserStats");
+const { resolveRequiredProfileLocation } = require("../../../utils/locationState");
 
 const BUILDER_ROLE_ID = process.env.BUILDER_ROLE_ID;
 
@@ -50,7 +51,7 @@ const getBuilders = async (req, res) => {
 const createBuilder = async (req, res) => {
   try {
     const { mobile, name, email, gstNumber, cinNumber, foundedYear, totalProjectsDelivered } = req.body;
-    let { enquiryCities, location } = req.body;
+    let { enquiryCities } = req.body;
 
     if (!mobile)
       return res.status(400).json({ success: false, message: "mobile is required" });
@@ -67,20 +68,7 @@ const createBuilder = async (req, res) => {
       return res.status(400).json({ success: false, message: "enquiryCities must be an array" });
     enquiryCities = [...new Set(enquiryCities.map((city) => String(city).trim()).filter(Boolean))];
 
-    if (typeof location === "string") {
-      try {
-        location = JSON.parse(location);
-      } catch {
-        return res.status(400).json({ success: false, message: "location must be valid JSON" });
-      }
-    }
-    if (location !== undefined && location !== null) {
-      const latitude = Number(location.latitude);
-      const longitude = Number(location.longitude);
-      if (typeof location.name !== "string" || !location.name.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude))
-        return res.status(400).json({ success: false, message: "location must include a name, latitude, and longitude" });
-      location = { name: location.name.trim(), latitude, longitude };
-    }
+    const { location, state } = await resolveRequiredProfileLocation(req.body.location);
 
     const existing = await SystemUser.findOne({ mobile });
     if (existing)
@@ -92,7 +80,8 @@ const createBuilder = async (req, res) => {
       cinNumber,
       foundedYear:            foundedYear            ? Number(foundedYear)            : undefined,
       totalProjectsDelivered: totalProjectsDelivered ? Number(totalProjectsDelivered) : undefined,
-      location: location || undefined,
+      location,
+      state,
     };
 
     const builder = await SystemUser.create({
@@ -109,7 +98,7 @@ const createBuilder = async (req, res) => {
     const populated = await builder.populate("role", "name permissions isActive");
     res.status(201).json({ success: true, data: populated });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -117,7 +106,8 @@ const updateBuilder = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, email, mobile, gstNumber, cinNumber, foundedYear, totalProjectsDelivered } = req.body;
-    let { enquiryCities, location } = req.body;
+    let { enquiryCities } = req.body;
+    const { location, state } = await resolveRequiredProfileLocation(req.body.location);
 
     const updateData = {};
     if (name                   !== undefined) updateData["name"]                                  = name;
@@ -141,20 +131,8 @@ const updateBuilder = async (req, res) => {
       updateData.enquiryCities = [...new Set(enquiryCities.map((city) => String(city).trim()).filter(Boolean))];
     }
 
-    if (typeof location === "string") {
-      try {
-        location = JSON.parse(location);
-      } catch {
-        return res.status(400).json({ success: false, message: "location must be valid JSON" });
-      }
-    }
-    if (location !== undefined && location !== null) {
-      const latitude = Number(location.latitude);
-      const longitude = Number(location.longitude);
-      if (typeof location.name !== "string" || !location.name.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude))
-        return res.status(400).json({ success: false, message: "location must include a name, latitude, and longitude" });
-      updateData["builderProfile.location"] = { name: location.name.trim(), latitude, longitude };
-    }
+    updateData["builderProfile.location"] = location;
+    updateData["builderProfile.state"] = state;
 
     const profilePhotoFile = fileByField(req.files, "profilePhoto");
     if (profilePhotoFile)
@@ -171,7 +149,7 @@ const updateBuilder = async (req, res) => {
 
     res.json({ success: true, data: builder });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 

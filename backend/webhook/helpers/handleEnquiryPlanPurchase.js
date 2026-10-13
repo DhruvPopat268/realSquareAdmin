@@ -2,7 +2,8 @@ const mongoose             = require("mongoose");
 const EnquiryPlan          = require("../../modules/admin/enquiryPlansManagement/model");
 const AdminWallet          = require("../../modules/admin/adminWallet/model");
 const EnquiryPurchasedPlan = require("../../modules/mixed/enquiryPurchasedPlans/model");
-const GstConfig            = require("../../modules/admin/gstConfig/model");
+const { getTransactionTax } = require("../../modules/mixed/transactions/taxJurisdiction");
+const { generateInvoice } = require("../../modules/mixed/transactions/generateInvoiceHelper");
 const getUserDetailsSnapshot = require("../../modules/mixed/userDetailsSnapshot");
 
 const handleEnquiryPlanPurchase = async (txn, payment, purchaseAmount, signature) => {
@@ -12,19 +13,10 @@ const handleEnquiryPlanPurchase = async (txn, payment, purchaseAmount, signature
   const planId = payment.notes?.planId;
   if (!planId) throw new Error("planId missing in payment notes");
 
-  const [plan, gstConfig] = await Promise.all([
-    EnquiryPlan.findById(planId),
-    GstConfig.findOne().lean(),
-  ]);
+  const plan = await EnquiryPlan.findById(planId);
   if (!plan) throw new Error(`Enquiry plan not found: ${planId}`);
 
-  // ── Tax breakdown ─────────────────────────────────────────────────────────
-  const cgst      = gstConfig?.cgst      ?? 0;
-  const sgst      = gstConfig?.sgst      ?? 0;
-  const igst      = gstConfig?.igst      ?? 0;
-  const taxRate   = igst > 0 ? igst : (cgst + sgst);
-  const taxAmount = parseFloat(((txn.amount * taxRate) / (100 + taxRate)).toFixed(2));
-  const baseAmount = parseFloat((txn.amount - taxAmount).toFixed(2));
+  const { baseAmount, taxBreakdown } = await getTransactionTax(txn);
 
   const expiryDurationDays = plan.expiryInDays ?? 0;
   const startDate          = new Date();
@@ -75,7 +67,7 @@ const handleEnquiryPlanPurchase = async (txn, payment, purchaseAmount, signature
     txn.refId             = purchased._id;
     txn.refModel          = "EnquiryPlan";
     txn.baseAmount        = baseAmount;
-    txn.taxBreakdown      = { cgst, sgst, igst, taxAmount };
+    txn.taxBreakdown      = taxBreakdown;
     txn.balanceBefore     = adminWallet.currentBalance - purchaseAmount;
     txn.balanceAfter      = adminWallet.currentBalance;
     await txn.save({ session });
@@ -85,7 +77,13 @@ const handleEnquiryPlanPurchase = async (txn, payment, purchaseAmount, signature
     await session.abortTransaction();
     throw err;
   } finally {
-    session.endSession();
+    await session.endSession();
+  }
+
+  try {
+    await generateInvoice(txn._id);
+  } catch (invoiceError) {
+    console.error("[handleEnquiryPlanPurchase] invoice generation failed for transaction", txn._id, invoiceError);
   }
 };
 

@@ -15,6 +15,7 @@ const path              = require("path");
 const { runReraVerification } = require("./mixed/reraVerification/controller");
 const { sendEmail }     = require("../utils/emailService");
 const { calculateProfileCompletionPercentage } = require("./systemUsers.profileCompletion.weighate");
+const { resolveProfileLocation } = require("../utils/locationState");
 
 const DUMMY_OTP = "123456";
 
@@ -44,9 +45,9 @@ const escapeHtml = (value) => value.replace(/[&<>"']/g, (char) => ({
 
 const REQUIRED_FIELDS = {
   [process.env.CUSTOMER_ROLE_ID]: ["fullName"],
-  [process.env.OWNER_ROLE_ID]:    ["fullName"],
-  [process.env.BROKER_ROLE_ID]:   ["fullName"],
-  [process.env.BUILDER_ROLE_ID]:  ["name"],
+  [process.env.OWNER_ROLE_ID]:    ["fullName", "location.name"],
+  [process.env.BROKER_ROLE_ID]:   ["fullName", "location.name"],
+  [process.env.BUILDER_ROLE_ID]:  ["name", "location.name"],
 };
 
 const getNestedValue = (obj, path) => {
@@ -360,6 +361,17 @@ const completeProfile = async (req, res) => {
     if (!profileField)
       return res.status(403).json({ success: false, message: "This role is not allowed to self-register" });
 
+    if (["ownerProfile", "brokerProfile", "builderProfile"].includes(profileField)) {
+      const resolvedLocation = await resolveProfileLocation(profileData);
+      if (!resolvedLocation) {
+        return res.status(400).json({ success: false, message: "A valid location is required to complete this profile." });
+      }
+      for (const key of ["location.name", "location.latitude", "location.longitude", "state"]) delete profileData[key];
+      delete profileData.location;
+      profileData.location = resolvedLocation.location;
+      profileData.state = resolvedLocation.state;
+    }
+
     if (profileField === "brokerProfile" && typeof submittedReraId === "string" && submittedReraId.trim()) {
       profileData.reraVerification = await verifyBrokerRera(submittedReraId.trim(), "completeProfile");
     }
@@ -471,7 +483,7 @@ const completeProfile = async (req, res) => {
 
     res.status(201).json({ success: true, data: user });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -520,9 +532,19 @@ const updateProfile = async (req, res) => {
     const profileField = roleId ? ALLOWED_ROLES[roleId] : null;
     if (!profileField)
       return res.status(400).json({ success: false, message: "role is required" });
+    const isRoleProfileCreation = !req.userRole;
 
     delete req.body.role;
     delete req.body.mobile;
+
+    const hasRoleLocation = ["ownerProfile", "brokerProfile", "builderProfile"].includes(profileField);
+    const resolvedLocation = hasRoleLocation ? await resolveProfileLocation(req.body) : null;
+    if (hasRoleLocation && isRoleProfileCreation && !resolvedLocation) {
+      return res.status(400).json({ success: false, message: "A valid location is required to complete this profile." });
+    }
+    if (hasRoleLocation) {
+      for (const key of ["location", "location.name", "location.latitude", "location.longitude", "state"]) delete req.body[key];
+    }
 
     const submittedReraId = req.body.reraId;
     delete req.body.reraId;
@@ -585,6 +607,11 @@ const updateProfile = async (req, res) => {
       updateData[`${profileField}.businessDetails.logo`] = toUrl(businessLogoFile.path);
     }
 
+    if (resolvedLocation) {
+      updateData[`${profileField}.location`] = resolvedLocation.location;
+      updateData[`${profileField}.state`] = resolvedLocation.state;
+    }
+
     // Separate root-level fields from profile-specific fields
     Object.keys(req.body).forEach((key) => {
       const value = req.body[key];
@@ -642,7 +669,7 @@ const updateProfile = async (req, res) => {
 
     res.json({ success: true, data: user });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 

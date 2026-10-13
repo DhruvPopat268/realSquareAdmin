@@ -5,8 +5,16 @@ const getGstConfig = async (req, res) => {
   try {
     const config = await GstConfig.findOne().lean();
     if (!config) return res.status(200).json({ success: true, data: null });
-    const totalGst = (config.cgst || 0) + (config.sgst || 0) + (config.igst || 0);
-    res.json({ success: true, data: { ...config, totalGst } });
+    const inStateTotalGst = (config.cgst || 0) + (config.sgst || 0);
+    res.json({
+      success: true,
+      data: {
+        ...config,
+        totalGst: inStateTotalGst,
+        inStateTotalGst,
+        outOfStateTotalGst: config.igst || 0,
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -25,10 +33,6 @@ const updateGstConfig = async (req, res) => {
     if (!hasCgst && !hasSgst && !hasIgst)
       return res.status(400).json({ success: false, message: "Provide at least one of cgst, sgst, or igst." });
 
-    // IGST cannot be combined with CGST/SGST in the same request
-    if (hasIgst && (hasCgst || hasSgst))
-      return res.status(400).json({ success: false, message: "IGST cannot be set together with CGST or SGST. Use either CGST + SGST or IGST only." });
-
     // Validate number ranges
     for (const [key, val] of Object.entries({ cgst, sgst, igst })) {
       if (val === undefined || val === null) continue;
@@ -45,9 +49,6 @@ const updateGstConfig = async (req, res) => {
       sgst: hasSgst ? sgst : (existing?.sgst ?? 0),
       igst: hasIgst ? igst : (existing?.igst ?? 0),
     };
-
-    if (merged.igst > 0 && (merged.cgst > 0 || merged.sgst > 0))
-      return res.status(400).json({ success: false, message: "Conflict: IGST cannot be non-zero when CGST or SGST is also non-zero. Set the other fields to 0 first." });
 
     const config = await GstConfig.findOneAndUpdate(
       {},

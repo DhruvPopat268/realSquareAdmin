@@ -7,6 +7,7 @@ const UserCoinsWallet       = require("../userCoinsWallet/model");
 const CoinsTransaction      = require("../coinsTransactions/model");
 const EnquiryPurchasedPlan  = require("./model");
 const getUserDetailsSnapshot = require("../userDetailsSnapshot");
+const { resolveOrderTax } = require("../transactions/taxJurisdiction");
 
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
@@ -78,6 +79,8 @@ const createEnquiryPlanOrder = async (req, res) => {
     if (existing)
       return res.status(400).json({ success: false, message: "You already have an active enquiry plan" });
 
+    const taxJurisdiction = await resolveOrderTax(req.user, userType);
+
     const razorpayOrder = await razorpay.orders.create({
       amount:   plan.amount * 100,
       currency: "INR",
@@ -100,6 +103,8 @@ const createEnquiryPlanOrder = async (req, res) => {
       reason:          "RequirementPlanPurchase",
       razorpayOrderId: razorpayOrder.id,
       amount:          plan.amount,
+      taxState:         { userState: taxJurisdiction.userState, companyState: taxJurisdiction.companyState },
+      taxBreakdown:     taxJurisdiction.taxBreakdown,
       currency:        "INR",
       balanceBefore,
       balanceAfter:    balanceBefore + plan.amount,
@@ -123,7 +128,7 @@ const createEnquiryPlanOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("createEnquiryPlanOrder error:", err);
-    res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
   }
 };
 
@@ -155,6 +160,8 @@ const upgradeEnquiryPlanOrder = async (req, res) => {
     if (activePlan.plan.planId.toString() === planId)
       return res.status(400).json({ success: false, message: "You already have this plan as your active plan" });
 
+    const taxJurisdiction = await resolveOrderTax(req.user, userType);
+
     const razorpayOrder = await razorpay.orders.create({
       amount:   plan.amount * 100,
       currency: "INR",
@@ -179,6 +186,8 @@ const upgradeEnquiryPlanOrder = async (req, res) => {
       reason:          "RequirementPlanUpgrade",
       razorpayOrderId: razorpayOrder.id,
       amount:          plan.amount,
+      taxState:         { userState: taxJurisdiction.userState, companyState: taxJurisdiction.companyState },
+      taxBreakdown:     taxJurisdiction.taxBreakdown,
       currency:        "INR",
       balanceBefore,
       balanceAfter:    balanceBefore + plan.amount,
@@ -203,7 +212,7 @@ const upgradeEnquiryPlanOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("upgradeEnquiryPlanOrder error:", err);
-    res.status(500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message ?? err.error?.description ?? "Internal server error" });
   }
 };
 

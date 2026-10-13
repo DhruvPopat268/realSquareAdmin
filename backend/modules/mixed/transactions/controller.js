@@ -1,4 +1,6 @@
-const PaymentTransaction = require("./model");
+const { validationResult } = require("express-validator");
+const PaymentTransaction   = require("./model");
+const { generateInvoice }  = require("./generateInvoiceHelper");
 
 const getPaymentTransactions = async (req, res) => {
   try {
@@ -31,4 +33,39 @@ const getPaymentTransactions = async (req, res) => {
   }
 };
 
-module.exports = { getPaymentTransactions };
+// ── Generate Invoice ──────────────────────────────────────────────────────────
+const generateInvoiceController = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty())
+    return res.status(400).json({ success: false, errors: errors.array() });
+
+  const { transactionId } = req.body;
+
+  try {
+    // Ownership check — transaction must belong to the logged-in user
+    const txnCheck = await PaymentTransaction.findById(transactionId).select("user").lean();
+    if (txnCheck.user.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "You are not authorized to generate invoice for this transaction" });
+
+    const invoiceUrl = await generateInvoice(transactionId);
+
+    const txn = await PaymentTransaction.findById(transactionId)
+      .select("invoiceNumber invoiceUrl amount reason status userDetails userType createdAt")
+      .lean();
+
+    res.json({
+      success: true,
+      message: "Invoice generated successfully",
+      data: {
+        invoiceUrl,
+        invoiceNumber: txn.invoiceNumber,
+        transaction:   txn,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getPaymentTransactions, generateInvoiceController };
+

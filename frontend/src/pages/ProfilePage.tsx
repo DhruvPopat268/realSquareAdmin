@@ -12,6 +12,7 @@ import api from "@/lib/axiosInterceptor";
 import { useProfile } from "@/context/ProfileContext";
 import { cn } from "@/lib/utils";
 import { invoiceConfigService, type InvoiceConfig } from "@/services/invoiceConfigService";
+import LocationPicker, { type LocationValue } from "@/components/LocationPicker";
 
 const formatIST = (iso: string) => {
   return new Date(iso).toLocaleString("en-IN", {
@@ -131,6 +132,7 @@ const ProfilePage = () => {
   // invoice config form
   const [invoiceConfig, setInvoiceConfig] = useState<InvoiceConfig>({});
   const [invoiceLogo, setInvoiceLogo]     = useState<File | null>(null);
+  const [invoiceAddressError, setInvoiceAddressError] = useState("");
   const invoiceLogoRef                    = useRef<HTMLInputElement>(null);
 
   // section refs for scroll
@@ -211,6 +213,10 @@ const ProfilePage = () => {
   };
 
   const handleSaveInvoiceConfig = async () => {
+    if (invoiceAddressError) {
+      toast.error(invoiceAddressError);
+      return;
+    }
     setSubInvoice(true);
     try {
       let payload: FormData | Omit<InvoiceConfig, "_id">;
@@ -220,7 +226,10 @@ const ProfilePage = () => {
         fd.append("companyName",    invoiceConfig.companyName    ?? "");
         fd.append("companyMobile",  invoiceConfig.companyMobile  ?? "");
         fd.append("companyEmail",   invoiceConfig.companyEmail   ?? "");
-        fd.append("companyAddress", invoiceConfig.companyAddress ?? "");
+        fd.append("companyAddress", typeof invoiceConfig.companyAddress === "string"
+          ? invoiceConfig.companyAddress
+          : JSON.stringify(invoiceConfig.companyAddress ?? ""));
+        if (invoiceConfig.companyState) fd.append("companyState", invoiceConfig.companyState);
         payload = fd;
       } else {
         const { _id, companyLogo, ...rest } = invoiceConfig;
@@ -505,11 +514,24 @@ const ProfilePage = () => {
               </div>
               <div className="space-y-1.5">
                 <Label>Company Address</Label>
-                <Input
-                  value={invoiceConfig.companyAddress ?? ""}
-                  onChange={(e) => setInvoiceConfig(p => ({ ...p, companyAddress: e.target.value }))}
-                  placeholder="12 Main Road, City, State 000000"
+                <LocationPicker
+                  value={invoiceConfig.companyAddress ?? null}
+                  includeState
+                  onError={setInvoiceAddressError}
+                  onChange={(location: LocationValue) => setInvoiceConfig((p) => ({
+                    ...p,
+                    companyAddress: {
+                      name: location.name,
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                    },
+                    companyState: location.state,
+                  }))}
                 />
+                {invoiceAddressError && <p className="text-xs text-destructive">{invoiceAddressError}</p>}
+                {invoiceConfig.companyState && (
+                  <p className="text-xs text-muted-foreground">State: {invoiceConfig.companyState}</p>
+                )}
               </div>
 
             </CardContent>

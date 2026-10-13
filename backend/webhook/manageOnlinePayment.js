@@ -1,5 +1,6 @@
 const crypto             = require("crypto");
 const PaymentTransaction = require("../modules/mixed/transactions/model");
+const { generateInvoice } = require("../modules/mixed/transactions/generateInvoiceHelper");
 
 const handlers = {
   CoinsPurchase:       require("./helpers/handleCoinsPurchase"),
@@ -36,9 +37,17 @@ const manageOnlinePayment = async (req, res) => {
     if (!txn)
       return res.status(200).json({ success: true, message: "Transaction not found" });
 
-    // idempotency — already processed
-    if (txn.status === "Success")
+    // idempotency — retry invoice generation if a previous attempt failed
+    if (txn.status === "Success") {
+      if (!txn.invoiceUrl) {
+        try {
+          await generateInvoice(txn._id);
+        } catch (invoiceError) {
+          console.error("[Webhook] invoice generation retry failed for transaction", txn._id, invoiceError);
+        }
+      }
       return res.status(200).json({ success: true, message: "Already processed" });
+    }
 
     const purchaseAmount = amount / 100; // paise → ₹
 

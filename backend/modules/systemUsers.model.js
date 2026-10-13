@@ -26,6 +26,8 @@ const ownerBusinessDetailsSchema = new mongoose.Schema({
 }, { _id: false });
 
 const ownerProfileSchema = new mongoose.Schema({
+  location:        { type: locationSchema },
+  state:           { type: String, trim: true },
   businessDetails: { type: ownerBusinessDetailsSchema },
 }, { _id: false });
 
@@ -60,6 +62,8 @@ const brokerProfileSchema = new mongoose.Schema({
   yearsOfExperience: { type: Number },
   agencyName:        { type: String, trim: true },
   bio:               { type: String, trim: true },
+  location:          { type: locationSchema },
+  state:             { type: String, trim: true },
   reraVerification:  { type: brokerReraVerificationSchema },
 }, { _id: false });
 
@@ -70,6 +74,7 @@ const builderProfileSchema = new mongoose.Schema({
   foundedYear:            { type: Number },
   totalProjectsDelivered: { type: Number },
   location:               { type: locationSchema },
+  state:                  { type: String, trim: true },
 }, { _id: false });
 
 // ── Base system user schema ───────────────────────────────────────────────────
