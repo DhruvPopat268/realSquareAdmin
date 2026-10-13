@@ -267,7 +267,7 @@ export default function WalletTransactionsPage() {
                   <td className="px-4 py-3"><Badge className={`text-xs ${REASON_COLORS[txn.reason] ?? "bg-muted text-muted-foreground"}`}>{REASON_LABELS[txn.reason] ?? txn.reason}</Badge></td>
                   <td className="px-4 py-3 font-semibold">₹{txn.amount.toLocaleString()}</td>
                   <td className="px-4 py-3">
-                    {txn.taxBreakdown ? (
+                    {txn.taxBreakdown?.taxAmount != null ? (
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium">₹{txn.taxBreakdown.taxAmount.toLocaleString()}</span>
                         <Popover>
@@ -280,15 +280,15 @@ export default function WalletTransactionsPage() {
                             <p className="font-semibold text-foreground mb-1">GST Breakdown</p>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">CGST</span>
-                              <span className="font-medium">{txn.taxBreakdown.cgst}%</span>
+                              <span className="font-medium">{txn.taxBreakdown.cgst ?? 0}%</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">SGST</span>
-                              <span className="font-medium">{txn.taxBreakdown.sgst}%</span>
+                              <span className="font-medium">{txn.taxBreakdown.sgst ?? 0}%</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">IGST</span>
-                              <span className="font-medium">{txn.taxBreakdown.igst}%</span>
+                              <span className="font-medium">{txn.taxBreakdown.igst ?? 0}%</span>
                             </div>
                           </PopoverContent>
                         </Popover>

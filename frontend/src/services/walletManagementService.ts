@@ -10,7 +10,7 @@ export interface PaymentTransaction {
   razorpayPaymentId?: string;
   amount: number;
   baseAmount?: number;
-  taxBreakdown?: { cgst: number; sgst: number; igst: number; taxAmount: number };
+  taxBreakdown?: { cgst?: number; sgst?: number; igst?: number; taxAmount?: number } | null;
   currency: string;
   balanceBefore: number;
   balanceAfter: number;
