@@ -1,5 +1,7 @@
+const mongoose           = require("mongoose");
 const PaymentTransaction = require("../../mixed/transactions/model");
 const AdminWallet        = require("../adminWallet/model");
+const { generateInvoice } = require("../../mixed/transactions/generateInvoiceHelper");
 
 const getPaymentTransactions = async (req, res) => {
   try {
@@ -51,4 +53,34 @@ const getPaymentTransactions = async (req, res) => {
   }
 };
 
-module.exports = { getPaymentTransactions };
+const generateAdminInvoice = async (req, res) => {
+  const { transactionId } = req.params;
+
+  try {
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ success: false, message: "Invalid transaction ID" });
+    }
+
+    const transaction = await PaymentTransaction.findById(transactionId).select("status invoiceUrl");
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: "Transaction not found" });
+    }
+    if (transaction.invoiceUrl) {
+      return res.status(409).json({
+        success: false,
+        message: "An invoice has already been generated for this transaction",
+        data: { invoiceUrl: transaction.invoiceUrl },
+      });
+    }
+    if (transaction.status !== "Success") {
+      return res.status(400).json({ success: false, message: "Invoice can only be generated for successful transactions" });
+    }
+
+    const invoiceUrl = await generateInvoice(transactionId);
+    return res.json({ success: true, message: "Invoice generated successfully", data: { invoiceUrl } });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getPaymentTransactions, generateAdminInvoice };

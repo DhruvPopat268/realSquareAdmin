@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Wallet, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, Info } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, Info, FileText } from "lucide-react";
 import { walletManagementService, type PaymentTransaction } from "@/services/walletManagementService";
 import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +66,7 @@ export default function WalletTransactionsPage() {
   const [totalPages, setTotalPages]     = useState(1);
 
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [generatingInvoiceId, setGeneratingInvoiceId] = useState<string | null>(null);
 
   const [pending, setPending] = useState<Query>(DEFAULT_QUERY);
   const [query, setQuery]     = useState<Query>(DEFAULT_QUERY);
@@ -109,6 +110,26 @@ export default function WalletTransactionsPage() {
   function applyFilters() { setQuery({ ...pending, page: 1 }); }
   function clearFilters() { setPending(DEFAULT_QUERY); setQuery(DEFAULT_QUERY); }
   function goToPage(p: number) { setQuery((q) => ({ ...q, page: p })); }
+
+  async function handleInvoiceAction(txn: PaymentTransaction) {
+    if (txn.invoiceUrl) {
+      window.open(txn.invoiceUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (txn.status !== "Success" || generatingInvoiceId) return;
+
+    setGeneratingInvoiceId(txn._id);
+    try {
+      const { data } = await walletManagementService.generateInvoice(txn._id);
+      const invoiceUrl = data.data.invoiceUrl;
+      setTransactions((current) => current.map((item) => item._id === txn._id ? { ...item, invoiceUrl } : item));
+      toast({ title: "Invoice generated", description: "Use the invoice icon to open it." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to generate invoice" });
+    } finally {
+      setGeneratingInvoiceId(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -236,6 +257,7 @@ export default function WalletTransactionsPage() {
             <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
               <tr>
                 <th className="px-4 py-3 text-left whitespace-nowrap">#</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Actions</th>
                 <th className="px-4 py-3 text-left whitespace-nowrap">User</th>
                 <th className="px-4 py-3 text-left whitespace-nowrap">User Type</th>
                 <th className="px-4 py-3 text-left whitespace-nowrap">Transaction Type</th>
@@ -254,6 +276,20 @@ export default function WalletTransactionsPage() {
               {transactions.map((txn, index) => (
                 <tr key={txn._id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 text-muted-foreground">{(query.page - 1) * query.limit + index + 1}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => handleInvoiceAction(txn)}
+                      disabled={!txn.invoiceUrl && (txn.status !== "Success" || generatingInvoiceId !== null)}
+                      title={txn.invoiceUrl ? "View invoice" : txn.status === "Success" ? "Generate invoice" : "Invoice available for successful transactions only"}
+                      aria-label={txn.invoiceUrl ? "View invoice" : "Generate invoice"}
+                      className={txn.invoiceUrl
+                        ? "inline-flex h-8 w-8 items-center justify-center rounded-md border border-green-500 text-green-600 hover:bg-green-50 disabled:opacity-50"
+                        : "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-50"}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
                     <p className="font-medium leading-tight">{txn.userDetails?.name || txn.userDetails?.mobile || "Unknown"}</p>
                     <p className="text-xs text-muted-foreground">{txn.userDetails?.mobile || "—"}</p>

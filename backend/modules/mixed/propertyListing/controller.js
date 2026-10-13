@@ -123,19 +123,14 @@ function toIST(date) {
 // ── Find valid active plan for user ──────────────────────────────────────────
 async function findValidPlan(userId) {
   const now = nowIST();
-  console.log("[findValidPlan] Current IST:", now.toISOString());
   const plans = await ListingPurchasedPlan.find({ user: userId, status: "Active" });
   return plans.find((p) => {
     const isUnlimited = p.plan.numberOfPropertiesGiven === -1;
     if (!isUnlimited && p.propertiesUsed >= p.plan.numberOfPropertiesGiven) return false;
     if (p.expiryDate === null || p.expiryDate === undefined) {
-      console.log(`[findValidPlan] Plan "${p.plan.name}" expiryDate: null (never expires)`);
-      console.log(`[findValidPlan] expiry >= now: true`);
       return true; // null = never expires
     }
     const expiry = toIST(p.expiryDate);
-    console.log(`[findValidPlan] Plan "${p.plan.name}" expiryDate IST:`, expiry.toISOString());
-    console.log(`[findValidPlan] expiry >= now:`, expiry >= now);
     return expiry >= now;
   }) ?? null;
 }
@@ -421,8 +416,6 @@ function normalizeListingCard(listing) {
   const city     = listing.cityName ?? "";
   const typeName = listing.propertyType?.name ?? "";
   const purpose  = listing.listingType?.name ?? "";
-
-  console.log(`[DEBUG] normalizeListingCard: categoryId=${categoryId}, listingTypeId=${listingTypeId}, propertyTypeId=${propertyTypeId}, city="${city}", typeName="${typeName}", purpose="${purpose}"`);
 
   let title = "";
   let price = null;
@@ -996,15 +989,6 @@ const updateListing = async (req, res) => {
       listing.commercialDetails?.carpetArea?.value != null ? listing.commercialDetails.carpetArea   :
       null;
 
-    console.log("[perSqPrice] listingId:", listing._id.toString());
-    console.log("[perSqPrice] sellInfo.price:", listing.sellInfo?.price);
-    console.log("[perSqPrice] rentInfo.monthlyRent:", listing.rentInfo?.monthlyRent);
-    console.log("[perSqPrice] resolved price:", price);
-    console.log("[perSqPrice] residentialDetails.carpetArea:", listing.residentialDetails?.carpetArea);
-    console.log("[perSqPrice] plotDetails.plotArea:", listing.plotDetails?.plotArea);
-    console.log("[perSqPrice] commercialDetails.carpetArea:", listing.commercialDetails?.carpetArea);
-    console.log("[perSqPrice] resolved area:", area);
-
     // Reset all three before recomputing
     listing.perSqFtPrice = null;
     listing.perSqYdPrice = null;
@@ -1013,15 +997,11 @@ const updateListing = async (req, res) => {
     if (price != null && area?.value != null && Number(area.value) > 0) {
       const perSq = Math.round((Number(price) / Number(area.value)) * 100) / 100;
       const unit  = area.unit ?? "sqft"; // default to sqft when unit is not set
-      console.log("[perSqPrice] computed perSq:", perSq, "for unit:", unit);
       if      (unit === "sqft") listing.perSqFtPrice = perSq;
       else if (unit === "sqyd") listing.perSqYdPrice = perSq;
       else if (unit === "sqmt") listing.perSqMtPrice = perSq;
     } else {
-      console.log("[perSqPrice] skipped — price or area missing/zero. price:", price, "area:", area);
     }
-
-    console.log("[perSqPrice] final — perSqFtPrice:", listing.perSqFtPrice, "perSqYdPrice:", listing.perSqYdPrice, "perSqMtPrice:", listing.perSqMtPrice);
 
     await listing.save();
 

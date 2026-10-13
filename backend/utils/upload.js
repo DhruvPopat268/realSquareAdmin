@@ -41,10 +41,6 @@ const imageStorage = multer.diskStorage({
 });
 
 const imageFilter = (req, file, cb) => {
-  console.log("UPLOAD:", {
-    name: file.originalname,
-    mimetype: file.mimetype,
-  });
 
   /^image\/(jpeg|jpg|png|webp)$/.test(file.mimetype)
     ? cb(null, true)

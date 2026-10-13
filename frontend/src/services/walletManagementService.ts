@@ -10,6 +10,7 @@ export interface PaymentTransaction {
   razorpayPaymentId?: string;
   amount: number;
   baseAmount?: number;
+  invoiceUrl?: string;
   taxBreakdown?: { cgst?: number; sgst?: number; igst?: number; taxAmount?: number } | null;
   currency: string;
   balanceBefore: number;
@@ -35,4 +36,6 @@ export interface WalletTransactionsResponse {
 export const walletManagementService = {
   getTransactions: (params?: Record<string, string | number>) =>
     api.get<WalletTransactionsResponse>("/admin/wallet/transactions", { params }),
+  generateInvoice: (transactionId: string) =>
+    api.post<{ success: boolean; data: { invoiceUrl: string } }>(`/admin/wallet/transactions/${transactionId}/generate-invoice`),
 };
