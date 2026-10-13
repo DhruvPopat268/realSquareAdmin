@@ -43,9 +43,11 @@ const generateInvoiceController = async (req, res) => {
 
   try {
     // Ownership check — transaction must belong to the logged-in user
-    const txnCheck = await PaymentTransaction.findById(transactionId).select("user").lean();
+    const txnCheck = await PaymentTransaction.findById(transactionId).select("user invoiceUrl").lean();
     if (txnCheck.user.toString() !== req.user._id.toString())
       return res.status(403).json({ success: false, message: "You are not authorized to generate invoice for this transaction" });
+    if (txnCheck.invoiceUrl)
+      return res.status(409).json({ success: false, message: "An invoice has already been generated for this transaction" });
 
     const invoiceUrl = await generateInvoice(transactionId);
 
