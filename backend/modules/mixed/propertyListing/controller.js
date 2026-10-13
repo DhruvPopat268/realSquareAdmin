@@ -514,6 +514,7 @@ function formatPrice(n) {
 function normalizeMyListingCard(listing) {
   return {
     ...normalizeListingCard(listing),
+    zeroBrokerage: listing.zeroBrokerage ?? null,
     propertyCompletionPercentage: calculatePropertyCompletionPercentage(listing),
   };
 }
@@ -577,7 +578,7 @@ const getMyListings = async (req, res) => {
       const limit = parseInt(req.query.limit);
       if (limit > 0) {
         const listings = await PropertyListing.find({ "listedBy.id": req.user._id })
-          .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice")
+          .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice zeroBrokerage")
           .sort({ createdAt: -1 })
           .limit(limit)
           .lean();
@@ -604,7 +605,7 @@ const getMyListings = async (req, res) => {
     const baseFilter = { "listedBy.id": req.user._id };
     const parallelTasks = [
       PropertyListing.find(filter)
-        .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice")
+        .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice zeroBrokerage")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(PAGE_LIMIT)

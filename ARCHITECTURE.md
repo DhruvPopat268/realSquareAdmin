@@ -21,3 +21,4 @@
 
 - The admin frontend calls the backend under `/api/admin/...` through its shared API client.
 - The backend owns authentication, validation, business rules, and persistence. Keep those responsibilities in the established route, middleware, validator, controller, and model layers.
+- When a controller normalizes database records into a response shape, include selected fields explicitly in that normalizer; query projections alone do not guarantee that fields reach the API response.
