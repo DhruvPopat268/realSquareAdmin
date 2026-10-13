@@ -305,6 +305,9 @@
       <div class="val">{{customerName}}</div>
       <div class="sub">{{customerMobile}}</div>
       <span class="badge">{{userType}}</span>
+      {{#if customerLocation}}
+      <div class="sub">{{customerLocation}}</div>
+      {{/if}}
     </div>
     <div class="info-block" style="text-align:right">
       <span style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:1.5px;">Invoice Date:&nbsp;</span>

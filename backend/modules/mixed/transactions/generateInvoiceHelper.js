@@ -3,6 +3,7 @@ const fs        = require("fs");
 const puppeteer = require("puppeteer-core");
 
 const PaymentTransaction = require("./model");
+const SystemUser         = require("../../systemUsers.model");
 const Counter            = require("../../../models/counter.model");
 const InvoiceConfig      = require("../../admin/invoiceConfig/model");
 
@@ -77,6 +78,24 @@ async function generateInvoice(transactionId) {
   const txn = await PaymentTransaction.findById(transactionId).populate("refId", "name");
   if (!txn) throw new Error(`PaymentTransaction not found: ${transactionId}`);
 
+  const profileFieldByRole = {
+    Owner: "ownerProfile",
+    Broker: "brokerProfile",
+    Builder: "builderProfile",
+  };
+  const profileField = profileFieldByRole[txn.userType];
+  const profile = profileField
+    ? await SystemUser.findById(txn.user).select(`${profileField}.location ${profileField}.state`).lean()
+    : null;
+  const userProfile = profile?.[profileField];
+  const locationName = userProfile?.location?.name?.trim();
+  const state = userProfile?.state?.trim();
+  const normalizedLocation = locationName?.toLocaleLowerCase("en-IN") || "";
+  const normalizedState = state?.toLocaleLowerCase("en-IN") || "";
+  const customerLocation = [locationName, locationName && state && !normalizedLocation.includes(normalizedState) ? state : null]
+    .filter(Boolean)
+    .join(", ");
+
   // ── 2. Load invoice config (singleton) ──────────────────────────────────
   const config = await InvoiceConfig.findOne().lean();
 
@@ -119,6 +138,7 @@ async function generateInvoice(transactionId) {
     companyMobile:    config?.companyMobile  || "",
     customerName:     txn.userDetails?.name   || "—",
     customerMobile:   txn.userDetails?.mobile || "—",
+    customerLocation,
     userType:         txn.userType            || "—",
     invoiceDate,
     razorpayOrderId:  txn.razorpayOrderId     || "—",
