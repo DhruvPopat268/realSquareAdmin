@@ -539,8 +539,18 @@ const updateProfile = async (req, res) => {
 
     const hasRoleLocation = ["ownerProfile", "brokerProfile", "builderProfile"].includes(profileField);
     const resolvedLocation = hasRoleLocation ? await resolveProfileLocation(req.body) : null;
-    if (hasRoleLocation && isRoleProfileCreation && !resolvedLocation) {
-      return res.status(400).json({ success: false, message: "A valid location is required to complete this profile." });
+    if (hasRoleLocation && !resolvedLocation) {
+      const savedProfile = req.user?.[profileField];
+      const savedLocation = savedProfile?.location;
+      const hasSavedLocation = typeof savedLocation?.name === "string" && savedLocation.name.trim() &&
+        savedLocation.latitude !== null && savedLocation.latitude !== undefined &&
+        savedLocation.longitude !== null && savedLocation.longitude !== undefined &&
+        Number.isFinite(Number(savedLocation.latitude)) && Number(savedLocation.latitude) >= -90 && Number(savedLocation.latitude) <= 90 &&
+        Number.isFinite(Number(savedLocation.longitude)) && Number(savedLocation.longitude) >= -180 && Number(savedLocation.longitude) <= 180 &&
+        typeof savedProfile?.state === "string" && savedProfile.state.trim();
+      if (isRoleProfileCreation || !hasSavedLocation) {
+        return res.status(400).json({ success: false, message: "A valid location is required to update this profile." });
+      }
     }
     if (hasRoleLocation) {
       for (const key of ["location", "location.name", "location.latitude", "location.longitude", "state"]) delete req.body[key];
