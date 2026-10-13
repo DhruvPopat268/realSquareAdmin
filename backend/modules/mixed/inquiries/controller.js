@@ -21,13 +21,6 @@ const ROLE_USERTYPE_MAP = {
  */
 const createInquiry = async (req, res) => {
   try {
-    if (req.body?.isProperty !== true) {
-      return res.status(400).json({
-        success: false,
-        message: "Only individual property enquiries are supported",
-      });
-    }
-
     const userId = req.user?._id;
     const user   = req.user;
 

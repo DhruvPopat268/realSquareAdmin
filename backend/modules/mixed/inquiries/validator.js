@@ -21,12 +21,7 @@ const createInquiryValidator = [
   // ── isProperty ──────────────────────────────────────────────────────────────
   body("isProperty")
     .notEmpty().withMessage("isProperty is required")
-    .isBoolean({ strict: true }).withMessage("isProperty must be a boolean")
-    .bail()
-    .custom((value) => {
-      if (value !== true) throw new Error("Only individual property enquiries are supported");
-      return true;
-    }),
+    .isBoolean({ strict: true }).withMessage("isProperty must be a boolean"),
 
   // ── listingType ─────────────────────────────────────────────────────────────
   body("listingType")

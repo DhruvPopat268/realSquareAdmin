@@ -484,14 +484,14 @@ export default function EnquiriesPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0">
-              {pending.isProperty ? (pending.isProperty === "true" ? "Individual Property" : "Project") : "All Requirement Types"}
+              {pending.isProperty ? (pending.isProperty === "true" ? "Ready To Move Property" : "Under Construction Property") : "All Requirement Types"}
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => set("isProperty", "all")}>All Requirement Types</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => set("isProperty", "true")}>Individual Property</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => set("isProperty", "false")}>Project</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("isProperty", "true")}>Ready To Move Property</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set("isProperty", "false")}>Under Construction Property</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -661,7 +661,7 @@ export default function EnquiriesPage() {
                 </td>
                 {/* Requirement Type */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                  {enquiry.isProperty ? "Individual Property" : "Project"}
+                  {enquiry.isProperty ? "Ready To Move Property" : "Under Construction Property"}
                 </td>
                 {/* Purpose */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{referenceName(enquiry.listingType)}</td>
