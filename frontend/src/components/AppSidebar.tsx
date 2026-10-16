@@ -157,16 +157,12 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-sidebar-border shrink-0">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary">
-          <Home className="h-5 w-5 text-sidebar-primary-foreground" />
-        </div>
-        {!collapsed && (
-          <div>
-            <p className="text-sm font-bold text-sidebar-accent-foreground leading-tight">RealSquare</p>
-            <p className="text-[10px] text-sidebar-foreground/50 leading-tight">Real Estate Platform</p>
-          </div>
-        )}
+      <div className={cn("flex items-center justify-center border-b border-sidebar-border shrink-0", collapsed ? "px-2 py-4" : "px-4 py-4")}>
+        <img
+          src={import.meta.env.VITE_SIDEBAR_LOGO_URL}
+          alt="RealSquare"
+          className={cn("shrink-0 bg-transparent object-contain", collapsed ? "h-7 w-7" : "h-9 w-auto max-w-[180px]")}
+        />
       </div>
 
       <SidebarContent className="overflow-y-auto scrollbar-none" style={{ overflowY: "auto" }}>

@@ -16,6 +16,7 @@
 - Keep route-level screens in `frontend/src/pages/` and reusable UI in `frontend/src/components/`.
 - Put API calls and response types in the established `frontend/src/services/` modules. Use the shared Axios client and existing error and notification patterns.
 - Before adding or changing a page layout, inspect comparable pages and reuse their layout, components, and styling patterns, especially when the user names a reference page.
+- Property edit forms must bind fields to the category-specific payload object used by the API (for example, residential plots use `plotDetails`, while commercial plots use `commercialDetails`).
 
 ## API boundary
 

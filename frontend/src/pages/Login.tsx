@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Home, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import api from "@/lib/axiosInterceptor";
 
 type Step = "login" | "send-otp" | "verify-otp";
@@ -134,11 +134,12 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 px-4">
       <Card className="w-full max-w-sm shadow-xl border-0">
         <CardHeader className="text-center space-y-4 pb-2">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Home className="h-7 w-7 text-primary-foreground" />
-          </div>
+          <img
+            src={import.meta.env.VITE_LOGO_URL}
+            alt="RealSquare"
+            className="mx-auto h-12 w-auto max-w-[220px] object-contain"
+          />
           <div>
-            <h1 className="text-2xl font-bold text-foreground">RealSquare</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {step === "login"      && "Real Estate Management Platform"}
               {step === "send-otp"   && "Reset your password"}
