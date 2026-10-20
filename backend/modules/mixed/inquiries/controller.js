@@ -35,6 +35,7 @@ const createInquiry = async (req, res) => {
     const createdByData = {
       id:     userId,
       name:   user.name || user.ownerProfile?.fullName || user.brokerProfile?.fullName || user.builderProfile?.fullName,
+      email:  user.email || undefined,
       mobile: user.mobile,
       role:   user.role?._id,
     };
@@ -415,6 +416,7 @@ const getAssignedInquiries = async (req, res) => {
             ...a.inquiry.createdBy,
             id:     "****",
             name:   "****",
+            email:  "****",
             mobile: "****",
             role:   "****",
           },

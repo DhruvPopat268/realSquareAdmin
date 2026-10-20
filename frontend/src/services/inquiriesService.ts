@@ -10,6 +10,7 @@ export interface AdminInquiry {
   createdBy: {
     id: string;
     name: string;
+    email?: string;
     mobile: string;
     role: { _id: string; name: string } | null;
   };

@@ -637,10 +637,13 @@ export default function EnquiriesPage() {
                   <p>{new Date(enquiry.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
                   <p className="text-muted-foreground">{new Date(enquiry.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</p>
                 </td>
-                {/* Created By — name + mobile below, no avatar */}
+                {/* Created By — name + mobile + email below, no avatar */}
                 <td className="px-4 py-3 whitespace-nowrap">
                   <p className="font-medium text-foreground">{enquiry.createdBy?.name ?? "—"}</p>
                   <p className="text-xs text-muted-foreground">{enquiry.createdBy?.mobile ?? "—"}</p>
+                  {enquiry.createdBy?.email && (
+                    <p className="text-xs text-muted-foreground">{enquiry.createdBy.email}</p>
+                  )}
                 </td>
                 {/* Role */}
                 <td className="px-4 py-3 text-muted-foreground capitalize whitespace-nowrap">{enquiry.createdBy?.role?.name ?? "—"}</td>

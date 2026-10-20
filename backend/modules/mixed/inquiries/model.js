@@ -14,6 +14,11 @@ const inquirySchema = new mongoose.Schema(
         trim: true,
         required: true,
       },
+      email: {
+        type: String,
+        trim: true,
+        lowercase: true,
+      },
       mobile: {
         type: String,
         trim: true,
