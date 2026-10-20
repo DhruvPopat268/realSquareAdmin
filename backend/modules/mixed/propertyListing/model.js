@@ -107,6 +107,27 @@ const pgDetailsSchema = new Schema(
   { _id: false }
 );
 
+// ─── Coworking workspace configurations ──────────────────────────────────────
+
+const coworkingCabinConfigSchema = new Schema(
+  {
+    availableSeats: { type: Number },
+    rentPerSeat: { type: Number },
+  },
+  { _id: false }
+);
+
+const coworkingWorkspaceSchema = new Schema(
+  {
+    type: { type: String, enum: ["cabin", "hall"] },
+    available: { type: Number },             // number of cabins
+    config: [coworkingCabinConfigSchema],    // per-cabin seat and rent details
+    availableSeats: { type: Number },        // hall seats
+    rentPerSeat: { type: Number },           // hall monthly rent per seat
+  },
+  { _id: false }
+);
+
 // ─── Commercial (Office / Shop / Showroom / Warehouse / Plot / Others) ───────
 
 const commercialDetailsSchema = new Schema(
@@ -127,6 +148,8 @@ const commercialDetailsSchema = new Schema(
     ownership: { type: String, enum: ["Freehold", "Leasehold", "CooperativeSociety", "PowerOfAttorney"] },
     totalFloors: { type: Number },
     yourFloor: { type: String, trim: true },
+    workSpaceFloor: { type: Number },
+    workspaces: [coworkingWorkspaceSchema],
     minSeats: { type: Number },              // office only
     minCabins: { type: Number },           // office only
     minMeetingRooms: { type: Number },     // office only

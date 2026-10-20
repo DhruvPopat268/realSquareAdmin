@@ -1,5 +1,5 @@
 const express  = require("express");
-const { canList, create, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
+const { canList, create, ensureCoworkingRentPurpose, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
 const { createListingValidator }        = require("./validator");
 const { userProtect }                   = require("../../../middleware/userAuth");
 const { uploadImage, handlePropertyMediaUpload } = require("../../../utils/upload");
@@ -25,7 +25,7 @@ router.get("/my-listings",                  userProtect, getMyListings);
 router.get("/cron-6-month-inactive",         cronProtect, get6MonthInactiveProperties);
 router.get("/cron-1-year-inactive",          cronProtect, get1YearInactiveProperties);
 
-router.post("/",      userProtect, createListingValidator, create);
+router.post("/",      userProtect, ensureCoworkingRentPurpose, createListingValidator, create);
 router.patch("/",     userProtect, updateListing); // PATCH with ID in body
 router.post("/media", userProtect, uploadImage.array("images", 20), uploadMedia);
 router.patch("/media", userProtect, handlePropertyMediaUpload, updateMedia); // image, video, and reel media update

@@ -19,6 +19,13 @@ const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const AUTO_INACTIVE_STATUSES = ["Active", "UnderReview", "Rejected"];
 const YEARLY_CLEANUP_STATUSES = [...AUTO_INACTIVE_STATUSES, "Inactive"];
 
+const ensureCoworkingRentPurpose = (req, res, next) => {
+  if (req.body?.propertyTypeId === process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID) {
+    req.body.listingTypeId = process.env.LISTING_TYPE_RENT_ID;
+  }
+  next();
+};
+
 const resolveStoredImagePath = (imageUrl) => {
   try {
     const backendUrl = process.env.BACKEND_URL;
@@ -1545,4 +1552,4 @@ const markRented = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };
+module.exports = { canList, create, ensureCoworkingRentPurpose, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };

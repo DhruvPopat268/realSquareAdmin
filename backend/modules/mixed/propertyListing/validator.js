@@ -38,6 +38,71 @@ const listingPropertyStatusValidators = (section) =>
     .isIn(["NewlyAdded", "Relaunch"])
     .withMessage(`${section}.propertyStatus must be NewlyAdded or Relaunch`);
 
+const isCoworkingListing = (req) =>
+  req.body?.propertyTypeId === process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID;
+
+const validateCoworkingDetails = (details) => {
+  if (!details) throw new Error("commercialDetails is required for coworking listings");
+
+  if (details.workSpaceFloor === undefined || details.workSpaceFloor === null || details.workSpaceFloor === "")
+    throw new Error("commercialDetails.workSpaceFloor is required for coworking listings");
+  const floor = Number(details.workSpaceFloor);
+  if (!Number.isInteger(floor) || floor < -1)
+    throw new Error("commercialDetails.workSpaceFloor must be an integer of -1 or greater");
+
+  const workspaces = details.workspaces;
+  if (!Array.isArray(workspaces) || workspaces.length < 1)
+    throw new Error("commercialDetails.workspaces must contain at least one workspace");
+  if (workspaces.length > 2)
+    throw new Error("commercialDetails.workspaces can contain at most one cabin group and one hall");
+
+  const seenTypes = new Set();
+  workspaces.forEach((workspace, workspaceIndex) => {
+    if (!workspace || typeof workspace !== "object" || Array.isArray(workspace))
+      throw new Error(`commercialDetails.workspaces[${workspaceIndex}] must be an object`);
+    if (workspace.depositPerSeat !== undefined || workspace.securityDeposit !== undefined)
+      throw new Error("Coworking workspaces do not accept deposit fields");
+    if (!["cabin", "hall"].includes(workspace.type))
+      throw new Error(`commercialDetails.workspaces[${workspaceIndex}].type must be cabin or hall`);
+    if (seenTypes.has(workspace.type))
+      throw new Error(`commercialDetails.workspaces cannot contain duplicate ${workspace.type} entries`);
+    seenTypes.add(workspace.type);
+
+    if (workspace.type === "cabin") {
+      const available = Number(workspace.available);
+      if (!Number.isInteger(available) || available <= 0)
+        throw new Error("Cabin workspace available must be a positive integer");
+      if (!Array.isArray(workspace.config) || workspace.config.length !== available)
+        throw new Error("Cabin workspace config must contain one entry per available cabin");
+      if (workspace.availableSeats !== undefined || workspace.rentPerSeat !== undefined)
+        throw new Error("Cabin workspace must use config entries, not hall fields");
+
+      workspace.config.forEach((config, configIndex) => {
+        if (!config || typeof config !== "object" || Array.isArray(config))
+          throw new Error(`Cabin config ${configIndex + 1} must be an object`);
+        if (config.depositPerSeat !== undefined || config.securityDeposit !== undefined)
+          throw new Error(`Cabin config ${configIndex + 1} does not accept deposit fields`);
+        const seats = Number(config.availableSeats);
+        if (!Number.isInteger(seats) || seats <= 0)
+          throw new Error(`Cabin config ${configIndex + 1} availableSeats must be a positive integer`);
+        if (config.rentPerSeat === undefined || config.rentPerSeat === null || config.rentPerSeat === "" || !Number.isFinite(Number(config.rentPerSeat)) || Number(config.rentPerSeat) < 0)
+          throw new Error(`Cabin config ${configIndex + 1} rentPerSeat must be zero or greater`);
+      });
+      return;
+    }
+
+    const seats = Number(workspace.availableSeats);
+    if (!Number.isInteger(seats) || seats <= 0)
+      throw new Error("Hall availableSeats must be a positive integer");
+    if (workspace.rentPerSeat === undefined || workspace.rentPerSeat === null || workspace.rentPerSeat === "" || !Number.isFinite(Number(workspace.rentPerSeat)) || Number(workspace.rentPerSeat) < 0)
+      throw new Error("Hall rentPerSeat must be zero or greater");
+    if (workspace.available !== undefined || workspace.config !== undefined)
+      throw new Error("Hall workspace must use availableSeats and rentPerSeat, not cabin fields");
+  });
+
+  return true;
+};
+
 const createListingValidator = [
   // ── Top-level required IDs ──────────────────────────────────────────────────
   body("categoryId").notEmpty().withMessage("categoryId is required").isMongoId().withMessage("categoryId must be a valid ID").bail().custom(existsAndActive(PropertyCategory, "Category")),
@@ -66,9 +131,14 @@ const createListingValidator = [
       throw new Error("propertyTypeId must be Plot or Agricultural Land when sending plotDetails");
     return true;
   }),
-  body("commercialDetails").optional().custom((_, { req }) => {
-    if (req.body.categoryId !== process.env.CATEGORY_COMMERCIAL_ID)
+  body("commercialDetails").custom((details, { req }) => {
+    if (details && req.body.categoryId !== process.env.CATEGORY_COMMERCIAL_ID)
       throw new Error("categoryId must be commercial category when sending commercialDetails");
+    if (isCoworkingListing(req)) {
+      if (req.body.listingTypeId !== process.env.LISTING_TYPE_RENT_ID)
+        throw new Error("Coworking listings must use Rent purpose");
+      return validateCoworkingDetails(details);
+    }
     return true;
   }),
   body("pgDetails").optional().custom((_, { req }) => {
@@ -169,6 +239,7 @@ const createListingValidator = [
 
   // builtUpArea — required for non-plot commercial when commercialDetails is sent
   body("commercialDetails.builtUpArea.unit").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    if (isCoworkingListing(req)) return true;
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;     // plot → skip
     if (!_) return true;                                              // optional — skip if absent
@@ -176,6 +247,7 @@ const createListingValidator = [
     return true;
   }),
   body("commercialDetails.builtUpArea.value").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    if (isCoworkingListing(req)) return true;
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
     if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.builtUpArea.value is required");
@@ -183,6 +255,7 @@ const createListingValidator = [
     return true;
   }),
   body("commercialDetails.carpetArea.value").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    if (isCoworkingListing(req)) return true;
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
     if (_ === undefined || _ === null || _ === "") throw new Error("commercialDetails.carpetArea.value is required");
@@ -193,6 +266,7 @@ const createListingValidator = [
     return true;
   }),
   body("commercialDetails.carpetArea.unit").if(body("commercialDetails").exists()).custom((_, { req }) => {
+    if (isCoworkingListing(req)) return true;
     const plotIds = process.env.COMMERCIAL_PROPERTY_TYPE_PLOT_IDS.split(",");
     if (plotIds.includes(req.body.propertyTypeId)) return true;
     if (!_) throw new Error("commercialDetails.carpetArea.unit is required");
@@ -267,7 +341,7 @@ const createListingValidator = [
   body("sellInfo.price").if(body("sellInfo").exists()).notEmpty().withMessage("sellInfo.price is required").isFloat({ min: 0 }).withMessage("sellInfo.price must be a positive number"),
   // ── rentInfo (required for Rent, not allowed otherwise) ──────────────────────
   body("rentInfo").custom((_, { req }) => {
-    if (req.body.listingTypeId === process.env.LISTING_TYPE_RENT_ID && !_)
+    if (req.body.listingTypeId === process.env.LISTING_TYPE_RENT_ID && !_ && !isCoworkingListing(req))
       throw new Error("rentInfo is required when listingTypeId is Rent");
     if (_ && req.body.listingTypeId !== process.env.LISTING_TYPE_RENT_ID)
       throw new Error("rentInfo is only allowed when listingTypeId is Rent");
@@ -280,4 +354,4 @@ const createListingValidator = [
   body("rentInfo.securityDeposit").if(body("rentInfo.securityDeposit").exists()).isFloat({ min: 0 }).withMessage("rentInfo.securityDeposit must be a non-negative number"),
 ];
 
-module.exports = { createListingValidator };
+module.exports = { createListingValidator, validateCoworkingDetails };
