@@ -98,6 +98,7 @@ const sections = [
       { type: "link", to: "/property-purposes",   icon: Tag,    label: "Property Purposes" },
       { type: "link", to: "/property-categories", icon: Tag,    label: "Property Categories" },
       { type: "link", to: "/property-types",        icon: Wrench, label: "Property Types" },
+      { type: "link", to: "/virtual-space-benefits", icon: Tag, label: "Virtual Space Benefits" },
       { type: "link", to: "/furnishings-amenities",  icon: Tag,    label: "Furnishings & Amenities" },
       { type: "link", to: "/properties",            icon: Home,   label: "Properties" },
       { type: "link", to: "/projects", icon: FolderOpen, label: "Projects" },

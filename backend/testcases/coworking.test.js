@@ -19,6 +19,25 @@ describe("coworking create validation", () => {
 
   test("accepts a cabin group and hall with valid seats and rents", () => {
     expect(validateCoworkingDetails(details)).toBe(true);
+    expect(
+      validateCoworkingDetails({
+        ...details,
+        workspaces: [
+          ...details.workspaces,
+          {
+            type: "virtualSpace",
+            monthlyRent: 5000,
+            benefits: [
+              {
+                _id: "6ad8604cdaad6d32b13b7d67",
+                title: "Virtual Office",
+                benefits: ["Business address"],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toBe(true);
   });
 
   test.each([-1, 0, 1, 12])("accepts workspace floor %i", (workSpaceFloor) => {
@@ -31,6 +50,66 @@ describe("coworking create validation", () => {
       expect(() => validateCoworkingDetails({ ...details, workSpaceFloor })).toThrow(/workSpaceFloor/);
     },
   );
+
+  test("accepts a virtual space with a monthly rent and selected benefits", () => {
+    expect(
+      validateCoworkingDetails({
+        workSpaceFloor: 0,
+        workspaces: [
+          {
+            type: "virtualSpace",
+            monthlyRent: 5000,
+            benefits: [
+              {
+                _id: "6ad8604cdaad6d32b13b7d67",
+                title: "Virtual Office",
+                benefits: ["Business address"],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  test.each([undefined, null, "", 0, -1, "not-a-number"])(
+    "rejects invalid virtual space monthly rent %p",
+    (monthlyRent) => {
+      expect(() =>
+        validateCoworkingDetails({
+          workSpaceFloor: 0,
+          workspaces: [
+            {
+              type: "virtualSpace",
+              monthlyRent,
+              benefits: [
+                {
+                  _id: "6ad8604cdaad6d32b13b7d67",
+                  title: "Virtual Office",
+                  benefits: ["Business address"],
+                },
+              ],
+            },
+          ],
+        }),
+      ).toThrow(/monthlyRent/);
+    },
+  );
+
+  test("requires at least one virtual space benefit", () => {
+    expect(() =>
+      validateCoworkingDetails({
+        workSpaceFloor: 0,
+        workspaces: [
+          {
+            type: "virtualSpace",
+            monthlyRent: 5000,
+            benefits: [],
+          },
+        ],
+      }),
+    ).toThrow(/benefits/);
+  });
 
   test("requires at least one workspace", () => {
     expect(() => validateCoworkingDetails({ workSpaceFloor: 0, workspaces: [] })).toThrow(/at least one workspace/);
@@ -47,7 +126,7 @@ describe("coworking create validation", () => {
     expect(() => validateCoworkingDetails({
       workSpaceFloor: 0,
       workspaces: [{ type: "virtual" }],
-    })).toThrow(/type must be cabin or hall/);
+    })).toThrow(/type must be cabin, hall, or virtualSpace/);
   });
 
   test("requires cabin config count to match available cabins", () => {

@@ -61,6 +61,20 @@ export interface PGDetails extends PropertyStatusDetails {
   rooms?: PGRoom[];
 }
 
+export interface CoworkingWorkspace {
+  type?: "cabin" | "hall" | "virtualSpace";
+  available?: number;
+  config?: { availableSeats?: number; rentPerSeat?: number }[];
+  availableSeats?: number;
+  rentPerSeat?: number;
+  monthlyRent?: number;
+  benefits?: {
+    _id: string;
+    title: string;
+    benefits: string[];
+  }[];
+}
+
 export interface CommercialDetails extends PropertyStatusDetails {
   propertyStatus?: "NewlyAdded" | "Relaunch";
   societyName?: string;
@@ -78,6 +92,8 @@ export interface CommercialDetails extends PropertyStatusDetails {
   minSeats?: number;
   minCabins?: number;
   minMeetingRooms?: number;
+  workSpaceFloor?: number;
+  workspaces?: CoworkingWorkspace[];
   furnishType?: "Unfurnished" | "Semi-Furnished" | "Fully-Furnished";
   furnishings?: FurnishingItem[];
   amenities?: FurnishingItem[];

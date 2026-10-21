@@ -1,8 +1,10 @@
 const { body }         = require("express-validator");
+const mongoose         = require("mongoose");
 const PropertyCategory = require("../../admin/propertyCategories/model");
 const PropertyPurpose  = require("../../admin/propertyPurposes/model");
 const PropertyType     = require("../../admin/propertyTypes/model");
 const FurnishingAmenity = require("../../admin/furnishingsAndAmenities/model");
+const VirtualSpace = require("../../admin/virtualSpace/model");
 
 const existsAndActive = (Model, label) => async (id) => {
   const doc = await Model.findById(id).select("isActive");
@@ -53,8 +55,8 @@ const validateCoworkingDetails = (details) => {
   const workspaces = details.workspaces;
   if (!Array.isArray(workspaces) || workspaces.length < 1)
     throw new Error("commercialDetails.workspaces must contain at least one workspace");
-  if (workspaces.length > 2)
-    throw new Error("commercialDetails.workspaces can contain at most one cabin group and one hall");
+  if (workspaces.length > 3)
+    throw new Error("commercialDetails.workspaces can contain at most one cabin group, one hall, and one virtual space");
 
   const seenTypes = new Set();
   workspaces.forEach((workspace, workspaceIndex) => {
@@ -62,11 +64,56 @@ const validateCoworkingDetails = (details) => {
       throw new Error(`commercialDetails.workspaces[${workspaceIndex}] must be an object`);
     if (workspace.depositPerSeat !== undefined || workspace.securityDeposit !== undefined)
       throw new Error("Coworking workspaces do not accept deposit fields");
-    if (!["cabin", "hall"].includes(workspace.type))
-      throw new Error(`commercialDetails.workspaces[${workspaceIndex}].type must be cabin or hall`);
+    if (!["cabin", "hall", "virtualSpace"].includes(workspace.type))
+      throw new Error(`commercialDetails.workspaces[${workspaceIndex}].type must be cabin, hall, or virtualSpace`);
     if (seenTypes.has(workspace.type))
       throw new Error(`commercialDetails.workspaces cannot contain duplicate ${workspace.type} entries`);
     seenTypes.add(workspace.type);
+
+    if (workspace.type === "virtualSpace") {
+      const rent = Number(workspace.monthlyRent);
+      if (
+        workspace.monthlyRent === undefined ||
+        workspace.monthlyRent === null ||
+        workspace.monthlyRent === "" ||
+        !Number.isFinite(rent) ||
+        rent <= 0
+      )
+        throw new Error("Virtual space monthlyRent must be greater than zero");
+      if (
+        !Array.isArray(workspace.benefits) ||
+        workspace.benefits.length < 1 ||
+        workspace.benefits.some(
+          (group) =>
+            !group ||
+            typeof group !== "object" ||
+            !mongoose.isValidObjectId(group._id) ||
+            typeof group.title !== "string" ||
+            !group.title.trim() ||
+            !Array.isArray(group.benefits) ||
+            group.benefits.length < 1 ||
+            group.benefits.some(
+              (benefit) => typeof benefit !== "string" || !benefit.trim(),
+            ),
+        )
+      ) {
+        throw new Error(
+          "Virtual space benefits must include a master ID, title, and selected benefits",
+        );
+      }
+      const benefitIds = workspace.benefits.map((group) => group._id.toString());
+      if (new Set(benefitIds).size !== benefitIds.length) {
+        throw new Error("Virtual space benefit groups cannot contain duplicates");
+      }
+      if (
+        workspace.available !== undefined ||
+        workspace.config !== undefined ||
+        workspace.availableSeats !== undefined ||
+        workspace.rentPerSeat !== undefined
+      )
+        throw new Error("Virtual space must use monthlyRent and benefits, not seat or cabin fields");
+      return;
+    }
 
     if (workspace.type === "cabin") {
       const available = Number(workspace.available);
@@ -103,6 +150,42 @@ const validateCoworkingDetails = (details) => {
   return true;
 };
 
+const validateActiveCoworkingBenefits = async (workspaces) => {
+  const selectedGroups = workspaces
+    .filter((item) => item.type === "virtualSpace")
+    .flatMap((item) => item.benefits);
+  if (!selectedGroups.length) return true;
+
+  const benefitIds = selectedGroups.map((group) => group._id);
+  const masters = await VirtualSpace.find({
+    _id: { $in: benefitIds },
+    isActive: true,
+  })
+    .select("title benefits")
+    .lean();
+  const masterById = new Map(masters.map((master) => [master._id.toString(), master]));
+
+  for (const group of selectedGroups) {
+    const master = masterById.get(group._id.toString());
+    if (!master) {
+      throw new Error("Virtual space benefits must be selected from active benefits");
+    }
+
+    const allowed = new Set(
+      master.benefits.map((benefit) => benefit.trim().toLowerCase()),
+    );
+    if (
+      group.benefits.some(
+        (benefit) => !allowed.has(benefit.trim().toLowerCase()),
+      )
+    ) {
+      throw new Error("Virtual space benefits must be selected from active benefits");
+    }
+  }
+
+  return true;
+};
+
 const createListingValidator = [
   // ── Top-level required IDs ──────────────────────────────────────────────────
   body("categoryId").notEmpty().withMessage("categoryId is required").isMongoId().withMessage("categoryId must be a valid ID").bail().custom(existsAndActive(PropertyCategory, "Category")),
@@ -131,13 +214,15 @@ const createListingValidator = [
       throw new Error("propertyTypeId must be Plot or Agricultural Land when sending plotDetails");
     return true;
   }),
-  body("commercialDetails").custom((details, { req }) => {
+  body("commercialDetails").custom(async (details, { req }) => {
     if (details && req.body.categoryId !== process.env.CATEGORY_COMMERCIAL_ID)
       throw new Error("categoryId must be commercial category when sending commercialDetails");
     if (isCoworkingListing(req)) {
       if (req.body.listingTypeId !== process.env.LISTING_TYPE_RENT_ID)
         throw new Error("Coworking listings must use Rent purpose");
-      return validateCoworkingDetails(details);
+      validateCoworkingDetails(details);
+      await validateActiveCoworkingBenefits(details.workspaces);
+      return true;
     }
     return true;
   }),
@@ -354,4 +439,4 @@ const createListingValidator = [
   body("rentInfo.securityDeposit").if(body("rentInfo.securityDeposit").exists()).isFloat({ min: 0 }).withMessage("rentInfo.securityDeposit must be a non-negative number"),
 ];
 
-module.exports = { createListingValidator, validateCoworkingDetails };
+module.exports = { createListingValidator, validateCoworkingDetails, validateActiveCoworkingBenefits };

@@ -23,3 +23,8 @@
 - The admin frontend calls the backend under `/api/admin/...` through its shared API client.
 - The backend owns authentication, validation, business rules, and persistence. Keep those responsibilities in the established route, middleware, validator, controller, and model layers.
 - When a controller normalizes database records into a response shape, include selected fields explicitly in that normalizer; query projections alone do not guarantee that fields reach the API response.
+
+
+### Virtual Space Benefits and Coworking Listings
+- Admins manage titled virtual-space benefit sets through `/api/admin/virtual-space-benefits`; each set contains benefit strings and an active flag. Authenticated listing users fetch active sets from `/api/mixed/property-listings/active-virtual-space-benefits`.
+- Coworking workspaces support `cabin`, `hall`, and `virtualSpace`. Virtual space stores monthly rent and selected benefit snapshots grouped by master `_id`, with the master title and selected benefit strings. Create validation checks active master IDs and selected benefits, and the controller saves canonical title and benefit snapshots.

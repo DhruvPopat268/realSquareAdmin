@@ -20,6 +20,7 @@ const propertyListingRoutes       = require("./propertyListing/routes");
 const inquiriesRoutes              = require("./inquiries/routes");
 const invoiceConfigRoutes          = require("./invoiceConfig/routes");
 const gstConfigRoutes              = require("./gstConfig/routes");
+const virtualSpaceRoutes            = require("./virtualSpace/routes");
 // add more admin feature routes here as you build them
 // const propertyRoutes = require("./property/routes");
 // const leadRoutes     = require("./lead/routes");
@@ -46,6 +47,7 @@ router.use("/property-listings",      propertyListingRoutes);
 router.use("/inquiries",               inquiriesRoutes);
 router.use("/invoice-config",          invoiceConfigRoutes);
 router.use("/gst-config",              gstConfigRoutes);
+router.use("/virtual-space-benefits",   virtualSpaceRoutes);
 // router.use("/properties", propertyRoutes);
 // router.use("/leads",      leadRoutes);
 

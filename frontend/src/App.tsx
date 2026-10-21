@@ -16,6 +16,7 @@ import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ProfilePage from "./pages/ProfilePage";
 import PropertyPurposesPage from "./pages/PropertyPurposesPage";
 import PropertyTypesPage from "./pages/PropertyTypesPage";
+import VirtualSpaceBenefitsPage from "./pages/VirtualSpaceBenefitsPage";
 import FurnishingsAmenitiesPage from "./pages/FurnishingsAmenitiesPage";
 import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
 import EnquiriesPage from "./pages/EnquiriesPage";
@@ -75,6 +76,7 @@ const App = () => (
             <Route path="/property-purposes"   element={<PropertyPurposesPage />} />
             <Route path="/property-categories" element={<PropertyCategoriesPage />} />
             <Route path="/property-types"      element={<PropertyTypesPage />} />
+            <Route path="/virtual-space-benefits" element={<VirtualSpaceBenefitsPage />} />
             <Route path="/furnishings-amenities" element={<FurnishingsAmenitiesPage />} />
 
             {/* Leads & Enquiries */}

@@ -9,6 +9,7 @@ const PropertyCategory   = require("../../admin/propertyCategories/model");
 const PropertyPurpose    = require("../../admin/propertyPurposes/model");
 const PropertyType       = require("../../admin/propertyTypes/model");
 const FurnishingAmenity  = require("../../admin/furnishingsAndAmenities/model");
+const VirtualSpace       = require("../../admin/virtualSpace/model");
 const FreeListingConfig  = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser         = require("../../systemUsers.model");
@@ -252,6 +253,57 @@ const create = async (req, res) => {
     if (!listingType)  return res.status(404).json({ success: false, message: "Listing type not found" });
     if (propertyTypeId && !propertyType) return res.status(404).json({ success: false, message: "Property type not found" });
 
+    let resolvedCommercialDetails = commercialDetails;
+    const virtualSpaceWorkspaces = commercialDetails?.workspaces?.filter(
+      (workspace) => workspace.type === "virtualSpace",
+    ) ?? [];
+    if (virtualSpaceWorkspaces.length) {
+      const benefitIds = virtualSpaceWorkspaces.flatMap((workspace) =>
+        workspace.benefits.map((group) => group._id),
+      );
+      const benefitMasters = await VirtualSpace.find({
+        _id: { $in: benefitIds },
+        isActive: true,
+      })
+        .select("title benefits")
+        .lean();
+      const benefitMasterById = new Map(
+        benefitMasters.map((master) => [master._id.toString(), master]),
+      );
+
+      if (benefitMasterById.size !== new Set(benefitIds.map(String)).size) {
+        return res.status(400).json({
+          success: false,
+          message: "Virtual space benefits must be selected from active benefits",
+        });
+      }
+
+      resolvedCommercialDetails = {
+        ...commercialDetails,
+        workspaces: commercialDetails.workspaces.map((workspace) => {
+          if (workspace.type !== "virtualSpace") return workspace;
+
+          return {
+            ...workspace,
+            benefits: workspace.benefits.map((group) => {
+              const master = benefitMasterById.get(group._id.toString());
+              const selectedBenefits = new Set(
+                group.benefits.map((benefit) => benefit.trim().toLowerCase()),
+              );
+
+              return {
+                _id: master._id,
+                title: master.title,
+                benefits: master.benefits.filter((benefit) =>
+                  selectedBenefits.has(benefit.trim().toLowerCase()),
+                ),
+              };
+            }),
+          };
+        }),
+      };
+    }
+
     // resolve furnishings & amenities from IDs
     let resolvedResidential = residentialDetails;
     if (residentialDetails) {
@@ -305,7 +357,7 @@ const create = async (req, res) => {
           r.roomType === "1 Sharing" ? { ...r, bedsAvailable: 1 } : r
         ),
       } : undefined,
-      commercialDetails,
+      commercialDetails: resolvedCommercialDetails,
       sellInfo,
       rentInfo,
       zeroBrokerage: req.userRole === process.env.BROKER_ROLE_ID ? false : undefined,
@@ -397,6 +449,20 @@ const getActivePropertyPurposes = async (req, res) => {
   }
 };
 
+// ── GET /property-listings/active-virtual-space-benefits ─────────────────────
+const getActiveVirtualSpaceBenefits = async (_req, res) => {
+  try {
+    const data = await VirtualSpace.find({ isActive: true })
+      .select("title benefits")
+      .sort({ title: 1 })
+      .lean();
+
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // ── GET /property-listings/active-property-types ──────────────────────────────
 const getActivePropertyTypes = async (req, res) => {
   try {
@@ -461,7 +527,7 @@ function normalizeListingCard(listing) {
     price = listing.sellInfo?.price ?? null;
     priceLabel = price ? `₹${formatPrice(price)}` : "Price on request";
   } else if (listingTypeId === process.env.LISTING_TYPE_RENT_ID) {
-    price = listing.rentInfo?.monthlyRent ?? null;
+    price = listing.rentInfo?.monthlyRent ?? listing.commercialDetails?.workspaces?.find((workspace) => workspace.type === "virtualSpace")?.monthlyRent ?? null;
     priceLabel = price ? `₹${formatPrice(price)}/month` : "Price on request";
   } else if (listingTypeId === process.env.LISTING_TYPE_PG_ID) {
     // Show room options with rent ranges
@@ -1552,4 +1618,4 @@ const markRented = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, ensureCoworkingRentPurpose, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };
+module.exports = { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };

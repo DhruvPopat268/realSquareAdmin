@@ -310,3 +310,8 @@ Key service files include `propertyListingService.ts` which exposes `getById(id)
 - Base URL configured via `VITE_API_URL` environment variable in `frontend/.env`
 - Credentials (JWT cookie) are sent with every request via `withCredentials: true`
 - Backend CORS is configured to allow only the origins listed in `CLIENT_URL` env variable
+
+
+### Virtual Space Benefits and Coworking Listings
+- Admins manage active benefit sets through `/api/admin/virtual-space-benefits`; authenticated listing users can retrieve active sets from `/api/mixed/property-listings/active-virtual-space-benefits`.
+- Coworking listing `commercialDetails.workspaces` supports `virtualSpace` entries with monthly rent and selected benefit snapshots grouped by master `_id`, title, and selected benefit strings. Create validation verifies active master IDs and benefit selections; the controller saves canonical snapshots.

@@ -142,6 +142,61 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
         </section>
       )}
 
+      {data.workspaces?.length ? (
+        <section>
+          <h2 className="mb-3 text-base font-bold text-foreground">Co-working Spaces</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {data.workspaces.map((workspace, index) => (
+              <div key={index} className="rounded-xl border bg-card p-4">
+                  <p className="font-semibold">
+                    {workspace.type === "virtualSpace"
+                      ? "Virtual Space"
+                      : workspace.type === "cabin"
+                        ? "Cabins"
+                        : "Hall"}
+                  </p>
+
+                  {workspace.type === "virtualSpace" ? (
+                    <>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        ₹{workspace.monthlyRent?.toLocaleString("en-IN")} / month
+                      </p>
+                      {workspace.benefits?.length ? (
+                        <div className="mt-2 space-y-2 text-sm">
+                          {workspace.benefits.map((group) => (
+                            <div key={group._id}>
+                              <p className="font-medium">{group.title}</p>
+                              <ul className="list-inside list-disc">
+                                {group.benefits.map((benefit) => (
+                                  <li key={benefit}>{benefit}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : workspace.type === "hall" ? (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {workspace.availableSeats} seats · ₹
+                      {workspace.rentPerSeat?.toLocaleString("en-IN")} / seat / month
+                    </p>
+                  ) : (
+                    <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                      {workspace.config?.map((cabin, cabinIndex) => (
+                        <p key={cabinIndex}>
+                          Cabin {cabinIndex + 1}: {cabin.availableSeats} seats · ₹
+                          {cabin.rentPerSeat?.toLocaleString("en-IN")} / seat / month
+                        </p>
+                      ))}
+                    </div>
+                  )}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {/* Furnishings & Amenities — card grid */}
       <FurnishingsAmenitiesDisplay
         furnishType={data.furnishType}
