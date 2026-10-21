@@ -464,15 +464,6 @@ const getActiveVirtualSpaceBenefits = async (_req, res) => {
   }
 };
 
-const getVirtualSpaceBenefits = async (_req, res) => {
-  try {
-    const data = await VirtualSpace.find().select("title benefits isActive").sort({ title: 1 }).lean();
-    res.json({ success: true, data });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
 // ── GET /property-listings/active-property-types ──────────────────────────────
 const getActivePropertyTypes = async (req, res) => {
   try {
@@ -1819,4 +1810,4 @@ const markRented = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, getVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };
+module.exports = { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };

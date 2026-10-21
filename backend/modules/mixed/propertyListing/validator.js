@@ -88,8 +88,6 @@ const validateCoworkingDetails = (details) => {
             !group ||
             typeof group !== "object" ||
             !mongoose.isValidObjectId(group._id) ||
-            typeof group.title !== "string" ||
-            !group.title.trim() ||
             !Array.isArray(group.benefits) ||
             group.benefits.length < 1 ||
             group.benefits.some(
@@ -98,7 +96,7 @@ const validateCoworkingDetails = (details) => {
         )
       ) {
         throw new Error(
-          "Virtual space benefits must include a master ID, title, and selected benefits",
+          "Virtual space benefits must include a master ID and selected benefits",
         );
       }
       const benefitIds = workspace.benefits.map((group) => group._id.toString());
