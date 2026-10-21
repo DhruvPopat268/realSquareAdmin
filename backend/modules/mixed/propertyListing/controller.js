@@ -10,6 +10,7 @@ const PropertyPurpose    = require("../../admin/propertyPurposes/model");
 const PropertyType       = require("../../admin/propertyTypes/model");
 const FurnishingAmenity  = require("../../admin/furnishingsAndAmenities/model");
 const VirtualSpace       = require("../../admin/virtualSpace/model");
+const { validateCoworkingDetails } = require("./validator");
 const FreeListingConfig  = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser         = require("../../systemUsers.model");
@@ -457,6 +458,15 @@ const getActiveVirtualSpaceBenefits = async (_req, res) => {
       .sort({ title: 1 })
       .lean();
 
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const getVirtualSpaceBenefits = async (_req, res) => {
+  try {
+    const data = await VirtualSpace.find().select("title benefits isActive").sort({ title: 1 }).lean();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -946,9 +956,200 @@ const updateListing = async (req, res) => {
     }
 
     if (commercialDetails !== undefined) {
-      listing.commercialDetails = commercialDetails === null
-        ? null
-        : await resolveFurnishingsAmenities(commercialDetails, listing.commercialDetails);
+      if (commercialDetails === null) {
+        listing.commercialDetails = null;
+      } else if (propertyTypeId === process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID) {
+        const currentWorkspaces = listing.commercialDetails?.workspaces ?? [];
+        let mergedWorkspaces = currentWorkspaces.map((workspace) =>
+          workspace.toObject?.() ?? workspace,
+        );
+
+        if (Array.isArray(commercialDetails.workspaces)) {
+          for (const workspacePatch of commercialDetails.workspaces) {
+            const currentIndex = mergedWorkspaces.findIndex(
+              (workspace) => workspace.type === workspacePatch.type,
+            );
+
+            if (workspacePatch._remove === true) {
+              if (currentIndex !== -1) mergedWorkspaces.splice(currentIndex, 1);
+              continue;
+            }
+
+            const { _remove, ...workspaceFields } = workspacePatch;
+            if (currentIndex === -1) {
+              mergedWorkspaces.push(workspaceFields);
+            } else {
+              mergedWorkspaces[currentIndex] = {
+                ...mergedWorkspaces[currentIndex],
+                ...workspaceFields,
+              };
+            }
+          }
+
+          const patchedTypes = new Set(
+            commercialDetails.workspaces
+              .filter((workspace) => workspace._remove !== true)
+              .map((workspace) => workspace.type),
+          );
+          mergedWorkspaces = mergedWorkspaces.map((workspace) => {
+            if (!patchedTypes.has(workspace.type)) return workspace;
+
+            const normalized = { ...workspace };
+            if (workspace.type === "virtualSpace") {
+              delete normalized.available;
+              delete normalized.config;
+              delete normalized.availableSeats;
+              delete normalized.rentPerSeat;
+              delete normalized.depositPerSeat;
+              delete normalized.securityDeposit;
+            } else if (workspace.type === "cabin") {
+              delete normalized.availableSeats;
+              delete normalized.rentPerSeat;
+            } else if (workspace.type === "hall") {
+              delete normalized.available;
+              delete normalized.config;
+            }
+
+            return normalized;
+          });
+        } else if (commercialDetails.workspaces !== undefined) {
+          mergedWorkspaces = commercialDetails.workspaces;
+        }
+
+        const effectiveCommercialDetails = {
+          ...listing.commercialDetails?.toObject?.() ?? {},
+          ...commercialDetails,
+          workspaces: mergedWorkspaces,
+        };
+
+        const workspaces = effectiveCommercialDetails.workspaces;
+        const floor = Number(effectiveCommercialDetails.workSpaceFloor);
+        if (
+          effectiveCommercialDetails.workSpaceFloor === undefined ||
+          effectiveCommercialDetails.workSpaceFloor === null ||
+          effectiveCommercialDetails.workSpaceFloor === "" ||
+          !Number.isInteger(floor) ||
+          floor < -1
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "commercialDetails.workSpaceFloor must be an integer of -1 or greater",
+          });
+        }
+        if (!Array.isArray(workspaces) || workspaces.length < 1 || workspaces.length > 3) {
+          return res.status(400).json({
+            success: false,
+            message: "commercialDetails.workspaces must contain one to three workspace types",
+          });
+        }
+        const workspaceTypes = workspaces.map((workspace) => workspace.type);
+        if (
+          workspaceTypes.some((type) => !["cabin", "hall", "virtualSpace"].includes(type)) ||
+          new Set(workspaceTypes).size !== workspaceTypes.length
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "Coworking workspaces must contain unique cabin, hall, or virtualSpace types",
+          });
+        }
+
+        const changedWorkspaceTypes = new Set(
+          (commercialDetails.workspaces ?? [])
+            .filter((workspace) => workspace._remove !== true)
+            .map((workspace) => workspace.type),
+        );
+        const changedWorkspaces = workspaces.filter((workspace) =>
+          changedWorkspaceTypes.has(workspace.type),
+        );
+        if (changedWorkspaces.length) {
+          try {
+            validateCoworkingDetails({
+              workSpaceFloor: effectiveCommercialDetails.workSpaceFloor,
+              workspaces: changedWorkspaces,
+            });
+          } catch (validationError) {
+            return res.status(400).json({ success: false, message: validationError.message });
+          }
+        }
+
+        const selectedGroups = workspaces
+          .filter((workspace) => workspace.type === "virtualSpace")
+          .flatMap((workspace) => workspace.benefits);
+        const benefitIds = [...new Set(selectedGroups.map((group) => group._id.toString()))];
+        const benefitMasters = await VirtualSpace.find({ _id: { $in: benefitIds } })
+          .select("title benefits")
+          .lean();
+        const benefitMasterById = new Map(
+          benefitMasters.map((master) => [master._id.toString(), master]),
+        );
+        const existingGroups = new Map(
+          (listing.commercialDetails?.workspaces ?? [])
+            .filter((workspace) => workspace.type === "virtualSpace")
+            .flatMap((workspace) => workspace.benefits ?? [])
+            .map((group) => [group._id.toString(), group]),
+        );
+
+        for (const group of selectedGroups) {
+          const master = benefitMasterById.get(group._id.toString());
+          const existing = existingGroups.get(group._id.toString());
+          const allowedBenefits = new Set(
+            (master?.benefits ?? existing?.benefits ?? []).map((benefit) =>
+              benefit.trim().toLowerCase(),
+            ),
+          );
+
+          if ((!master && !existing) || group.benefits.some(
+            (benefit) => !allowedBenefits.has(benefit.trim().toLowerCase()),
+          )) {
+            return res.status(400).json({
+              success: false,
+              message: "Virtual space benefits must be selected from the chosen benefit plan",
+            });
+          }
+        }
+
+        const resolvedWorkspaces = workspaces.map((workspace) => {
+          if (workspace.type !== "virtualSpace") return workspace;
+
+          return {
+            ...workspace,
+            benefits: workspace.benefits.map((group) => {
+              const master = benefitMasterById.get(group._id.toString());
+              if (!master) {
+                const existing = existingGroups.get(group._id.toString());
+                const selected = new Set(
+                  group.benefits.map((benefit) => benefit.trim().toLowerCase()),
+                );
+                return {
+                  ...existing.toObject?.() ?? existing,
+                  benefits: existing.benefits.filter((benefit) =>
+                    selected.has(benefit.trim().toLowerCase()),
+                  ),
+                };
+              }
+
+              const selected = new Set(
+                group.benefits.map((benefit) => benefit.trim().toLowerCase()),
+              );
+
+              return {
+                _id: master._id,
+                title: master.title,
+                benefits: master.benefits.filter((benefit) =>
+                  selected.has(benefit.trim().toLowerCase()),
+                ),
+              };
+            }),
+          };
+        });
+
+        listing.commercialDetails = await resolveFurnishingsAmenities(
+          { ...effectiveCommercialDetails, workspaces: resolvedWorkspaces },
+          listing.commercialDetails,
+        );
+      } else {
+        listing.commercialDetails = await resolveFurnishingsAmenities(commercialDetails, listing.commercialDetails);
+      }
 
       // Validate carpet area ≤ built-up area for non-plot commercial
       if (listing.commercialDetails) {
@@ -1618,4 +1819,4 @@ const markRented = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };
+module.exports = { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, getVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };

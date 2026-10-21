@@ -53,14 +53,15 @@ function InfoItem({ label, value }: { label: string; value?: string | number | n
 }
 
 export default function CommercialDetails({ data, rentInfo, propertyTypeName }: Props) {
+  const isCoworking = (propertyTypeName ?? "").toLowerCase().includes("cowork");
   const isOffice =
     (propertyTypeName ?? "").toLowerCase().includes("office") ||
     data.minSeats != null ||
     data.minCabins != null ||
     data.minMeetingRooms != null;
 
-  const hasFloorInfo  = data.totalFloors != null || !!data.yourFloor;
-  const hasOfficeInfo = isOffice && (data.minSeats != null || data.minCabins != null || data.minMeetingRooms != null);
+  const hasFloorInfo  = !isCoworking && (data.totalFloors != null || !!data.yourFloor);
+  const hasOfficeInfo = !isCoworking && isOffice && (data.minSeats != null || data.minCabins != null || data.minMeetingRooms != null);
 
   return (
     <div className="space-y-6">
@@ -74,29 +75,29 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 text-sm">
           <InfoItem label="Building / Project"  value={data.societyName} />
           <InfoItem label="Other Property Type" value={data.propertyType} />
-          <InfoItem label="Built-up Area"        value={formatArea(data.builtUpArea)} />
-          <InfoItem label="Carpet Area"          value={formatArea(data.carpetArea)} />
-          <InfoItem label="Plot Area"            value={formatArea(data.plotArea)} />
-          <InfoItem label="Dimensions"           value={data.length != null && data.width != null ? `${data.length} × ${data.width} ft` : null} />
+          {!isCoworking && <InfoItem label="Built-up Area"        value={formatArea(data.builtUpArea)} />}
+          {!isCoworking && <InfoItem label="Carpet Area"          value={formatArea(data.carpetArea)} />}
+          {!isCoworking && <InfoItem label="Plot Area"            value={formatArea(data.plotArea)} />}
+          {!isCoworking && <InfoItem label="Dimensions"           value={data.length != null && data.width != null ? `${data.length} × ${data.width} ft` : null} />}
           <InfoItem label="Ownership"            value={formatOwnership(data.ownership)} />
           <InfoItem label="Zone Type"            value={formatZone(data.zoneType)} />
           <InfoItem label="Location Hub"         value={data.locationHub} />
-          <InfoItem label="Construction Status"
+          {!isCoworking && <InfoItem label="Construction Status"
             value={
               data.constructionStatus === "ReadyToMove"       ? "Ready to Move" :
               data.constructionStatus === "UnderConstruction" ? "Under Construction" :
               undefined
             }
-          />
-          <InfoItem label="Property Status" value={data.propertyStatus === "NewlyAdded" ? "Newly Added" : data.propertyStatus === "Relaunch" ? "Re-release" : undefined} />
-          <InfoItem label="Age of Property"
+          />}
+          {!isCoworking && <InfoItem label="Property Status" value={data.propertyStatus === "NewlyAdded" ? "Newly Added" : data.propertyStatus === "Relaunch" ? "Re-release" : undefined} />}
+          {!isCoworking && <InfoItem label="Age of Property"
             value={data.ageOfProperty != null ? `${data.ageOfProperty} year${data.ageOfProperty !== 1 ? "s" : ""}` : null}
-          />
-          <InfoItem label="Available From" value={formatDate(data.constructionStatus === "UnderConstruction" && data.availableFrom ? data.availableFrom : rentInfo?.availableFrom)} />
-          <InfoItem
+          />}
+          {!isCoworking && <InfoItem label="Available From" value={formatDate(data.constructionStatus === "UnderConstruction" && data.availableFrom ? data.availableFrom : rentInfo?.availableFrom)} />}
+          {!isCoworking && <InfoItem
             label="Security Deposit"
             value={rentInfo?.securityDeposit == null ? null : rentInfo.securityDeposit === 0 ? "None" : `₹${rentInfo.securityDeposit.toLocaleString("en-IN")}`}
-          />
+          />}
         </div>
       </section>
 
@@ -145,6 +146,9 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
       {data.workspaces?.length ? (
         <section>
           <h2 className="mb-3 text-base font-bold text-foreground">Co-working Spaces</h2>
+          {data.workSpaceFloor != null && (
+            <p className="mb-4 text-sm text-muted-foreground">Workspace Floor: {data.workSpaceFloor}</p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             {data.workspaces.map((workspace, index) => (
               <div key={index} className="rounded-xl border bg-card p-4">
@@ -198,11 +202,13 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
       ) : null}
 
       {/* Furnishings & Amenities — card grid */}
-      <FurnishingsAmenitiesDisplay
-        furnishType={data.furnishType}
-        furnishings={data.furnishings ?? []}
-        amenities={data.amenities ?? []}
-      />
+      {!isCoworking && (
+        <FurnishingsAmenitiesDisplay
+          furnishType={data.furnishType}
+          furnishings={data.furnishings ?? []}
+          amenities={data.amenities ?? []}
+        />
+      )}
 
     </div>
   );
