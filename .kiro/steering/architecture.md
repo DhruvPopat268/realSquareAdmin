@@ -314,9 +314,9 @@ Key service files include `propertyListingService.ts` which exposes `getById(id)
 
 ### Virtual Space Benefits and Coworking Listings
 - Admins manage active benefit sets through `/api/admin/virtual-space-benefits`; authenticated listing users can retrieve active sets from `/api/mixed/property-listings/active-virtual-space-benefits`.
-- Coworking listing `commercialDetails.workspaces` supports `virtualSpace` entries with monthly rent and selected benefit snapshots grouped by master `_id` and title. Create validation verifies active master IDs and selected benefit strings; the controller saves canonical snapshots.
+- Coworking listing `commercialDetails.workspaces` supports `virtualSpace` entries whose selected benefit snapshots store the master `_id`, title, selected benefit strings, and plan-specific monthly rent. Create validation verifies active master IDs, rents, and selected benefit strings; the controller saves canonical snapshots.
 - Admin property details display the workspace floor and cabin, hall, and virtual space details for coworking listings, while suppressing generic commercial areas, property status, floor information, office facilities, and furnishing/amenity sections.
 - Customer coworking edits reuse the authenticated `/active-virtual-space-benefits` endpoint, show benefits as individual checkboxes, and preselect saved benefit strings. The update controller validates merged coworking data and refreshes selected benefit snapshots from current master records.
 - Coworking edit requests can send partial workspace objects; the update controller merges patches by workspace type, validates changed workspace types, and preserves untouched saved workspace data.
 - When a legacy workspace is edited, the update controller drops saved fields that do not apply to its workspace type before validation.
-- Virtual-space benefit writes use master IDs and selected strings; the listing controllers populate the stored plan title from the master record.
+- Virtual-space benefit writes use master IDs, selected strings, and plan-specific monthly rent; the listing controllers populate the stored plan title from the master record.

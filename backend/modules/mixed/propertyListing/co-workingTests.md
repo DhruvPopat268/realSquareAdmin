@@ -57,17 +57,48 @@ Expected: create succeeds without built-up/carpet area or property-wide `rentInf
 
 Expected: create succeeds when the `workspaces` array contains one valid `hall` and one valid `cabin` entry.
 
+### Virtual Space with selected benefits
+
+```json
+{
+  "categoryId": "<commercialCategoryId>",
+  "listingTypeId": "<rentPurposeId>",
+  "propertyTypeId": "<coworkingPropertyTypeId>",
+  "cityName": "Pune",
+  "locality": { "address": "Baner, Pune", "latitude": 18.56, "longitude": 73.78 },
+  "commercialDetails": {
+    "workSpaceFloor": 0,
+    "workspaces": [
+      {
+        "type": "virtualSpace",
+        "benefits": [
+          {
+            "_id": "<activeBenefitPlanId>",
+            "monthlyRent": 8000,
+            "benefits": ["Business address"]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Expected: create succeeds; the API loads the plan title from the master and saves the plan-specific rent and selected benefits in its snapshot.
+
 ## Invalid payload cases
 
 Each case should return HTTP 400 with a validation error:
 
 - `workspaces` missing or empty.
 - Two `hall` entries or two `cabin` entries.
-- Workspace type other than `hall` or `cabin`, including `virtual space`.
+- Workspace type other than `hall`, `cabin`, or `virtualSpace`.
 - `workSpaceFloor` missing, less than `-1`, or not an integer.
 - Hall seat count missing, zero, negative, or fractional; Hall rent missing or negative.
 - Cabin count missing, zero, negative, or fractional; `config` count not equal to `available`.
 - Cabin config seat count missing, zero, negative, or fractional; config rent missing or negative.
+- Virtual-space benefit entries missing a valid active master ID, positive `monthlyRent`, or at least one selected benefit.
+- Virtual-space rent sent on the workspace object instead of on each selected benefit plan.
 - Cabin entries containing Hall fields or Hall entries containing cabin fields.
 
 ## Regression checks

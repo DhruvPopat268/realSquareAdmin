@@ -122,6 +122,7 @@ const coworkingVirtualSpaceBenefitSchema = new Schema(
     _id: { type: Schema.Types.ObjectId, ref: "VirtualSpace", required: true },
     title: { type: String, required: true, trim: true },
     benefits: { type: [{ type: String, trim: true }], required: true },
+    monthlyRent: { type: Number }, // per-plan monthly rent snapshot
   },
   { _id: false },
 );
@@ -133,7 +134,6 @@ const coworkingWorkspaceSchema = new Schema(
     config: [coworkingCabinConfigSchema],    // per-cabin seat and rent details
     availableSeats: { type: Number },        // hall seats
     rentPerSeat: { type: Number },           // hall monthly rent per seat
-    monthlyRent: { type: Number },           // virtual space monthly rent
     benefits: [coworkingVirtualSpaceBenefitSchema], // selected benefit snapshots
   },
   { _id: false }

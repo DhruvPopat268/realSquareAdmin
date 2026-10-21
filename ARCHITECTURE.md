@@ -27,4 +27,4 @@
 
 ### Virtual Space Benefits and Coworking Listings
 - Admins manage titled virtual-space benefit sets through `/api/admin/virtual-space-benefits`; each set contains benefit strings and an active flag. Authenticated listing users fetch active sets from `/api/mixed/property-listings/active-virtual-space-benefits`.
-- Coworking workspaces support `cabin`, `hall`, and `virtualSpace`. Virtual space stores monthly rent and selected benefit snapshots grouped by master `_id` and title. Create and update validation check selected benefit strings, and the controllers save canonical title and benefit snapshots.
+- Coworking workspaces support `cabin`, `hall`, and `virtualSpace`. Virtual Space stores monthly rent on each selected benefit snapshot, grouped by master `_id` and title. Create and update validation check plan rents and selected benefit strings, and the controllers save canonical title and benefit snapshots.

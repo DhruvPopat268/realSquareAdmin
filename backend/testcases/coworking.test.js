@@ -26,11 +26,11 @@ describe("coworking create validation", () => {
           ...details.workspaces,
           {
             type: "virtualSpace",
-            monthlyRent: 5000,
             benefits: [
               {
                 _id: "6ad8604cdaad6d32b13b7d67",
                 title: "Virtual Office",
+                monthlyRent: 5000,
                 benefits: ["Business address"],
               },
             ],
@@ -51,18 +51,18 @@ describe("coworking create validation", () => {
     },
   );
 
-  test("accepts a virtual space with a monthly rent and selected benefits", () => {
+  test("accepts plan-specific monthly rent with selected benefits", () => {
     expect(
       validateCoworkingDetails({
         workSpaceFloor: 0,
         workspaces: [
           {
             type: "virtualSpace",
-            monthlyRent: 5000,
             benefits: [
               {
                 _id: "6ad8604cdaad6d32b13b7d67",
                 title: "Virtual Office",
+                monthlyRent: 5000,
                 benefits: ["Business address"],
               },
             ],
@@ -73,7 +73,7 @@ describe("coworking create validation", () => {
   });
 
   test.each([undefined, null, "", 0, -1, "not-a-number"])(
-    "rejects invalid virtual space monthly rent %p",
+    "rejects invalid benefit plan monthly rent %p",
     (monthlyRent) => {
       expect(() =>
         validateCoworkingDetails({
@@ -81,18 +81,18 @@ describe("coworking create validation", () => {
           workspaces: [
             {
               type: "virtualSpace",
-              monthlyRent,
               benefits: [
                 {
                   _id: "6ad8604cdaad6d32b13b7d67",
                   title: "Virtual Office",
+                  monthlyRent,
                   benefits: ["Business address"],
                 },
               ],
             },
           ],
         }),
-      ).toThrow(/monthlyRent/);
+      ).toThrow(/monthly rent/);
     },
   );
 
@@ -103,7 +103,6 @@ describe("coworking create validation", () => {
         workspaces: [
           {
             type: "virtualSpace",
-            monthlyRent: 5000,
             benefits: [],
           },
         ],

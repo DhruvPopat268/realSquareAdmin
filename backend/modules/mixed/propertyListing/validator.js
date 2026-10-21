@@ -71,15 +71,6 @@ const validateCoworkingDetails = (details) => {
     seenTypes.add(workspace.type);
 
     if (workspace.type === "virtualSpace") {
-      const rent = Number(workspace.monthlyRent);
-      if (
-        workspace.monthlyRent === undefined ||
-        workspace.monthlyRent === null ||
-        workspace.monthlyRent === "" ||
-        !Number.isFinite(rent) ||
-        rent <= 0
-      )
-        throw new Error("Virtual space monthlyRent must be greater than zero");
       if (
         !Array.isArray(workspace.benefits) ||
         workspace.benefits.length < 1 ||
@@ -88,6 +79,11 @@ const validateCoworkingDetails = (details) => {
             !group ||
             typeof group !== "object" ||
             !mongoose.isValidObjectId(group._id) ||
+            group.monthlyRent === undefined ||
+            group.monthlyRent === null ||
+            group.monthlyRent === "" ||
+            !Number.isFinite(Number(group.monthlyRent)) ||
+            Number(group.monthlyRent) <= 0 ||
             !Array.isArray(group.benefits) ||
             group.benefits.length < 1 ||
             group.benefits.some(
@@ -96,7 +92,7 @@ const validateCoworkingDetails = (details) => {
         )
       ) {
         throw new Error(
-          "Virtual space benefits must include a master ID and selected benefits",
+          "Each selected virtual-space benefit plan must include a master ID, monthly rent, and selected benefits",
         );
       }
       const benefitIds = workspace.benefits.map((group) => group._id.toString());
@@ -104,12 +100,13 @@ const validateCoworkingDetails = (details) => {
         throw new Error("Virtual space benefit groups cannot contain duplicates");
       }
       if (
+        workspace.monthlyRent !== undefined ||
         workspace.available !== undefined ||
         workspace.config !== undefined ||
         workspace.availableSeats !== undefined ||
         workspace.rentPerSeat !== undefined
       )
-        throw new Error("Virtual space must use monthlyRent and benefits, not seat or cabin fields");
+        throw new Error("Virtual space rent must be set per benefit plan, not at workspace level");
       return;
     }
 

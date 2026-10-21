@@ -295,6 +295,7 @@ const create = async (req, res) => {
               return {
                 _id: master._id,
                 title: master.title,
+                monthlyRent: Number(group.monthlyRent),
                 benefits: master.benefits.filter((benefit) =>
                   selectedBenefits.has(benefit.trim().toLowerCase()),
                 ),
@@ -528,7 +529,15 @@ function normalizeListingCard(listing) {
     price = listing.sellInfo?.price ?? null;
     priceLabel = price ? `₹${formatPrice(price)}` : "Price on request";
   } else if (listingTypeId === process.env.LISTING_TYPE_RENT_ID) {
-    price = listing.rentInfo?.monthlyRent ?? listing.commercialDetails?.workspaces?.find((workspace) => workspace.type === "virtualSpace")?.monthlyRent ?? null;
+    const virtualSpace = listing.commercialDetails?.workspaces
+      ?.find((workspace) => workspace.type === "virtualSpace");
+    const virtualSpaceRents = virtualSpace?.benefits
+      ?.map((group) => Number(group.monthlyRent))
+      .filter((rent) => Number.isFinite(rent) && rent > 0) ?? [];
+    if (!virtualSpaceRents.length && Number(virtualSpace?.monthlyRent) > 0) {
+      virtualSpaceRents.push(Number(virtualSpace.monthlyRent));
+    }
+    price = listing.rentInfo?.monthlyRent ?? (virtualSpaceRents.length ? Math.min(...virtualSpaceRents) : null);
     priceLabel = price ? `₹${formatPrice(price)}/month` : "Price on request";
   } else if (listingTypeId === process.env.LISTING_TYPE_PG_ID) {
     // Show room options with rent ranges
@@ -602,6 +611,15 @@ const getListingById = async (req, res) => {
 
     const listing = await PropertyListing.findById(req.params.id).lean();
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    for (const workspace of listing.commercialDetails?.workspaces ?? []) {
+      if (workspace.type !== "virtualSpace" || workspace.monthlyRent == null) continue;
+      workspace.benefits = (workspace.benefits ?? []).map((group) => ({
+        ...group,
+        monthlyRent: group.monthlyRent ?? workspace.monthlyRent,
+      }));
+      delete workspace.monthlyRent;
+    }
 
     // Keep legacy listings readable while construction fields move from sellInfo
     // into the matching property detail section.
@@ -950,10 +968,31 @@ const updateListing = async (req, res) => {
       if (commercialDetails === null) {
         listing.commercialDetails = null;
       } else if (propertyTypeId === process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID) {
-        const currentWorkspaces = listing.commercialDetails?.workspaces ?? [];
-        let mergedWorkspaces = currentWorkspaces.map((workspace) =>
-          workspace.toObject?.() ?? workspace,
+        const storedCommercialDetails = await PropertyListing.collection.findOne(
+          { _id: listing._id },
+          { projection: { "commercialDetails.workspaces": 1 } },
         );
+        const legacyVirtualRents = new Map(
+          (storedCommercialDetails?.commercialDetails?.workspaces ?? [])
+            .filter((workspace) => workspace.type === "virtualSpace" && workspace.monthlyRent != null)
+            .map((workspace) => [workspace.type, workspace.monthlyRent]),
+        );
+        const currentWorkspaces = listing.commercialDetails?.workspaces ?? [];
+        let mergedWorkspaces = currentWorkspaces.map((workspace) => {
+          const current = workspace.toObject?.() ?? workspace;
+          if (current.type !== "virtualSpace") return current;
+
+          const legacyMonthlyRent = current.monthlyRent ?? legacyVirtualRents.get(current.type);
+          const migrated = {
+            ...current,
+            benefits: (current.benefits ?? []).map((group) => ({
+              ...group.toObject?.() ?? group,
+              monthlyRent: group.monthlyRent ?? legacyMonthlyRent,
+            })),
+          };
+          delete migrated.monthlyRent;
+          return migrated;
+        });
 
         if (Array.isArray(commercialDetails.workspaces)) {
           for (const workspacePatch of commercialDetails.workspaces) {
@@ -987,6 +1026,12 @@ const updateListing = async (req, res) => {
 
             const normalized = { ...workspace };
             if (workspace.type === "virtualSpace") {
+              const legacyMonthlyRent = normalized.monthlyRent;
+              normalized.benefits = (normalized.benefits ?? []).map((group) => ({
+                ...group.toObject?.() ?? group,
+                monthlyRent: group.monthlyRent ?? legacyMonthlyRent,
+              }));
+              delete normalized.monthlyRent;
               delete normalized.available;
               delete normalized.config;
               delete normalized.availableSeats;
@@ -1113,6 +1158,7 @@ const updateListing = async (req, res) => {
                 );
                 return {
                   ...existing.toObject?.() ?? existing,
+                  monthlyRent: Number(group.monthlyRent),
                   benefits: existing.benefits.filter((benefit) =>
                     selected.has(benefit.trim().toLowerCase()),
                   ),
@@ -1126,6 +1172,7 @@ const updateListing = async (req, res) => {
               return {
                 _id: master._id,
                 title: master.title,
+                monthlyRent: Number(group.monthlyRent),
                 benefits: master.benefits.filter((benefit) =>
                   selected.has(benefit.trim().toLowerCase()),
                 ),

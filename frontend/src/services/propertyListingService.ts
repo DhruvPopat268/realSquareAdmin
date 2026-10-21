@@ -67,11 +67,11 @@ export interface CoworkingWorkspace {
   config?: { availableSeats?: number; rentPerSeat?: number }[];
   availableSeats?: number;
   rentPerSeat?: number;
-  monthlyRent?: number;
   benefits?: {
     _id: string;
     title: string;
     benefits: string[];
+    monthlyRent?: number;
   }[];
 }
 
