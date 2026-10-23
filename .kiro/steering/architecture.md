@@ -93,6 +93,8 @@ modules/admin/<feature>/
 | Purchase Coins | `modules/mixed/purchaseCoins/` |
 | User Coins Wallet | `modules/mixed/userCoinsWallet/` |
 
+The Project Listing model stores project identity and developer details, project launch and possession status, unit counts, residential or commercial configurations, price range, location, and project media. `residentialDetails.configurations` supports multiple BHK configurations; `commercialDetails` includes property `zoneType` and `locationHub` fields and supports multiple built-up/carpet-area configurations. These use the same area subdocument as property listings. Its `media` object follows the property listing shape for `images`, `videos`, and `reelVideo`; brochure URL remains a top-level field. `listedBy` stores a user reference plus name, mobile, email, profile photo, and role snapshot, matching property listings. It retains moderation `status` separately from the project's `projectStatus`; project furnishings and amenities use the same `{ id, name, icon, count }` subdocument shape as property listings. Contact person fields are not part of the project listing schema or customer project edit form.
+
 ### API Base URL
 All routes are prefixed with `/api`.
 
