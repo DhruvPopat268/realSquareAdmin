@@ -40,25 +40,61 @@ const amenityItemSchema = new Schema(
   { _id: false }
 );
 
+const reraProjectDetailsSchema = new Schema(
+  {
+    projectName:    { type: String },
+    developerName:  { type: String },
+    localityOrCity: { type: String },
+    state:          { type: String },
+    projectType:    { type: String },
+    completionDate: { type: String },
+    totalUnits:     { type: String },
+    status:         { type: String },
+    confidence:     { type: String, enum: ["high", "low", "unknown"] },
+  },
+  { _id: false }
+);
+
+const reraSchema = new Schema(
+  {
+    reraId:            { type: String, trim: true },
+    reraStatus:        { type: String, enum: ["unverified", "verified"], default: "unverified" },
+    reraAdminApproved: { type: Boolean, default: false },
+    verifiedAt:        { type: Date, default: null },
+    projectDetails:    reraProjectDetailsSchema,
+    sources:           [{ type: String }],
+  },
+  { _id: false }
+);
+
 const residentialProjectConfigurationSchema = new Schema(
   {
-    bhk:         { type: String, trim: true },
-    builtUpArea: areaSchema,
-    carpetArea:  areaSchema,
+    bhk:         { type: String, trim: true, enum: ["1 RK", ...Array.from({ length: 12 }, (_, index) => `${index + 1} BHK`)] },
+    carpetArea:  { type: Number, min: 0 },
   },
   { _id: false }
 );
 
 const commercialProjectConfigurationSchema = new Schema(
   {
-    builtUpArea: areaSchema,
-    carpetArea:  areaSchema,
+    carpetArea:  { type: Number, min: 0 },
+  },
+  { _id: false }
+);
+
+const idealForSnapshotSchema = new Schema(
+  {
+    id:    { type: Schema.Types.ObjectId },
+    name:  { type: String, trim: true },
+    image: { type: String, trim: true },
+    order: { type: Number },
   },
   { _id: false }
 );
 
 const residentialDetailsSchema = new Schema(
   {
+    areaUnit: { type: String, enum: ["sqft", "sqyd", "sqmt"] },
     configurations: [residentialProjectConfigurationSchema],
   },
   { _id: false }
@@ -74,6 +110,7 @@ const commercialDetailsSchema = new Schema(
       type: String,
       enum: ["IT Park", "Business Park", "Mall", "Commercial Project", "Residential Project", "Retail Complex/Building", "Market/High Street", "Others"],
     },
+    areaUnit: { type: String, enum: ["sqft", "sqyd", "sqmt"] },
     configurations: [commercialProjectConfigurationSchema],
   },
   { _id: false }
@@ -85,18 +122,18 @@ const projectListingSchema = new Schema(
   {
     // ── Identity ──────────────────────────────────────────────────────────────
     category:     { id: { type: Schema.Types.ObjectId, ref: "PropertyCategory", required: true }, name: { type: String, trim: true } },
-    propertyType: { id: { type: Schema.Types.ObjectId, ref: "PropertyType", required: true }, name: { type: String, trim: true } },
+    idealFor:     { type: [idealForSnapshotSchema], default: [] },
 
     // ── Project Info ──────────────────────────────────────────────────────────
     projectName:        { type: String, trim: true, required: true },
     developerName:      { type: String, trim: true },
     projectDescription: { type: String, trim: true },
     projectStatus:      { type: String, enum: ["Ready to Move", "Under Construction", "New Launch"] },
-    reraId:             { type: String, trim: true },
+    rera:               reraSchema,
     launchDate:         { type: Date },
     possessionDate:     { type: Date },
     totalUnits:         { type: Number, min: 1 },
-    availableUnits:     { type: Number, min: 0 },
+    availableUnits:     { type: Number, min: 1 },
     towerCount:         { type: Number, min: 1 },
 
     // ── Project configurations ───────────────────────────────────────────────
@@ -113,7 +150,7 @@ const projectListingSchema = new Schema(
     maxPrice: { type: Number },
 
     // ── Location ──────────────────────────────────────────────────────────────
-    city:     { id: { type: Schema.Types.ObjectId, ref: "City", required: true }, name: { type: String, trim: true } },
+    cityName: { type: String, trim: true, required: true },
     locality: localitySchema,
 
     // ── Listed By ─────────────────────────────────────────────────────────────
@@ -151,7 +188,7 @@ const projectListingSchema = new Schema(
 
 // ─── Indexes ──────────────────────────────────────────────────────────────────
 
-projectListingSchema.index({ "city.id": 1, "category.id": 1 });
+projectListingSchema.index({ cityName: 1, "category.id": 1 });
 projectListingSchema.index({ "listedBy.id": 1 });
 projectListingSchema.index({ status: 1 });
 projectListingSchema.index({ minPrice: 1, maxPrice: 1 });

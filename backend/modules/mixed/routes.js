@@ -8,6 +8,7 @@ const propertyListingRoutes         = require("./propertyListing/routes");
 const unprotectedRoutes             = require("./unprotected/routes");
 const reraVerificationRoutes        = require("./reraVerification/routes");
 const inquiriesRoutes               = require("./inquiries/routes");
+const projectListingRoutes          = require("./projectListing/routes");
 
 const router = express.Router();
 
@@ -20,5 +21,6 @@ router.use("/unprotected",         unprotectedRoutes);
 router.use("/property-listings",   propertyListingRoutes);
 router.use("/rera",                reraVerificationRoutes);
 router.use("/inquiries",           inquiriesRoutes);
+router.use("/project-listings",     projectListingRoutes);
 
 module.exports = router;

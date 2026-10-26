@@ -103,7 +103,7 @@ function ProjectCard({ p, onClick }: { p: Project; onClick: () => void }) {
       </div>
       <div className="p-3">
         <p className="text-xl font-bold text-foreground">{fmt(p.priceFrom)} – {fmt(p.priceTo)}</p>
-        <p className="text-sm text-muted-foreground mt-0.5">{p.category} · {p.type}</p>
+        <p className="text-sm text-muted-foreground mt-0.5">{p.category} · Ideal for {p.idealFor.join(", ")}</p>
         <p className="text-sm text-foreground mt-0.5">{p.city}</p>
         <div className="mt-2 space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -153,7 +153,7 @@ function ProjectRow({ p, onClick }: { p: Project; onClick: () => void }) {
         <p className="text-muted-foreground">{p.developer.email}</p>
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{p.category}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{p.type}</td>
+      <td className="px-4 py-3 text-sm text-muted-foreground">{p.idealFor.join(", ")}</td>
       <td className="px-4 py-3">
         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${stageStyle[p.stage]}`}>{PROJECT_STAGE_LABEL[p.stage]}</span>
       </td>
@@ -201,19 +201,19 @@ export default function ProjectsPage() {
   const [stageFilter, setStageFilter]               = useState("All");
   const [listingStatusFilter, setListingStatusFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
-  const [typeFilter, setTypeFilter]         = useState("All");
+  const [idealForFilter, setIdealForFilter] = useState("All");
   const [developerFilter, setDeveloperFilter] = useState("All");
   const [listedByFilter, setListedByFilter]   = useState(state?.listedByType ?? "All");
 
-  const hasFilters = stageFilter !== "All" || listingStatusFilter !== "All" || categoryFilter !== "All" || typeFilter !== "All" || developerFilter !== "All" || listedByFilter !== "All" || search !== "";
+  const hasFilters = stageFilter !== "All" || listingStatusFilter !== "All" || categoryFilter !== "All" || idealForFilter !== "All" || developerFilter !== "All" || listedByFilter !== "All" || search !== "";
 
   function clearAll() {
     setSearch(""); setStageFilter("All"); setListingStatusFilter("All");
-    setCategoryFilter("All"); setTypeFilter("All"); setDeveloperFilter("All"); setListedByFilter("All");
+    setCategoryFilter("All"); setIdealForFilter("All"); setDeveloperFilter("All"); setListedByFilter("All");
   }
 
   const developerNames = useMemo(() => ["All", ...Array.from(new Set(PROJECTS.map((p) => p.developer.company)))], []);
-  const filteredTypes  = useMemo(() => ["All", ...Array.from(new Set(PROJECTS.filter((p) => categoryFilter === "All" || p.category === categoryFilter).map((p) => p.type)))], [categoryFilter]);
+  const filteredIdealFor = useMemo(() => ["All", ...Array.from(new Set(PROJECTS.filter((p) => categoryFilter === "All" || p.category === categoryFilter).flatMap((p) => p.idealFor)))], [categoryFilter]);
 
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -228,11 +228,11 @@ export default function ProjectsPage() {
       const matchStage         = stageFilter         === "All" || p.stage         === stageFilter;
       const matchListingStatus = listingStatusFilter === "All" || p.listingStatus === listingStatusFilter;
       const matchCategory  = categoryFilter  === "All" || p.category          === categoryFilter;
-      const matchType      = typeFilter      === "All" || p.type              === typeFilter;
+      const matchIdealFor  = idealForFilter  === "All" || p.idealFor.includes(idealForFilter);
       const matchDeveloper = developerFilter === "All" || p.developer.company === developerFilter;
       const matchListedBy  = listedByFilter  === "All" || p.listedByType      === listedByFilter;
-      return matchSearch && matchStage && matchListingStatus && matchCategory && matchType && matchDeveloper && matchListedBy;
-    }), [search, stageFilter, listingStatusFilter, categoryFilter, typeFilter, developerFilter, listedByFilter]);
+      return matchSearch && matchStage && matchListingStatus && matchCategory && matchIdealFor && matchDeveloper && matchListedBy;
+    }), [search, stageFilter, listingStatusFilter, categoryFilter, idealForFilter, developerFilter, listedByFilter]);
 
   return (
     <div className="space-y-5">
@@ -285,7 +285,7 @@ export default function ProjectsPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {["All", "Residential", "Commercial", "Mixed Use", "Industrial"].map((c) => (
-              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setTypeFilter("All"); }}>{c === "All" ? "All Categories" : c}</DropdownMenuItem>
+              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setIdealForFilter("All"); }}>{c === "All" ? "All Categories" : c}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -293,12 +293,12 @@ export default function ProjectsPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {typeFilter === "All" ? "All Types" : typeFilter} <ChevronDown className="h-3.5 w-3.5" />
+              {idealForFilter === "All" ? "All Ideal For" : idealForFilter} <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {filteredTypes.map((t) => (
-              <DropdownMenuItem key={t} onClick={() => setTypeFilter(t)}>{t === "All" ? "All Types" : t}</DropdownMenuItem>
+            {filteredIdealFor.map((t) => (
+              <DropdownMenuItem key={t} onClick={() => setIdealForFilter(t)}>{t === "All" ? "All Ideal For" : t}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -415,7 +415,7 @@ export default function ProjectsPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Builder / Developer</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Sales Manager</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ideal For</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[160px]">Project Stage</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[160px]">Listing Status</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Price Range</th>

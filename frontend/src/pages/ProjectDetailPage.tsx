@@ -76,7 +76,7 @@ export default function ProjectDetailPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           <div className="absolute bottom-3 left-3 flex items-center gap-2">
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyle[p.status]}`}>{p.status}</span>
-            <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-white/20 text-white backdrop-blur-sm">{p.type}</span>
+            <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-white/20 text-white backdrop-blur-sm">Ideal for {p.idealFor.join(", ")}</span>
           </div>
         </div>
         {p.images.slice(1, 5).map((img, i) => (
@@ -167,7 +167,7 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
               {[
                 { label: "Developer",       value: p.developer.company },
-                { label: "Project Type",    value: p.type },
+                { label: "Ideal For",       value: p.idealFor.join(", ") },
                 { label: "Status",          value: p.status },
                 { label: "Price From",      value: fmt(p.priceFrom) },
                 { label: "Price To",        value: fmt(p.priceTo) },

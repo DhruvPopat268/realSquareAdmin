@@ -18,6 +18,7 @@ import PropertyPurposesPage from "./pages/PropertyPurposesPage";
 import PropertyTypesPage from "./pages/PropertyTypesPage";
 import VirtualSpaceBenefitsPage from "./pages/VirtualSpaceBenefitsPage";
 import FurnishingsAmenitiesPage from "./pages/FurnishingsAmenitiesPage";
+import IdealForPage from "./pages/IdealForPage";
 import PropertyCategoriesPage from "./pages/PropertyCategoriesPage";
 import EnquiriesPage from "./pages/EnquiriesPage";
 import ViewAssignedEnquiriesPage from "./pages/ViewAssignedEnquiriesPage";
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="/property-types"      element={<PropertyTypesPage />} />
             <Route path="/virtual-space-benefits" element={<VirtualSpaceBenefitsPage />} />
             <Route path="/furnishings-amenities" element={<FurnishingsAmenitiesPage />} />
+            <Route path="/ideal-for"          element={<IdealForPage />} />
 
             {/* Leads & Enquiries */}
             <Route path="/leads"                     element={<LeadsPage />} />

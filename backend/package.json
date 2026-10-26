@@ -9,7 +9,8 @@
     "test": "NODE_ENV=test jest --testPathPatterns=testcases --forceExit --detectOpenHandles",
     "test:status": "NODE_ENV=test jest --testPathPatterns=testcases/statusTransition --forceExit --detectOpenHandles",
     "test:inquiry": "NODE_ENV=test jest --testPathPatterns=modules/mixed/inquiries/inquiry --forceExit --detectOpenHandles",
-    "test:assigned": "NODE_ENV=test jest --testPathPatterns=modules/mixed/inquiries/inquiry --forceExit --detectOpenHandles -t \"GET /api/mixed/inquiries/assigned\""
+    "test:assigned": "NODE_ENV=test jest --testPathPatterns=modules/mixed/inquiries/inquiry --forceExit --detectOpenHandles -t \"GET /api/mixed/inquiries/assigned\"",
+    "migrate:project-property-type": "node scripts/unsetProjectListingPropertyType.js"
   },
   "jest": {
     "testEnvironment": "node",

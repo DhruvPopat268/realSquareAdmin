@@ -32,7 +32,7 @@ export interface Project {
   lng: number;
   purpose: string;
   category: ProjectCategory;
-  type: string;
+  idealFor: string[];
   stage: ProjectStage;
   listingStatus: ListingStatus;
   totalUnits: number;
@@ -63,7 +63,7 @@ export const PROJECTS: Project[] = [
     lat: 40.7128, lng: -74.0060,
     purpose: "Sell",
     category: "Residential",
-    type: "Apartment",
+    idealFor: ["Families", "First-time homebuyers"],
     stage: "UNDER_CONSTRUCTION",
     listingStatus: "ACTIVE",
     totalUnits: 120,
@@ -94,7 +94,7 @@ export const PROJECTS: Project[] = [
     lat: 34.0522, lng: -118.2437,
     purpose: "Sell",
     category: "Residential",
-    type: "Independent House / Villa",
+    idealFor: ["Families"],
     stage: "NEW_LAUNCH",
     listingStatus: "ACTIVE",
     totalUnits: 48,
@@ -126,7 +126,7 @@ export const PROJECTS: Project[] = [
     lat: 25.7617, lng: -80.1918,
     purpose: "Sell",
     category: "Mixed Use",
-    type: "Mixed Use Building",
+    idealFor: ["Businesses", "Investors"],
     stage: "PRE_LAUNCH",
     listingStatus: "PENDING_APPROVAL",
     totalUnits: 200,
@@ -158,7 +158,7 @@ export const PROJECTS: Project[] = [
     lat: 30.2672, lng: -97.7431,
     purpose: "Sell",
     category: "Residential",
-    type: "Townhouse",
+    idealFor: ["Families"],
     stage: "SOLD_OUT",
     listingStatus: "SOLD",
     totalUnits: 64,
@@ -193,7 +193,7 @@ export const PROJECTS: Project[] = [
     lat: 47.6062, lng: -122.3321,
     purpose: "Sell",
     category: "Commercial",
-    type: "Office Space",
+    idealFor: ["Businesses", "Investors"],
     stage: "READY_TO_MOVE",
     listingStatus: "ACTIVE",
     totalUnits: 32,
@@ -224,7 +224,7 @@ export const PROJECTS: Project[] = [
     lat: 41.8781, lng: -87.6298,
     purpose: "Sell",
     category: "Residential",
-    type: "Apartment",
+    idealFor: ["Professionals", "Investors"],
     stage: "UNDER_CONSTRUCTION",
     listingStatus: "ACTIVE",
     totalUnits: 90,
@@ -256,7 +256,7 @@ export const PROJECTS: Project[] = [
     lat: 39.7392, lng: -104.9903,
     purpose: "Sell",
     category: "Residential",
-    type: "Independent House / Villa",
+    idealFor: ["Families"],
     stage: "PRE_LAUNCH",
     listingStatus: "PENDING_APPROVAL",
     totalUnits: 75,
@@ -288,7 +288,7 @@ export const PROJECTS: Project[] = [
     lat: 33.4484, lng: -112.0740,
     purpose: "Sell",
     category: "Residential",
-    type: "Independent House / Villa",
+    idealFor: ["Families", "Investors"],
     stage: "SOLD_OUT",
     listingStatus: "SOLD",
     totalUnits: 36,

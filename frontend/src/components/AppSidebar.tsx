@@ -101,6 +101,12 @@ const sections = [
       { type: "link", to: "/virtual-space-benefits", icon: Tag, label: "Virtual Space Benefits" },
       { type: "link", to: "/furnishings-amenities",  icon: Tag,    label: "Furnishings & Amenities" },
       { type: "link", to: "/properties",            icon: Home,   label: "Properties" },
+    ],
+  },
+  {
+    title: "Project Management",
+    items: [
+      { type: "link", to: "/ideal-for", icon: Users, label: "Ideal For" },
       { type: "link", to: "/projects", icon: FolderOpen, label: "Projects" },
     ],
   },
