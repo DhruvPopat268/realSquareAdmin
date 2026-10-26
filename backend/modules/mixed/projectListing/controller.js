@@ -134,7 +134,7 @@ const create = async (req, res) => {
       cityName: req.body.cityName.trim(),
       locality: req.body.locality,
       projectName: req.body.projectName.trim(),
-      developerName: req.body.developerName.trim(),
+      developerName: req.body.developerName?.trim() || undefined,
       projectDescription: req.body.projectDescription,
       projectStatus: req.body.projectStatus,
       reraId: req.body.reraId ?? req.body.rera?.reraId,

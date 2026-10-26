@@ -240,11 +240,19 @@ describe("POST /api/mixed/project-listings", () => {
     expect(savedListings[0].amenities[0].name).toBe("Gym");
   });
 
+  test("creates a project without a developer name", async () => {
+    const payload = residentialPayload();
+    delete payload.developerName;
+    const response = await postProject(payload);
+
+    expect(response.status).toBe(201);
+    expect(savedListings[0].developerName).toBeUndefined();
+  });
+
   test.each([
     ["categoryId", (payload) => { delete payload.categoryId; }],
     ["cityName", (payload) => { delete payload.cityName; }],
     ["projectName", (payload) => { delete payload.projectName; }],
-    ["developerName", (payload) => { delete payload.developerName; }],
     ["locality.address", (payload) => { delete payload.locality.address; }],
     ["projectStatus", (payload) => { delete payload.projectStatus; }],
     ["totalUnits", (payload) => { delete payload.totalUnits; }],

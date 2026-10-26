@@ -33,7 +33,7 @@ const projectListingValidator = [
     }),
   body("cityName").trim().notEmpty().withMessage("cityName is required").isString().withMessage("cityName must be a string"),
   body("projectName").trim().notEmpty().withMessage("projectName is required").isString(),
-  body("developerName").trim().notEmpty().withMessage("developerName is required").isString(),
+  body("developerName").optional({ nullable: true, checkFalsy: true }).isString().withMessage("developerName must be a string"),
   body("locality").isObject().withMessage("locality must be an object"),
   body("locality.address").trim().notEmpty().withMessage("locality.address is required").isString(),
   body("locality.latitude").optional({ nullable: true }).isFloat().withMessage("locality.latitude must be numeric"),
