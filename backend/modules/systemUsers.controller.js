@@ -5,6 +5,7 @@ const UserCoinsWallet          = require("./mixed/userCoinsWallet/model");
 const ListingPurchasedPlan     = require("./mixed/purchasedPlans/model");
 const EnquiryPurchasedPlan     = require("./mixed/enquiryPurchasedPlans/model");
 const PropertyListing          = require("./mixed/propertyListing/model");
+const ProjectListing           = require("./mixed/projectListing/model");
 const FreeListingConfig        = require("./admin/freeListingManagement/model");
 const LeadEnquiryCoinsConfig   = require("./admin/leadEnquiryCoinsConfig/model");
 const { toIST }         = require("../utils/dateTime");
@@ -784,11 +785,12 @@ const getMe = async (req, res) => {
       status: "Active",
       $or: [{ expiryDate: null }, { expiryDate: { $gt: now } }],
     };
-    const [wallet, purchased, purchasedEnquiry, hasListings, rejectedPropertiesCount, leadEnquiryCoinsConfig] = await Promise.all([
+    const [wallet, purchased, purchasedEnquiry, hasListings, hasProjectListings, rejectedPropertiesCount, leadEnquiryCoinsConfig] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
       ListingPurchasedPlan.findOne(activePlanFilter),
       EnquiryPurchasedPlan.findOne(activePlanFilter),
       PropertyListing.exists({ "listedBy.id": req.user._id }),
+      ProjectListing.exists({ "listedBy.id": req.user._id }),
       PropertyListing.countDocuments({ "listedBy.id": req.user._id, status: "Rejected" }),
       LeadEnquiryCoinsConfig.findOne({ _configKey: "singleton" }).select("coinsPerEnquiry").lean(),
     ]);
@@ -892,6 +894,7 @@ const getMe = async (req, res) => {
         showListingPlan,
         showEnquiryPlan,
         myPropertyListingAllowed: !!hasListings,
+        myProjectListingAllowed: !!hasProjectListings,
         isProfileCompleted,
         profileCompletionPercentage,
         canListProperty,

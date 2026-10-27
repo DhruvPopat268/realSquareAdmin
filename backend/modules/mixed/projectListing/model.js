@@ -181,7 +181,7 @@ const projectListingSchema = new Schema(
     brochureUrl: { type: String, trim: true },
 
     // ── Meta ──────────────────────────────────────────────────────────────────
-    status: { type: String, enum: ["Active", "Inactive", "UnderReview", "Rejected"], default: "UnderReview" },
+    status: { type: String, enum: ["Active", "Inactive", "UnderReview", "Rejected","sold"], default: "UnderReview" },
   },
   { timestamps: true }
 );

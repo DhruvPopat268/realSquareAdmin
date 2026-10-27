@@ -1,4 +1,5 @@
 const { validationResult } = require("express-validator");
+const mongoose = require("mongoose");
 const fs = require("fs/promises");
 const ProjectListing = require("./model");
 const PropertyCategory = require("../../admin/propertyCategories/model");
@@ -13,11 +14,111 @@ const toIST = (value) => new Date(new Date(value).getTime() + 5.5 * 60 * 60 * 10
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
 
+const formatBudgetAmount = (amount) => {
+  if (amount >= 10000000) return `₹${Number((amount / 10000000).toFixed(2))} Cr`;
+  if (amount >= 100000) return `₹${Number((amount / 100000).toFixed(2))} L`;
+  return `₹${amount.toLocaleString("en-IN")}`;
+};
+
+const formatBudgetRange = (minPrice, maxPrice) => {
+  if (!Number.isFinite(minPrice) || !Number.isFinite(maxPrice)) return "Price on request";
+  if (minPrice === maxPrice) return formatBudgetAmount(minPrice);
+  return `${formatBudgetAmount(minPrice)} – ${formatBudgetAmount(maxPrice)}`;
+};
+
 const getActiveIdealFor = async (_req, res) => {
   try {
     const options = await IdealFor.find({ isActive: true }).select("name image order").sort({ order: 1, _id: 1 });
     return res.json({ success: true, data: options });
   } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getMyListings = async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 50);
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+    const filter = { "listedBy.id": req.user._id };
+    const baseFilter = { "listedBy.id": req.user._id };
+
+    if (req.query.categoryId) {
+      if (!mongoose.isValidObjectId(req.query.categoryId)) {
+        return res.status(400).json({ success: false, message: "Invalid categoryId" });
+      }
+      filter["category.id"] = new mongoose.Types.ObjectId(req.query.categoryId);
+    }
+    if (req.query.idealForId) {
+      if (!mongoose.isValidObjectId(req.query.idealForId)) {
+        return res.status(400).json({ success: false, message: "Invalid idealForId" });
+      }
+      filter["idealFor.id"] = new mongoose.Types.ObjectId(req.query.idealForId);
+    }
+
+    const [projectRecords, totalCount, statusCounts] = await Promise.all([
+      ProjectListing.find(filter)
+        .select("category projectName developerName locality cityName projectStatus possessionDate idealFor minPrice maxPrice status residentialDetails commercialDetails totalUnits availableUnits media.images createdAt")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ProjectListing.countDocuments(filter),
+      ProjectListing.aggregate([
+        { $match: baseFilter },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+    ]);
+    const stats = { total: 0, Active: 0, Inactive: 0, UnderReview: 0, Rejected: 0, sold: 0 };
+    for (const { _id, count } of statusCounts) {
+      stats[_id] = count;
+      stats.total += count;
+    }
+    const projects = projectRecords.map(({ minPrice, maxPrice, idealFor, ...project }) => ({
+      ...project,
+      idealFor: (idealFor ?? []).map(({ name }) => name),
+      budgetRange: formatBudgetRange(minPrice, maxPrice),
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        projects,
+        stats,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          hasMore: skip + projects.length < totalCount,
+        },
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getProjectById = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid project listing ID" });
+    }
+
+    const project = await ProjectListing.findById(req.params.id).lean().select('-listedBy');
+    if (!project) return res.status(404).json({ success: false, message: "Project listing not found" });
+
+    return res.json({
+      success: true,
+      data: {
+        ...project,
+        budgetRange: formatBudgetRange(project.minPrice, project.maxPrice),
+        isListedByCurrentUser: String(project.listedBy?.id ?? "") === String(req.user?._id ?? ""),
+      },
+    });
+  } catch (error) {
+    if (error.name === "CastError") {
+      return res.status(404).json({ success: false, message: "Project listing not found" });
+    }
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -217,4 +318,4 @@ const uploadMedia = async (req, res) => {
   }
 };
 
-module.exports = { create, uploadMedia, getActiveIdealFor };
+module.exports = { create, uploadMedia, getActiveIdealFor, getMyListings, getProjectById };
