@@ -778,10 +778,16 @@ const getMe = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
+    const now = new Date();
+    const activePlanFilter = {
+      user: req.user._id,
+      status: "Active",
+      $or: [{ expiryDate: null }, { expiryDate: { $gt: now } }],
+    };
     const [wallet, purchased, purchasedEnquiry, hasListings, rejectedPropertiesCount, leadEnquiryCoinsConfig] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
-      ListingPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
-      EnquiryPurchasedPlan.findOne({ user: req.user._id, status: "Active" }),
+      ListingPurchasedPlan.findOne(activePlanFilter),
+      EnquiryPurchasedPlan.findOne(activePlanFilter),
       PropertyListing.exists({ "listedBy.id": req.user._id }),
       PropertyListing.countDocuments({ "listedBy.id": req.user._id, status: "Rejected" }),
       LeadEnquiryCoinsConfig.findOne({ _configKey: "singleton" }).select("coinsPerEnquiry").lean(),
@@ -898,6 +904,72 @@ const getMe = async (req, res) => {
   }
 };
 
+// ── Cron: expire purchased listing and enquiry plans ────────────────────────
+const expirePurchasedPlans = async (_req, res) => {
+  try {
+    const checkedAt = new Date();
+    const expiredFilter = {
+      status: "Active",
+      expiryDate: { $type: "date", $lte: checkedAt },
+    };
+    const [listingPlans, enquiryPlans] = await Promise.all([
+      ListingPurchasedPlan.updateMany(expiredFilter, { $set: { status: "Expired" } }),
+      EnquiryPurchasedPlan.updateMany(expiredFilter, { $set: { status: "Expired" } }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Expired purchased plans updated successfully",
+      data: {
+        checkedAt,
+        listingPlansExpired: listingPlans.modifiedCount,
+        enquiryPlansExpired: enquiryPlans.modifiedCount,
+        totalExpired: listingPlans.modifiedCount + enquiryPlans.modifiedCount,
+      },
+    });
+  } catch (error) {
+    console.error("[Purchased Plan Cron] Expiry job failed:", error);
+    return res.status(500).json({ success: false, message: "Failed to expire purchased plans" });
+  }
+};
+
+// ── Cron: consume exhausted purchased listing and enquiry plans ─────────────
+const consumePurchasedPlans = async (_req, res) => {
+  try {
+    const checkedAt = new Date();
+    const availableAndExhausted = (usageField, allowanceField) => ({
+      status: "Active",
+      [`${allowanceField}`]: { $gte: 0, $ne: -1 }, // -1 denotes an unlimited plan.
+      $expr: { $gte: [`$${usageField}`, `$${allowanceField}`] },
+      $or: [{ expiryDate: null }, { expiryDate: { $gt: checkedAt } }],
+    });
+    const [listingPlans, enquiryPlans] = await Promise.all([
+      ListingPurchasedPlan.updateMany(
+        availableAndExhausted("propertiesUsed", "plan.numberOfPropertiesGiven"),
+        { $set: { status: "Consumed" } }
+      ),
+      EnquiryPurchasedPlan.updateMany(
+        availableAndExhausted("enquiriesUsed", "plan.numberOfEnquiriesGiven"),
+        { $set: { status: "Consumed" } }
+      ),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Exhausted purchased plans updated successfully",
+      data: {
+        checkedAt,
+        listingPlansConsumed: listingPlans.modifiedCount,
+        enquiryPlansConsumed: enquiryPlans.modifiedCount,
+        totalConsumed: listingPlans.modifiedCount + enquiryPlans.modifiedCount,
+      },
+    });
+  } catch (error) {
+    console.error("[Purchased Plan Cron] Consumption job failed:", error);
+    return res.status(500).json({ success: false, message: "Failed to consume exhausted purchased plans" });
+  }
+};
+
 // ── Logout ────────────────────────────────────────────────────────────────────
 // POST /api/system-users/logout
 const logout = async (req, res) => {
@@ -914,4 +986,5 @@ const logout = async (req, res) => {
 module.exports = {
   sendOtp, verifyOtp, sendEmailOtp, verifyEmailOtp, completeProfile, assignCustomerRole,
   updateProfile, switchRole, logout, getMe, getActiveUsers,
+  expirePurchasedPlans, consumePurchasedPlans,
 };

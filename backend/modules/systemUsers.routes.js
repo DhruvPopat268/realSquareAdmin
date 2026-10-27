@@ -1,11 +1,14 @@
 const express            = require("express");
-const { completeProfile, assignCustomerRole, sendEmailOtp, verifyEmailOtp, sendOtp, verifyOtp, logout, updateProfile, switchRole, getMe, getActiveUsers } = require("./systemUsers.controller");
+const { completeProfile, assignCustomerRole, sendEmailOtp, verifyEmailOtp, sendOtp, verifyOtp, logout, updateProfile, switchRole, getMe, getActiveUsers, expirePurchasedPlans, consumePurchasedPlans } = require("./systemUsers.controller");
 const { uploadImage }    = require("../utils/upload");
+const cronProtect = require("../utils/cronProtect");
 const { userProtect } = require("../middleware/userAuth");
 
 const router = express.Router();
 
 router.get("/me",                        userProtect, getMe);
+router.get("/cron-expire-plans",         cronProtect, expirePurchasedPlans);
+router.get("/cron-consume-plans",        cronProtect, consumePurchasedPlans);
 router.get("/active-users",              getActiveUsers);
 router.post("/send-otp",                 sendOtp);
 

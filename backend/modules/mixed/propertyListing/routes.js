@@ -2,17 +2,10 @@ const express  = require("express");
 const { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
 const { createListingValidator }        = require("./validator");
 const { userProtect }                   = require("../../../middleware/userAuth");
+const cronProtect                       = require("../../../utils/cronProtect");
 const { uploadImage, handlePropertyMediaUpload } = require("../../../utils/upload");
 
 const router = express.Router();
-
-const cronProtect = (req, res, next) => {
-  const secret = req.headers["x-cron-secret"];
-  if (!secret || secret !== process.env.CRONJOB_SECRET) {
-    return res.status(401).json({ success: false, message: "Unauthorized" });
-  }
-  next();
-};
 
 // ── Protected routes (auth required) ─────────────────────────────────────────
 // These must be declared before the /:id wildcard so they are not swallowed.
