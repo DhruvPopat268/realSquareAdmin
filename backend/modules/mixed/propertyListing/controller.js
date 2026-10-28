@@ -16,6 +16,7 @@ const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser         = require("../../systemUsers.model");
 const { runReraVerification } = require("../reraVerification/controller");
 const { calculatePropertyCompletionPercentage } = require("./completionPercentage");
+const { verifyCityAndLocality } = require("../../../utils/locationState");
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const AUTO_INACTIVE_STATUSES = ["Active", "UnderReview", "Rejected"];
@@ -828,21 +829,20 @@ const updateListing = async (req, res) => {
       }
     }
 
-    // ── Locality-city consistency check ─────────────────────────────────────
-    // Runs whenever cityName or locality.address changes (using effective values)
+    // ── Reverse-geocode city & locality verification ─────────────────────────
+    // Runs whenever cityName or locality changes (using effective values)
     const effectiveCityName    = cityName    !== undefined ? cityName.trim()           : listing.cityName ?? "";
     const effectiveAddress     = locality?.address !== undefined ? locality.address.trim() : listing.locality?.address ?? "";
+    const effectiveLatitude    = locality?.latitude  !== undefined ? locality.latitude  : listing.locality?.latitude  ?? null;
+    const effectiveLongitude   = locality?.longitude !== undefined ? locality.longitude : listing.locality?.longitude ?? null;
     const cityChanged          = cityName    !== undefined && cityName.trim()    !== (listing.cityName ?? "");
     const localityChanged      = locality?.address !== undefined && locality.address.trim() !== (listing.locality?.address ?? "");
 
     if ((cityChanged || localityChanged) && effectiveCityName && effectiveAddress) {
-      const addressLower = effectiveAddress.toLowerCase();
-      const cityLower    = effectiveCityName.toLowerCase();
-      if (!addressLower.includes(cityLower)) {
-        return res.status(400).json({
-          success: false,
-          message: `The selected locality does not belong to ${effectiveCityName}. Please pick an address within the city.`,
-        });
+      try {
+        await verifyCityAndLocality(effectiveCityName, { address: effectiveAddress, latitude: effectiveLatitude, longitude: effectiveLongitude });
+      } catch (verifyError) {
+        return res.status(400).json({ success: false, message: verifyError.message });
       }
     }
 

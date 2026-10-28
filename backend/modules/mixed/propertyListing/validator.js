@@ -5,6 +5,7 @@ const PropertyPurpose  = require("../../admin/propertyPurposes/model");
 const PropertyType     = require("../../admin/propertyTypes/model");
 const FurnishingAmenity = require("../../admin/furnishingsAndAmenities/model");
 const VirtualSpace = require("../../admin/virtualSpace/model");
+const { verifyCityAndLocality } = require("../../../utils/locationState");
 
 const existsAndActive = (Model, label) => async (id) => {
   const doc = await Model.findById(id).select("isActive");
@@ -432,6 +433,12 @@ const createListingValidator = [
   body("rentInfo.availableFrom").if(body("rentInfo.availableFrom").exists()).isISO8601().withMessage("rentInfo.availableFrom must be a valid date"),
   // securityDeposit — optional rupee amount (can be filled in later via edit)
   body("rentInfo.securityDeposit").if(body("rentInfo.securityDeposit").exists()).isFloat({ min: 0 }).withMessage("rentInfo.securityDeposit must be a non-negative number"),
+
+  // ── Reverse-geocode city & locality verification ─────────────────────────────
+  body("cityName").custom(async (_, { req }) => {
+    await verifyCityAndLocality(req.body.cityName, req.body.locality);
+    return true;
+  }),
 ];
 
 module.exports = { createListingValidator, validateCoworkingDetails, validateActiveCoworkingBenefits };

@@ -71,6 +71,7 @@ const residentialProjectConfigurationSchema = new Schema(
   {
     bhk:         { type: String, trim: true, enum: ["1 RK", ...Array.from({ length: 12 }, (_, index) => `${index + 1} BHK`)] },
     carpetArea:  { type: Number, min: 0 },
+    furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
   },
   { _id: false }
 );
@@ -78,6 +79,7 @@ const residentialProjectConfigurationSchema = new Schema(
 const commercialProjectConfigurationSchema = new Schema(
   {
     carpetArea:  { type: Number, min: 0 },
+    furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
   },
   { _id: false }
 );
@@ -141,7 +143,6 @@ const projectListingSchema = new Schema(
     commercialDetails:  commercialDetailsSchema,
 
     // ── Project-level Furnishings & Amenities ────────────────────────────────
-    furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
     furnishings: [furnishingItemSchema],
     amenities:   [amenityItemSchema],
 

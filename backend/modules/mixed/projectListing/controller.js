@@ -1,18 +1,38 @@
 const { validationResult } = require("express-validator");
 const mongoose = require("mongoose");
 const fs = require("fs/promises");
+const path = require("path");
 const ProjectListing = require("./model");
+const { calculateProjectCompletionPercentage } = require("./completionPercentage");
 const PropertyCategory = require("../../admin/propertyCategories/model");
 const IdealFor = require("../../admin/idealFor/model");
+const FurnishingAmenity = require("../../admin/furnishingsAndAmenities/model");
 const AutoApprovalConfig = require("../../admin/autoApprovalConfig/model");
 const FreeListingConfig = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser = require("../../systemUsers.model");
+const { verifyCityAndLocality } = require("../../../utils/locationState");
+const { DOCUMENTS_DIR } = require("../../../utils/upload");
 
 const nowIST = () => new Date(Date.now() + 5.5 * 60 * 60 * 1000);
 const toIST = (value) => new Date(new Date(value).getTime() + 5.5 * 60 * 60 * 1000);
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
+
+const resolveStoredBrochurePath = (fileUrl) => {
+  if (typeof fileUrl !== "string") return null;
+  try {
+    const pathname = decodeURIComponent(new URL(fileUrl, process.env.BACKEND_URL || "http://localhost").pathname);
+    const prefix = "/storage/documents/";
+    if (!pathname.startsWith(prefix)) return null;
+    const filename = path.basename(pathname);
+    if (!filename || filename !== pathname.slice(prefix.length)) return null;
+    const resolved = path.resolve(DOCUMENTS_DIR, filename);
+    return path.dirname(resolved) === path.resolve(DOCUMENTS_DIR) ? resolved : null;
+  } catch {
+    return null;
+  }
+};
 
 const formatBudgetAmount = (amount) => {
   if (amount >= 10000000) return `₹${Number((amount / 10000000).toFixed(2))} Cr`;
@@ -58,7 +78,7 @@ const getMyListings = async (req, res) => {
 
     const [projectRecords, totalCount, statusCounts] = await Promise.all([
       ProjectListing.find(filter)
-        .select("category projectName developerName locality cityName projectStatus possessionDate idealFor minPrice maxPrice status residentialDetails commercialDetails totalUnits availableUnits media.images createdAt")
+        .select("category projectName developerName projectDescription locality cityName projectStatus possessionDate rera.reraId launchDate idealFor minPrice maxPrice status residentialDetails commercialDetails totalUnits availableUnits towerCount furnishings amenities media createdAt")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -78,6 +98,12 @@ const getMyListings = async (req, res) => {
       ...project,
       idealFor: (idealFor ?? []).map(({ name }) => name),
       budgetRange: formatBudgetRange(minPrice, maxPrice),
+      projectCompletionPercentage: calculateProjectCompletionPercentage({
+        ...project,
+        minPrice,
+        maxPrice,
+        idealFor,
+      }),
     }));
 
     return res.json({
@@ -118,6 +144,149 @@ const getProjectById = async (req, res) => {
   } catch (error) {
     if (error.name === "CastError") {
       return res.status(404).json({ success: false, message: "Project listing not found" });
+    }
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateProject = async (req, res) => {
+  try {
+    const { projectListingId, ...changes } = req.body;
+    if (!mongoose.isValidObjectId(projectListingId)) {
+      return res.status(400).json({ success: false, message: "Invalid project listing ID" });
+    }
+    const listing = await ProjectListing.findById(projectListingId);
+    if (!listing) return res.status(404).json({ success: false, message: "Project listing not found" });
+    if (String(listing.listedBy?.id) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: "You can only update your own project listings" });
+    }
+
+    const allowed = [
+      "projectName", "developerName", "projectDescription", "projectStatus", "launchDate",
+      "possessionDate", "totalUnits", "availableUnits", "towerCount", "cityName", "locality",
+      "rera", "reraId", "residentialDetails", "commercialDetails", "furnishings",
+      "amenities", "minPrice", "maxPrice", "idealFor",
+    ];
+    const unknownFields = Object.keys(changes).filter((key) => !allowed.includes(key));
+    if (unknownFields.length) {
+      return res.status(400).json({ success: false, message: `Unsupported project fields: ${unknownFields.join(", ")}` });
+    }
+
+    for (const key of ["projectName", "cityName"]) {
+      if (changes[key] !== undefined) {
+        if (typeof changes[key] !== "string" || !changes[key].trim()) {
+          return res.status(400).json({ success: false, message: `${key} must be a non-empty string` });
+        }
+        listing[key] = changes[key].trim();
+      }
+    }
+    if (changes.developerName !== undefined) listing.developerName = changes.developerName?.trim() || undefined;
+    if (changes.locality !== undefined) {
+      if (!changes.locality || typeof changes.locality !== "object" || Array.isArray(changes.locality)) {
+        return res.status(400).json({ success: false, message: "locality must be an object" });
+      }
+      listing.locality = { ...(listing.locality?.toObject?.() ?? listing.locality ?? {}), ...changes.locality };
+    }
+
+    // ── Reverse-geocode city & locality verification ─────────────────────────
+    const cityChanged = changes.cityName !== undefined && changes.cityName.trim() !== (listing.cityName ?? "");
+    const localityChanged = changes.locality !== undefined && (
+      (changes.locality.address !== undefined && changes.locality.address.trim() !== (listing.locality?.address ?? "")) ||
+      (changes.locality.latitude !== undefined && changes.locality.latitude !== (listing.locality?.latitude ?? null)) ||
+      (changes.locality.longitude !== undefined && changes.locality.longitude !== (listing.locality?.longitude ?? null))
+    );
+
+    if (cityChanged || localityChanged) {
+      try {
+        await verifyCityAndLocality(listing.cityName, listing.locality);
+      } catch (verifyError) {
+        return res.status(400).json({ success: false, message: verifyError.message });
+      }
+    }
+    if (changes.reraId !== undefined) {
+      listing.rera = { ...(listing.rera?.toObject?.() ?? listing.rera ?? {}), reraId: changes.reraId || undefined };
+    }
+    if (changes.rera !== undefined) listing.rera = { ...(listing.rera?.toObject?.() ?? listing.rera ?? {}), ...changes.rera };
+    if (changes.idealFor !== undefined) {
+      if (!Array.isArray(changes.idealFor)) return res.status(400).json({ success: false, message: "idealFor must be an array" });
+      const ids = changes.idealFor.map((item) => typeof item === "string" ? item : item.id ?? item._id);
+      const options = await IdealFor.find({ _id: { $in: ids }, isActive: true }).sort({ order: 1, _id: 1 });
+      if (options.length !== ids.length) return res.status(400).json({ success: false, message: "One or more Ideal For options are no longer active" });
+      listing.idealFor = options.map((option) => ({ id: option._id, name: option.name, image: option.image, order: option.order }));
+    }
+
+    for (const key of ["projectDescription", "projectStatus", "launchDate", "possessionDate", "totalUnits", "availableUnits", "towerCount", "furnishType", "minPrice", "maxPrice"]) {
+      if (changes[key] !== undefined) listing[key] = changes[key] === "" ? undefined : changes[key];
+    }
+    for (const key of ["residentialDetails", "commercialDetails"]) {
+      if (changes[key] !== undefined) {
+        const incoming = { ...changes[key] };
+        // Strip empty furnishType from each configuration to avoid enum validation errors
+        if (Array.isArray(incoming.configurations)) {
+          incoming.configurations = incoming.configurations.map((config) => {
+            const { furnishType, ...rest } = config;
+            return furnishType ? { ...rest, furnishType } : rest;
+          });
+        }
+        listing[key] = { ...(listing[key]?.toObject?.() ?? listing[key] ?? {}), ...incoming };
+      }
+    }
+
+    if (changes.furnishings !== undefined || changes.amenities !== undefined) {
+      const [furnishingOptions, amenityOptions] = await Promise.all([
+        changes.furnishings !== undefined
+          ? FurnishingAmenity.find({ _id: { $in: changes.furnishings.map((item) => item.furnishingId ?? item.id) } }).select("name icon")
+          : Promise.resolve(null),
+        changes.amenities !== undefined
+          ? FurnishingAmenity.find({ _id: { $in: changes.amenities.map((item) => item.amenityId ?? item.id) } }).select("name icon")
+          : Promise.resolve(null),
+      ]);
+      const mapItems = (items, options, idKey) => {
+        if (!options) return items;
+        const byId = new Map(options.map((option) => [String(option._id), option]));
+        return items.map((item) => {
+          const id = item[idKey] ?? item.id;
+          const option = byId.get(String(id));
+          if (!option) throw new Error("One or more selected furnishings or amenities are invalid");
+          return { id, name: option.name, icon: option.icon, ...(item.count !== undefined && { count: item.count }) };
+        });
+      };
+      try {
+        if (changes.furnishings !== undefined) listing.furnishings = mapItems(changes.furnishings, furnishingOptions, "furnishingId");
+        if (changes.amenities !== undefined) listing.amenities = mapItems(changes.amenities, amenityOptions, "amenityId");
+      } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+      }
+    }
+
+    const effectiveTotal = Number(listing.totalUnits);
+    const effectiveAvailable = Number(listing.availableUnits);
+    if (!Number.isInteger(effectiveTotal) || effectiveTotal < 1 || !Number.isInteger(effectiveAvailable) || effectiveAvailable < 1 || effectiveAvailable > effectiveTotal) {
+      return res.status(400).json({ success: false, message: `Available units must be a whole number from 1 to ${effectiveTotal}.` });
+    }
+    if (listing.projectStatus !== "Ready to Move" && !listing.possessionDate) {
+      return res.status(400).json({ success: false, message: "Possession date is required unless the project is Ready to Move." });
+    }
+    if (!Number.isFinite(Number(listing.minPrice)) || Number(listing.minPrice) <= 0 || !Number.isFinite(Number(listing.maxPrice)) || Number(listing.maxPrice) < Number(listing.minPrice)) {
+      return res.status(400).json({ success: false, message: "Enter a valid project price range." });
+    }
+    const configs = listing.category?.name?.toLowerCase() === "commercial"
+      ? listing.commercialDetails?.configurations ?? []
+      : listing.residentialDetails?.configurations ?? [];
+    if (!configs.length) return res.status(400).json({ success: false, message: "At least one project configuration is required." });
+    if (listing.category?.name?.toLowerCase() === "commercial" && configs.some((item) => !Number.isFinite(Number(item.carpetArea)) || Number(item.carpetArea) <= 0)) {
+      return res.status(400).json({ success: false, message: "Each commercial configuration must have a carpet area greater than zero." });
+    }
+    if (listing.category?.name?.toLowerCase() !== "commercial" && configs.some((item) => item.carpetArea != null && (!Number.isFinite(Number(item.carpetArea)) || Number(item.carpetArea) <= 0))) {
+      return res.status(400).json({ success: false, message: "A residential carpet area must be greater than zero when provided." });
+    }
+
+    listing.status = await resolveStatus(req.user);
+    await listing.save();
+    return res.json({ success: true, message: listing.status === "Active" ? "Project updated successfully" : "Project updated and sent for review", data: { _id: listing._id, status: listing.status } });
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ success: false, message: error.message });
     }
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -318,4 +487,106 @@ const uploadMedia = async (req, res) => {
   }
 };
 
-module.exports = { create, uploadMedia, getActiveIdealFor, getMyListings, getProjectById };
+const updateMedia = async (req, res) => {
+  const uploadedFiles = Object.values(req.files ?? {}).flat();
+  const removeUploads = async () => Promise.all(uploadedFiles.map((file) => fs.unlink(file.path).catch(() => {})));
+  try {
+    const id = req.body.projectListingId;
+    if (!mongoose.isValidObjectId(id)) {
+      await removeUploads();
+      return res.status(400).json({ success: false, message: "Invalid project listing ID" });
+    }
+    const listing = await ProjectListing.findById(id);
+    if (!listing) {
+      await removeUploads();
+      return res.status(404).json({ success: false, message: "Project listing not found" });
+    }
+    if (String(listing.listedBy?.id) !== String(req.user._id)) {
+      await removeUploads();
+      return res.status(403).json({ success: false, message: "You can only update media on your own project listings" });
+    }
+
+    const currentImages = listing.media?.images ?? [];
+    let nextImages = currentImages;
+    if (req.body.existingImages !== undefined || req.files?.images?.length) {
+      let retained;
+      try { retained = req.body.existingImages === undefined ? currentImages : JSON.parse(req.body.existingImages); }
+      catch {
+        await removeUploads();
+        return res.status(400).json({ success: false, message: "existingImages must be a valid JSON array" });
+      }
+      if (!Array.isArray(retained)) {
+        await removeUploads();
+        return res.status(400).json({ success: false, message: "existingImages must be an array" });
+      }
+      const newImages = (req.files?.images ?? []).map((file) => toUrl(file.path));
+      let isPrimary = false;
+      if (req.body.isPrimary !== undefined) {
+        try { isPrimary = JSON.parse(req.body.isPrimary)[0] === true; }
+        catch {
+          await removeUploads();
+          return res.status(400).json({ success: false, message: "isPrimary must be a valid JSON array" });
+        }
+      }
+      nextImages = isPrimary ? [...newImages, ...retained] : [...retained, ...newImages];
+    }
+
+    const validateYoutube = (value, field) => {
+      if (value === undefined) return { valid: true };
+      if (value === "null" || value === "") return { valid: true, value: undefined };
+      try {
+        const url = new URL(value);
+        if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error();
+        if (url.hostname !== "youtu.be" && !url.hostname.endsWith("youtube.com")) throw new Error();
+        return { valid: true, value };
+      } catch { return { valid: false, message: `${field} must be a valid YouTube URL` }; }
+    };
+    const videoUrl = validateYoutube(req.body.ytVideoUrl, "ytVideoUrl");
+    const reelUrl = validateYoutube(req.body.ytReelUrl, "ytReelUrl");
+    if (!videoUrl.valid || !reelUrl.valid) {
+      await removeUploads();
+      return res.status(400).json({ success: false, message: videoUrl.message ?? reelUrl.message });
+    }
+
+    const clearVideo = req.body.clearVideo === "true";
+    const clearReel = req.body.clearReelVideo === "true";
+    const clearBrochure = req.body.clearBrochure === "true";
+    const videoFile = req.files?.video?.[0];
+    const reelFile = req.files?.reelVideo?.[0];
+    const brochureFile = req.files?.brochure?.[0];
+    if ((clearVideo && videoFile) || (clearReel && reelFile) || (clearBrochure && brochureFile)) {
+      await removeUploads();
+      return res.status(400).json({ success: false, message: "Choose either a replacement file or remove it, not both" });
+    }
+    const videos = { ...(listing.media?.videos?.toObject?.() ?? listing.media?.videos ?? {}) };
+    const reel = { ...(listing.media?.reelVideo?.toObject?.() ?? listing.media?.reelVideo ?? {}) };
+    if (req.body.ytVideoUrl !== undefined) videos.ytVideoUrl = videoUrl.value;
+    if (req.body.ytReelUrl !== undefined) reel.ytReelUrl = reelUrl.value;
+    if (videoFile) videos.videoUrl = toUrl(videoFile.path);
+    else if (clearVideo) videos.videoUrl = undefined;
+    if (reelFile) reel.reelUrl = toUrl(reelFile.path);
+    else if (clearReel) reel.reelUrl = undefined;
+
+    listing.media = listing.media ?? {};
+    listing.media.images = nextImages;
+    listing.media.videos = videos;
+    listing.media.reelVideo = reel;
+    const oldBrochureUrl = listing.brochureUrl;
+    if (brochureFile) listing.brochureUrl = toUrl(brochureFile.path);
+    else if (clearBrochure) listing.brochureUrl = undefined;
+    listing.status = await resolveStatus(req.user);
+    await listing.save();
+    if (oldBrochureUrl && oldBrochureUrl !== listing.brochureUrl) {
+      const oldPath = resolveStoredBrochurePath(oldBrochureUrl);
+      if (oldPath) await fs.unlink(oldPath).catch((error) => {
+        if (error.code !== "ENOENT") console.error("[project updateMedia] Could not remove replaced brochure:", error.message);
+      });
+    }
+    return res.json({ success: true, message: listing.status === "Active" ? "Project media updated successfully" : "Project media updated and sent for review", data: { ...listing.media.toObject?.() ?? listing.media, brochureUrl: listing.brochureUrl } });
+  } catch (error) {
+    await removeUploads();
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { create, uploadMedia, updateProject, updateMedia, getActiveIdealFor, getMyListings, getProjectById };

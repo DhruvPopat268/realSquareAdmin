@@ -24,6 +24,12 @@
 - The backend owns authentication, validation, business rules, and persistence. Keep those responsibilities in the established route, middleware, validator, controller, and model layers.
 - When a controller normalizes database records into a response shape, include selected fields explicitly in that normalizer; query projections alone do not guarantee that fields reach the API response.
 
+## Listing city and locality validation
+
+- Property and project listing create requests require locality address, latitude, and longitude. The backend reverse-geocodes the locality coordinates and rejects the request when the resolved city does not match `cityName` or the location cannot be verified.
+- Listing updates validate the effective city and locality whenever either changes, using the submitted values merged with the stored location. Unrelated partial updates should not require a geocoding request.
+- Automated listing tests should mock the Google Geocoding API and provide a test-only `GOOGLE_MAPS_API_KEY`; tests must not depend on live geocoding.
+
 
 ### Virtual Space Benefits and Coworking Listings
 - Admins manage titled virtual-space benefit sets through `/api/admin/virtual-space-benefits`; each set contains benefit strings and an active flag. Authenticated listing users fetch active sets from `/api/mixed/property-listings/active-virtual-space-benefits`.

@@ -9,6 +9,7 @@ const IDEAL_FOR_ID_B = "64a000000000000000000022";
 process.env.CATEGORY_RESIDENTIAL_ID = RESIDENTIAL_CATEGORY_ID;
 process.env.CATEGORY_COMMERCIAL_ID = COMMERCIAL_CATEGORY_ID;
 process.env.BACKEND_URL = "https://api.realsquare.test";
+process.env.GOOGLE_MAPS_API_KEY = "test-google-maps-key";
 
 jest.mock("../middleware/userAuth", () => ({
   userProtect: (req, _res, next) => {
@@ -27,7 +28,19 @@ jest.mock("../utils/upload", () => ({
       next();
     },
   },
+  handlePropertyMediaUpload: (req, _res, next) => {
+    req.files = {};
+    req.body = { ...req.body };
+    next();
+  },
+  handleProjectMediaUpload: (req, _res, next) => {
+    req.files = {};
+    req.body = { ...req.body };
+    next();
+  },
   IMAGES_DIR: "/tmp/project-listing-test-images",
+  VIDEOS_DIR: "/tmp/project-listing-test-videos",
+  DOCUMENTS_DIR: "/tmp/project-listing-test-documents",
 }));
 
 const PropertyCategory = require("../modules/admin/propertyCategories/model");
@@ -55,6 +68,21 @@ beforeEach(() => {
     role: { _id: roleId, name: "Builder" },
     autoApprovalProperties: false,
   };
+
+  // Mock Google Reverse Geocoding API for verifyCityAndLocality
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({
+      status: "OK",
+      results: [{
+        address_components: [
+          { long_name: "Hyderabad", types: ["locality"] },
+          { long_name: "Telangana", types: ["administrative_area_level_1"] },
+          { long_name: "India", types: ["country"] },
+        ],
+      }],
+    }),
+  });
 });
 
 const residentialPayload = () => ({
@@ -169,6 +197,35 @@ describe("POST /api/mixed/project-listings", () => {
     expect(savedListings[0].listedBy).toMatchObject({ name: "Project Builder", mobile: "9876543210" });
   });
 
+  test("reverse-geocodes the selected locality and accepts the matching city", async () => {
+    const response = await postProject(residentialPayload());
+
+    expect(response.status).toBe(201);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch.mock.calls[0][0]).toContain("latlng=17.4401%2C78.3489");
+  });
+
+  test("rejects a city that differs from the locality coordinates", async () => {
+    const payload = { ...residentialPayload(), cityName: "Pune" };
+    const response = await postProject(payload);
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors.some((error) => /locality belongs to/i.test(error.msg))).toBe(true);
+    expect(savedListings).toHaveLength(0);
+  });
+
+  test("rejects locality coordinates when reverse geocoding cannot resolve a location", async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ status: "ZERO_RESULTS", results: [] }),
+    });
+    const response = await postProject(residentialPayload());
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors.some((error) => /could not verify the location/i.test(error.msg))).toBe(true);
+    expect(savedListings).toHaveLength(0);
+  });
+
   test("stores residential carpet area values with one shared area unit", async () => {
     const payload = residentialPayload();
     payload.residentialAreaUnit = "sqft";
@@ -254,6 +311,8 @@ describe("POST /api/mixed/project-listings", () => {
     ["cityName", (payload) => { delete payload.cityName; }],
     ["projectName", (payload) => { delete payload.projectName; }],
     ["locality.address", (payload) => { delete payload.locality.address; }],
+    ["locality.latitude", (payload) => { delete payload.locality.latitude; }],
+    ["locality.longitude", (payload) => { delete payload.locality.longitude; }],
     ["projectStatus", (payload) => { delete payload.projectStatus; }],
     ["totalUnits", (payload) => { delete payload.totalUnits; }],
     ["availableUnits", (payload) => { delete payload.availableUnits; }],

@@ -91,4 +91,91 @@ const resolveRequiredProfileLocation = async (rawLocation) => {
   return resolved;
 };
 
-module.exports = { resolveProfileLocation, resolveRequiredProfileLocation };
+/**
+ * Reverse geocode the given lat/lng and verify that the user-sent cityName
+ * matches the city returned by Google.  Also verifies the locality address
+ * belongs to that city.
+ *
+ * @param {string} cityName  — the city name the user selected (e.g. from CityAutocomplete)
+ * @param {object} locality  — { address, latitude, longitude }
+ * @returns {Promise<{ city: string, state: string }>}
+ * @throws  Error with a user-friendly message when validation fails
+ */
+const verifyCityAndLocality = async (cityName, locality) => {
+  if (!cityName || typeof cityName !== "string" || !cityName.trim()) {
+    throw makeLocationError("cityName is required.");
+  }
+
+  const latitude = Number(locality?.latitude);
+  const longitude = Number(locality?.longitude);
+
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw makeLocationError("A valid locality latitude and longitude are required for city verification.");
+  }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    throw makeLocationError("Location verification is not configured. Please contact support.", 503);
+  }
+
+  let result;
+  try {
+    const params = new URLSearchParams({ latlng: `${latitude},${longitude}`, key: apiKey });
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error(`Geocoding HTTP ${response.status}`);
+    result = await response.json();
+  } catch (error) {
+    if (error.statusCode) throw error;
+    throw makeLocationError("Could not verify the location. Please choose a more specific location and try again.");
+  }
+
+  if (result.status !== "OK" || !result.results?.length) {
+    throw makeLocationError("Could not verify the location. Please choose a more specific location and try again.");
+  }
+
+  // Find the most complete address result (must have at least 3 components and a state)
+  const bestResult = result.results.find((geocodeResult) => {
+    const components = geocodeResult.address_components;
+    return Array.isArray(components) && components.length >= MIN_ADDRESS_COMPONENTS &&
+      components.some((component) => component.types?.includes("administrative_area_level_1"));
+  }) ?? result.results[0];
+
+  const components = bestResult.address_components ?? [];
+
+  // Extract city — prefer "locality", fall back to "administrative_area_level_2"
+  const cityComponent =
+    components.find((component) => component.types?.includes("locality")) ??
+    components.find((component) => component.types?.includes("administrative_area_level_2"));
+
+  if (!cityComponent) {
+    throw makeLocationError("Could not determine the city from the selected location. Please choose a more specific location.");
+  }
+
+  const geocodedCity = cityComponent.long_name.trim();
+  const sentCity = cityName.trim();
+  const geocodedCityLower = geocodedCity.toLowerCase();
+  const sentCityLower = sentCity.toLowerCase();
+
+  // Strict match first, then allow substring in either direction for spelling variants
+  const matches =
+    geocodedCityLower === sentCityLower ||
+    geocodedCityLower.includes(sentCityLower) ||
+    sentCityLower.includes(geocodedCityLower);
+
+  if (!matches) {
+    throw makeLocationError(
+      `The selected locality belongs to "${geocodedCity}", not "${sentCity}". Please select a locality within ${sentCity}.`
+    );
+  }
+
+  // Extract state (informational — returned for consistency with resolveProfileLocation)
+  const state = components.find((component) =>
+    component.types?.includes("administrative_area_level_1"))?.long_name?.trim() ?? null;
+
+  return { city: geocodedCity, state };
+};
+
+module.exports = { resolveProfileLocation, resolveRequiredProfileLocation, verifyCityAndLocality };

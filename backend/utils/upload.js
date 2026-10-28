@@ -21,14 +21,16 @@ const getMaxFileSizeBytes = (envName, defaultMb) => {
 
 const IMAGE_MAX_FILE_SIZE_BYTES = getMaxFileSizeBytes("IMAGE_MAX_FILE_SIZE_MB", 5);
 const VIDEO_MAX_FILE_SIZE_BYTES = getMaxFileSizeBytes("VIDEO_MAX_FILE_SIZE_MB", 100);
+const DOCUMENT_MAX_FILE_SIZE_BYTES = getMaxFileSizeBytes("DOCUMENT_MAX_FILE_SIZE_MB", 10);
 
 const formatMaxFileSize = (maxFileSizeBytes) =>
   `${Number((maxFileSizeBytes / (1024 * 1024)).toFixed(2))} MB`;
 
 const getUploadSizeErrorMessage = (fieldName) => {
   const isVideo = fieldName === "video" || fieldName === "reelVideo";
-  const mediaType = isVideo ? "video" : "image";
-  const maxFileSize = formatMaxFileSize(isVideo ? VIDEO_MAX_FILE_SIZE_BYTES : IMAGE_MAX_FILE_SIZE_BYTES);
+  const isDocument = fieldName === "brochure";
+  const mediaType = isDocument ? "document" : isVideo ? "video" : "image";
+  const maxFileSize = formatMaxFileSize(isDocument ? DOCUMENT_MAX_FILE_SIZE_BYTES : isVideo ? VIDEO_MAX_FILE_SIZE_BYTES : IMAGE_MAX_FILE_SIZE_BYTES);
   return `The ${mediaType} exceeds the maximum allowed size of ${maxFileSize}.`;
 };
 
@@ -73,6 +75,28 @@ const propertyMediaFilter = (req, file, cb) => {
   if (file.fieldname === "images") return imageFilter(req, file, cb);
   if (file.fieldname === "video" || file.fieldname === "reelVideo") return videoFilter(req, file, cb);
   return cb(new Error("Unexpected media field"), false);
+};
+
+const projectMediaStorage = multer.diskStorage({
+  destination: (_req, file, cb) => {
+    const destination = file.fieldname === "images" ? IMAGES_DIR
+      : file.fieldname === "brochure" ? DOCUMENTS_DIR
+        : VIDEOS_DIR;
+    cb(null, destination);
+  },
+  filename: (_req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+    cb(null, unique + path.extname(file.originalname));
+  },
+});
+
+const projectMediaFilter = (req, file, cb) => {
+  if (file.fieldname === "brochure") {
+    return file.mimetype === "application/pdf" || path.extname(file.originalname).toLowerCase() === ".pdf"
+      ? cb(null, true)
+      : cb(new Error("Only PDF brochures are allowed"), false);
+  }
+  return propertyMediaFilter(req, file, cb);
 };
 
 const uploadImage = multer({
@@ -133,10 +157,52 @@ const handlePropertyMediaUpload = (req, res, next) => {
   });
 };
 
+const projectMediaFields = multer({
+  storage: projectMediaStorage,
+  fileFilter: projectMediaFilter,
+  limits: {
+    fileSize: Math.max(IMAGE_MAX_FILE_SIZE_BYTES, VIDEO_MAX_FILE_SIZE_BYTES, DOCUMENT_MAX_FILE_SIZE_BYTES),
+    files: 23,
+    fields: 12,
+    parts: 36,
+  },
+}).fields([
+  { name: "images", maxCount: 20 },
+  { name: "video", maxCount: 1 },
+  { name: "reelVideo", maxCount: 1 },
+  { name: "brochure", maxCount: 1 },
+]);
+
+const handleProjectMediaUpload = (req, res, next) => {
+  projectMediaFields(req, res, async (error) => {
+    const files = Object.values(req.files ?? {}).flat();
+    if (error) {
+      await removeUploadedFiles(files);
+      const status = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+      return res.status(status).json({
+        success: false,
+        message: error.code === "LIMIT_FILE_SIZE" ? getUploadSizeErrorMessage(error.field) : error.message,
+      });
+    }
+
+    const oversizedImage = (req.files?.images ?? []).some((file) => file.size > IMAGE_MAX_FILE_SIZE_BYTES);
+    const oversizedVideo = [...(req.files?.video ?? []), ...(req.files?.reelVideo ?? [])]
+      .some((file) => file.size > VIDEO_MAX_FILE_SIZE_BYTES);
+    const oversizedDocument = (req.files?.brochure ?? []).some((file) => file.size > DOCUMENT_MAX_FILE_SIZE_BYTES);
+    if (oversizedImage || oversizedVideo || oversizedDocument) {
+      await removeUploadedFiles(files);
+      const field = oversizedDocument ? "brochure" : oversizedVideo ? "video" : "images";
+      return res.status(413).json({ success: false, message: getUploadSizeErrorMessage(field) });
+    }
+    next();
+  });
+};
+
 module.exports = {
   uploadImage,
   uploadVideo,
   handlePropertyMediaUpload,
+  handleProjectMediaUpload,
   getUploadSizeErrorMessage,
   IMAGES_DIR,
   VIDEOS_DIR,

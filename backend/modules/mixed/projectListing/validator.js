@@ -2,6 +2,7 @@ const { body } = require("express-validator");
 const mongoose = require("mongoose");
 const PropertyCategory = require("../../admin/propertyCategories/model");
 const IdealFor = require("../../admin/idealFor/model");
+const { verifyCityAndLocality } = require("../../../utils/locationState");
 
 const activeRecord = (Model, label) => async (id) => {
   const record = await Model.findById(id).select("isActive");
@@ -36,8 +37,8 @@ const projectListingValidator = [
   body("developerName").optional({ nullable: true, checkFalsy: true }).isString().withMessage("developerName must be a string"),
   body("locality").isObject().withMessage("locality must be an object"),
   body("locality.address").trim().notEmpty().withMessage("locality.address is required").isString(),
-  body("locality.latitude").optional({ nullable: true }).isFloat().withMessage("locality.latitude must be numeric"),
-  body("locality.longitude").optional({ nullable: true }).isFloat().withMessage("locality.longitude must be numeric"),
+  body("locality.latitude").notEmpty().withMessage("locality.latitude is required").isFloat({ min: -90, max: 90 }).withMessage("locality.latitude must be a valid latitude"),
+  body("locality.longitude").notEmpty().withMessage("locality.longitude is required").isFloat({ min: -180, max: 180 }).withMessage("locality.longitude must be a valid longitude"),
   body("projectStatus")
     .notEmpty().withMessage("projectStatus is required")
     .isIn(["Ready to Move", "Under Construction", "New Launch"])
@@ -116,6 +117,12 @@ const projectListingValidator = [
         throw new Error("All commercial configurations must use the selected area unit");
       }
     }
+    return true;
+  }),
+
+  // ── Reverse-geocode city & locality verification ─────────────────────────────
+  body("cityName").custom(async (_, { req }) => {
+    await verifyCityAndLocality(req.body.cityName, req.body.locality);
     return true;
   }),
 ];
