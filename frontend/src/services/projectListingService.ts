@@ -34,7 +34,7 @@ export interface ProjectListingRecord {
 }
 
 export type ProjectConfiguration = {
-  bhk?: string;
+  bhk?: string | number;
   carpetArea?: number;
   furnishingOptions?: string[];
   price?: number;

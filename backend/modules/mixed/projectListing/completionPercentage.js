@@ -29,7 +29,8 @@ function calculateProjectCompletionPercentage(project) {
     hasValue(project.totalUnits),
     hasValue(project.availableUnits),
     hasValue(project.towerCount),
-    hasValue(project.minPrice) && hasValue(project.maxPrice),
+    hasValue(project.minPrice),
+    hasValue(project.maxPrice),
     hasValue(project.cityName),
     hasValue(project.locality?.address) && hasValue(project.locality?.latitude) && hasValue(project.locality?.longitude),
     hasValue(project.media?.images),
@@ -44,23 +45,26 @@ function calculateProjectCompletionPercentage(project) {
 
   if (residential) {
     checks.push(hasValue(project.residentialDetails?.areaUnit));
-    checks.push(configurations.length > 0 && configurations.every((item) => hasValue(item.bhk)));
   } else if (commercial) {
     const details = project.commercialDetails ?? {};
     checks.push(hasValue(details.zoneType));
     checks.push(hasValue(details.locationHub));
     checks.push(hasValue(details.areaUnit));
-    checks.push(configurations.length > 0 && configurations.every((item) => hasValue(item.carpetArea)));
   }
 
+  // The configurations array is a form section. Each row is then assessed by
+  // its own editable fields so one missing row cannot be hidden by another.
+  checks.push(configurations.length > 0);
+
   for (const configuration of configurations) {
+    if (residential) checks.push(hasValue(configuration.bhk));
     checks.push(hasValue(configuration.carpetArea));
     checks.push(Number.isFinite(Number(configuration.price)) && Number(configuration.price) > 0);
     checks.push(hasValue(configuration.image2DUrl));
     checks.push(hasValue(configuration.model3DUrl));
-    for (const option of configuration.furnishingOptions ?? []) {
-      checks.push(hasValue(option));
-    }
+    // Furnishing options are one multi-select field, not a separate field per
+    // selected option (which made the percentage depend on selection count).
+    checks.push(hasValue(configuration.furnishingOptions));
   }
 
   const completed = checks.filter(Boolean).length;

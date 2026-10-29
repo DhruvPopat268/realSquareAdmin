@@ -334,14 +334,24 @@ const updateProject = async (req, res) => {
     if (!Number.isFinite(Number(listing.minPrice)) || Number(listing.minPrice) <= 0 || !Number.isFinite(Number(listing.maxPrice)) || Number(listing.maxPrice) < Number(listing.minPrice)) {
       return res.status(400).json({ success: false, message: "Enter a valid project price range." });
     }
-    const configs = listing.category?.name?.toLowerCase() === "commercial"
+    const categoryName = listing.category?.name?.toLowerCase();
+    const isCommercial = categoryName === "commercial";
+    const configs = isCommercial
       ? listing.commercialDetails?.configurations ?? []
       : listing.residentialDetails?.configurations ?? [];
     if (!configs.length) return res.status(400).json({ success: false, message: "At least one project configuration is required." });
-    if (listing.category?.name?.toLowerCase() === "commercial" && configs.some((item) => !Number.isFinite(Number(item.carpetArea)) || Number(item.carpetArea) <= 0)) {
+
+    if (categoryName === "residential") {
+      const allowedBhk = new Set(["1 RK", ...Array.from({ length: 12 }, (_, index) => `${index + 1} BHK`)]);
+      if (configs.some((item) => !item || typeof item.bhk !== "string" || !allowedBhk.has(item.bhk.trim()))) {
+        return res.status(400).json({ success: false, message: "Each residential configuration must include a valid BHK option (1 RK or 1–12 BHK)." });
+      }
+    }
+
+    if (isCommercial && configs.some((item) => !item || !Number.isFinite(Number(item.carpetArea)) || Number(item.carpetArea) <= 0)) {
       return res.status(400).json({ success: false, message: "Each commercial configuration must have a carpet area greater than zero." });
     }
-    if (listing.category?.name?.toLowerCase() !== "commercial" && configs.some((item) => item.carpetArea != null && (!Number.isFinite(Number(item.carpetArea)) || Number(item.carpetArea) <= 0))) {
+    if (categoryName === "residential" && configs.some((item) => item?.carpetArea != null && (!Number.isFinite(Number(item.carpetArea)) || Number(item.carpetArea) <= 0))) {
       return res.status(400).json({ success: false, message: "A residential carpet area must be greater than zero when provided." });
     }
 

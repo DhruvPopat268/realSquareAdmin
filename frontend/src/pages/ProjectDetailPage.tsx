@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Map, MapPin, XCircle } from "lucide-react";
-import { projectListingService, type ProjectListingRecord } from "@/services/projectListingService";
+import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, Map, MapPin, XCircle } from "lucide-react";
+import { projectListingService, type ProjectConfiguration, type ProjectListingRecord } from "@/services/projectListingService";
+import ListingMediaSection from "@/components/ListingMediaSection";
 
 const STATUS_STYLE: Record<string, string> = {
   UnderReview: "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -42,21 +43,79 @@ function Item({ label, value }: { label: string; value?: unknown }) {
   return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 break-words text-sm font-semibold text-foreground">{String(value)}</p></div>;
 }
 
-function VideoSection({ title, fileUrl, youtubeUrl }: { title: string; fileUrl?: string; youtubeUrl?: string }) {
-  if (!fileUrl && !youtubeUrl) return null;
-  let embedUrl: string | null = null;
-  if (youtubeUrl) {
-    try {
-      const parsed = new URL(youtubeUrl);
-      const host = parsed.hostname.toLowerCase();
-      if (host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com")) {
-        const pathParts = parsed.pathname.split("/").filter(Boolean);
-        const id = host === "youtu.be" ? pathParts[0] : parsed.searchParams.get("v") ?? (pathParts[0] === "watch" ? null : pathParts[1]);
-        if (id && /^[a-zA-Z0-9_-]{6,20}$/.test(id)) embedUrl = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
-      }
-    } catch { /* Keep an external link for non-URL input. */ }
-  }
-  return <section className="space-y-3"><div><h2 className="text-base font-bold">{title}</h2><p className="text-xs text-muted-foreground">Uploaded project media</p></div><div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{fileUrl && <video controls playsInline preload="metadata" className="aspect-video w-full rounded-lg bg-black object-contain"><source src={fileUrl} /></video>}{embedUrl ? <iframe src={embedUrl} title={`${title} YouTube video`} className="aspect-video w-full rounded-lg bg-black" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /> : youtubeUrl && <a href={youtubeUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">Watch {title}</a>}</div></section>;
+function formatArea(area: number | undefined, areaUnit?: string) {
+  if (area == null) return "—";
+  const units: Record<string, string> = { sqft: "sq.ft", sqyd: "sq.yd", sqmt: "sq.m" };
+  return `${area.toLocaleString("en-IN")} ${units[areaUnit ?? ""] ?? areaUnit ?? "sq.ft"}`;
+}
+
+function formatBhk(value?: string | number) {
+  if (value == null || value === "") return "Other";
+  const text = String(value).trim();
+  const numeric = text.match(/^(\d+(?:\.\d+)?)\s*(?:BHK)?$/i);
+  if (!numeric) return text;
+  const count = Number(numeric[1]);
+  return count === 0 ? "1 RK" : `${count} BHK`;
+}
+
+function ConfigurationMedia({ configuration }: { configuration: ProjectConfiguration }) {
+  const [activeMedia, setActiveMedia] = useState<"3d" | "2d">("3d");
+
+  return <div>
+    <div className="mb-3 flex gap-2" role="tablist" aria-label="Configuration media">
+      <button type="button" role="tab" aria-selected={activeMedia === "3d"} onClick={() => setActiveMedia("3d")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeMedia === "3d" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground ring-1 ring-border hover:bg-muted"}`}>3D Model</button>
+      <button type="button" role="tab" aria-selected={activeMedia === "2d"} onClick={() => setActiveMedia("2d")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeMedia === "2d" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground ring-1 ring-border hover:bg-muted"}`}>2D Image</button>
+    </div>
+    {activeMedia === "3d" ? configuration.model3DUrl
+      ? <><model-viewer src={configuration.model3DUrl} alt="Interactive 3D project configuration" camera-controls auto-rotate touch-action="pan-y" environment-image="neutral" shadow-intensity="1" exposure="0.8" style={{ display: "block", width: "100%", height: "260px", background: "#dbe3ee", border: "1px solid #cbd5e1", borderRadius: "0.5rem" }} /><p className="mt-1 text-xs text-muted-foreground">Drag to rotate the 3D model</p></>
+      : <div className="flex h-[260px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">3D model not available</div>
+      : configuration.image2DUrl
+        ? <a href={configuration.image2DUrl} target="_blank" rel="noreferrer" className="block"><img src={configuration.image2DUrl} alt="2D configuration" className="h-[260px] w-full rounded-md border bg-background object-contain" /></a>
+        : <div className="flex h-[260px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">2D image not available</div>}
+  </div>;
+}
+
+function ConfigurationCard({ configuration, areaUnit }: { configuration: ProjectConfiguration; areaUnit?: string }) {
+  return <article className="rounded-lg border bg-background p-4">
+    <ConfigurationMedia configuration={configuration} />
+    <div className="mt-4 grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-3">
+      <Item label="Carpet Area" value={formatArea(configuration.carpetArea, areaUnit)} />
+      <div><p className="text-xs text-muted-foreground">Furnishing Status</p>{configuration.furnishingOptions?.length ? <div className="mt-1 flex flex-wrap gap-1">{configuration.furnishingOptions.map((option, index) => <span key={`${option}-${index}`} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{option}</span>)}</div> : <p className="mt-0.5 text-sm font-semibold text-foreground">—</p>}</div>
+      <Item label="Starting Price" value={money(configuration.price)} />
+    </div>
+  </article>;
+}
+
+function ConfigurationSection({ project, residential, configurations }: { project: ProjectListingRecord; residential: boolean; configurations: ProjectConfiguration[] }) {
+  const areaUnit = residential ? project.residentialDetails?.areaUnit : project.commercialDetails?.areaUnit;
+  const groups: Array<{ key: string; label: string; configurations: Array<{ configuration: ProjectConfiguration; index: number }> }> = [];
+  const groupMap = new Map<string, (typeof groups)[number]>();
+
+  configurations.forEach((configuration, index) => {
+    const bhk = formatBhk(configuration.bhk);
+    const area = configuration.carpetArea == null ? "Area not specified" : String(configuration.carpetArea);
+    const key = residential ? bhk : area;
+    if (!groupMap.has(key)) {
+      const group = { key, label: residential ? bhk : configuration.carpetArea == null ? area : formatArea(configuration.carpetArea, areaUnit), configurations: [] };
+      groupMap.set(key, group);
+      groups.push(group);
+    }
+    groupMap.get(key)!.configurations.push({ configuration, index });
+  });
+
+  const [selectedGroupKey, setSelectedGroupKey] = useState(groups[0]?.key ?? "");
+  const selectedGroup = groups.find((group) => group.key === selectedGroupKey) ?? groups[0];
+
+  return <section className="rounded-xl border bg-card p-5">
+    <h2 className="mb-4 text-base font-bold">{residential ? "Residential Configurations" : "Commercial Carpet Area Configurations"}</h2>
+    {!configurations.length ? <p className="text-sm text-muted-foreground">No configurations provided.</p> : <>
+      <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3"><Item label="Area Unit" value={areaUnit} />{!residential && <><Item label="Zone Type" value={project.commercialDetails?.zoneType} /><Item label="Location Hub" value={project.commercialDetails?.locationHub} /></>}</div>
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label={residential ? "Configurations by BHK" : "Configurations by carpet area"}>
+        {groups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup?.key === group.key} onClick={() => setSelectedGroupKey(group.key)} className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition ${selectedGroup?.key === group.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>{group.label}</button>)}
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">{selectedGroup?.configurations.map(({ configuration, index }) => <ConfigurationCard key={`${selectedGroup.key}-${index}`} configuration={configuration} areaUnit={areaUnit} />)}</div>
+    </>}
+  </section>;
 }
 
 export default function ProjectDetailPage() {
@@ -151,18 +210,22 @@ export default function ProjectDetailPage() {
     {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {project.status === "UnderReview" && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800"><span>This project is under review. Approve or reject it after review.</span><div className="flex gap-2"><Button size="sm" onClick={() => setApproveOpen(true)}>Approve</Button><Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)}>Reject</Button></div></div>}
 
-    {images.length > 0 && <section className="space-y-3"><div><h2 className="text-base font-bold">Project Photos</h2><p className="text-xs text-muted-foreground">Uploaded project photos</p></div><div className="grid grid-cols-2 gap-2 overflow-hidden rounded-xl sm:grid-cols-4">{images.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} type="button" onClick={() => setActiveImage(index)} className="relative h-36 overflow-hidden bg-muted sm:h-52"><img src={image} alt={`${project.projectName} ${index + 1}`} className="h-full w-full object-cover" />{index === 0 && <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] text-white">Cover</span>}{index === 3 && images.length > 4 && <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-xl font-bold text-white">+{images.length - 4} more</span>}</button>)}</div></section>}
-
-    <div className="space-y-6"><VideoSection title="Project Videos" fileUrl={project.media?.videos?.videoUrl} youtubeUrl={project.media?.videos?.ytVideoUrl} /><VideoSection title="Project Reels" fileUrl={project.media?.reelVideo?.reelUrl} youtubeUrl={project.media?.reelVideo?.ytReelUrl} />
-      {project.brochureUrl && <section className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-bold">Project Brochure (PDF)</h2><p className="text-xs text-muted-foreground">Uploaded brochure document</p></div><a href={project.brochureUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"><ExternalLink className="h-4 w-4" />Open PDF</a></div><iframe src={project.brochureUrl} title={`${project.projectName} brochure`} className="h-[70vh] min-h-[420px] w-full rounded-lg border bg-white" /></section>}
-    </div>
+    <ListingMediaSection
+      images={images}
+      onImageClick={setActiveImage}
+      videoUrl={project.media?.videos?.videoUrl}
+      ytVideoUrl={project.media?.videos?.ytVideoUrl}
+      reelUrl={project.media?.reelVideo?.reelUrl}
+      ytReelUrl={project.media?.reelVideo?.ytReelUrl}
+      brochureUrl={project.brochureUrl}
+    />
 
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-3"><div className="space-y-6 xl:col-span-2">
       <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Project Details</h2><div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3"><Item label="Project Name" value={project.projectName} /><Item label="Developer Name" value={project.developerName} /><Item label="Category" value={project.category?.name} /><Item label="Project Status" value={project.projectStatus} /><Item label="Listing Status" value={displayStatus(project.status)} /><Item label="Total Units" value={project.totalUnits} /><Item label="Available Units" value={project.availableUnits} /><Item label="Number of Towers" value={project.towerCount} /><Item label="Minimum Price" value={money(project.minPrice)} /><Item label="Maximum Price" value={money(project.maxPrice)} /><Item label="Launch Date" value={dateText(project.launchDate)} /><Item label="Possession Date" value={dateText(project.possessionDate)} /><Item label="Created At" value={dateText(project.createdAt)} /><Item label="Updated At" value={dateText(project.updatedAt)} /></div>{project.locality?.address && <div className="mt-4 border-t pt-4"><p className="text-xs text-muted-foreground">Locality</p>{project.locality.latitude != null && project.locality.longitude != null ? <button type="button" onClick={() => setMapsTarget({ address: project.locality!.address!, lat: project.locality!.latitude!, lng: project.locality!.longitude! })} className="mt-1 inline-flex items-center gap-1 text-left text-sm font-semibold text-blue-600 hover:underline"><MapPin className="h-3.5 w-3.5" />{project.locality.address}</button> : <p className="mt-1 text-sm font-semibold">{project.locality.address}</p>}</div>}{project.projectDescription && <div className="mt-4 border-t pt-4"><h3 className="text-sm font-semibold">Description</h3><p className="mt-1 whitespace-pre-line text-sm leading-6 text-muted-foreground">{project.projectDescription}</p></div>}</section>
 
       {project.idealFor?.length ? <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Ideal For</h2><div className="flex flex-wrap gap-3">{project.idealFor.map((item, index) => <div key={item.id ?? `${item.name}-${index}`} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">{item.image && <img src={item.image} alt="" className="h-8 w-8 object-contain" />}<span className="text-sm font-medium">{item.name}</span></div>)}</div></section> : null}
 
-      <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">{residential ? "Residential Configurations" : "Commercial Carpet Area Configurations"}</h2>{!configurations.length ? <p className="text-sm text-muted-foreground">No configurations provided.</p> : <><div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3"><Item label="Area Unit" value={residential ? project.residentialDetails?.areaUnit : project.commercialDetails?.areaUnit} />{!residential && <><Item label="Zone Type" value={project.commercialDetails?.zoneType} /><Item label="Location Hub" value={project.commercialDetails?.locationHub} /></>}</div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{configurations.map((configuration, index) => <div key={index} className="rounded-lg border bg-background p-4"><p className="mb-3 text-sm font-semibold">Configuration {index + 1}</p><div className="grid grid-cols-2 gap-3">{residential && <Item label="BHK" value={configuration.bhk} />}<Item label="Carpet Area" value={`${configuration.carpetArea ?? "—"} ${residential ? project.residentialDetails?.areaUnit ?? "" : project.commercialDetails?.areaUnit ?? ""}`} /><Item label="Price" value={money(configuration.price)} /></div><div className="mt-3"><p className="text-xs text-muted-foreground">Furnishing options</p>{configuration.furnishingOptions?.length ? <ul className="mt-1 space-y-1 text-sm">{configuration.furnishingOptions.map((option, optionIndex) => <li key={optionIndex}>{option}</li>)}</ul> : <p className="mt-1 text-sm text-muted-foreground">No furnishing options provided.</p>}</div><div className="mt-4 grid grid-cols-2 gap-3">{configuration.image2DUrl ? <div><p className="mb-1 text-xs text-muted-foreground">2D image</p><a href={configuration.image2DUrl} target="_blank" rel="noreferrer"><img src={configuration.image2DUrl} alt="2D image" className="h-28 w-full rounded-md border object-cover" /></a></div> : <div><p className="mb-1 text-xs text-muted-foreground">2D image</p><div className="flex h-28 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">—</div></div>}{configuration.model3DUrl ? <div><p className="mb-1 text-xs text-muted-foreground">Interactive 3D model</p><model-viewer src={configuration.model3DUrl} alt="Interactive 3D project configuration" camera-controls auto-rotate touch-action="pan-y" environment-image="neutral" shadow-intensity="1" exposure="0.8" style={{ display: "block", width: "100%", height: "180px", background: "#dbe3ee", border: "1px solid #cbd5e1", borderRadius: "0.5rem" }} /></div> : <div><p className="mb-1 text-xs text-muted-foreground">3D model</p><div className="flex h-28 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">—</div></div>}</div></div>)}</div></>}</section>
+      <ConfigurationSection project={project} residential={residential} configurations={configurations} />
 
       {(project.furnishings?.length || project.amenities?.length) ? <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Furnishings & Amenities</h2><div className="grid grid-cols-1 gap-5 sm:grid-cols-2">{project.furnishings?.length ? <div><h3 className="mb-2 text-sm font-semibold">Furnishings</h3><ul className="space-y-1 text-sm text-muted-foreground">{project.furnishings.map((item, index) => <li key={index}>{item.name}{item.count != null ? ` × ${item.count}` : ""}</li>)}</ul></div> : null}{project.amenities?.length ? <div><h3 className="mb-2 text-sm font-semibold">Amenities</h3><ul className="space-y-1 text-sm text-muted-foreground">{project.amenities.map((item, index) => <li key={index}>{item.name}{item.count != null ? ` × ${item.count}` : ""}</li>)}</ul></div> : null}</div></section> : null}
 
