@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const fs = require("fs/promises");
 const path = require("path");
 const ProjectListing = require("./model");
+const { compressGlb } = require("../../../utils/glbCompress");
 const { calculateProjectCompletionPercentage } = require("./completionPercentage");
 const PropertyCategory = require("../../admin/propertyCategories/model");
 const IdealFor = require("../../admin/idealFor/model");
@@ -637,6 +638,15 @@ const updateMedia = async (req, res) => {
           }
         }
         seenSlots.add(slotKey);
+        // Compress GLB files in-place before storing the URL.
+        if (isModel && modelExtension === ".glb") {
+          try {
+            await compressGlb(uploadedFile.path);
+          } catch (compressionError) {
+            // Compression is best-effort — log and continue with the original file.
+            console.error("[project updateMedia] GLB compression failed:", compressionError.message);
+          }
+        }
         configurations[index][field] = toUrl(uploadedFile.path);
         listing.markModified(`${section}.configurations`);
       }
