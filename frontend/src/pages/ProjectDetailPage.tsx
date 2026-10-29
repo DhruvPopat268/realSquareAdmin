@@ -1,248 +1,181 @@
-import { useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { PROJECTS } from "@/data/projectsData";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  ArrowLeft, ChevronRight, MapPin, Users, Calendar, Building2,
-  TrendingUp, CheckCircle2, Share2, Mail, X, ChevronLeft,
-} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Map, MapPin, XCircle } from "lucide-react";
+import { projectListingService, type ProjectListingRecord } from "@/services/projectListingService";
 
-function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  return `$${(n / 1_000).toFixed(0)}K`;
+const STATUS_STYLE: Record<string, string> = {
+  UnderReview: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  Active: "bg-green-50 text-green-700 border-green-200",
+  Inactive: "bg-slate-100 text-slate-600 border-slate-200",
+  Sold: "bg-gray-100 text-gray-600 border-gray-200",
+  sold: "bg-gray-100 text-gray-600 border-gray-200",
+  Rejected: "bg-red-50 text-red-600 border-red-200",
+};
+
+function statusOptions(status: string) {
+  if (status === "Active") return ["Inactive", "Sold"];
+  if (["Inactive", "Sold", "sold", "Rejected"].includes(status)) return ["Active"];
+  return [];
 }
 
-const statusStyle: Record<string, string> = {
-  "Pre Launch":         "bg-purple-50 text-purple-600 border border-purple-200",
-  "New Launch":         "bg-blue-50 text-blue-600 border border-blue-200",
-  "Under Construction": "bg-amber-50 text-amber-600 border border-amber-200",
-  "Ready To Move":      "bg-green-50 text-green-700 border border-green-200",
-  "Sold Out":           "bg-gray-100 text-gray-600 border border-gray-200",
-};
+function displayStatus(status: string) {
+  return status === "UnderReview" ? "Under Review" : status === "sold" ? "Sold" : status;
+}
 
-const progressColor: Record<string, string> = {
-  "Pre Launch":         "bg-purple-400",
-  "New Launch":         "bg-blue-500",
-  "Under Construction": "bg-amber-400",
-  "Ready To Move":      "bg-green-500",
-  "Sold Out":           "bg-gray-400",
-};
+function dateText(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function money(value?: number) {
+  if (value == null) return "—";
+  return `₹${value.toLocaleString("en-IN")}`;
+}
+
+function Item({ label, value }: { label: string; value?: unknown }) {
+  if (value == null || value === "") return null;
+  return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 break-words text-sm font-semibold text-foreground">{String(value)}</p></div>;
+}
+
+function VideoSection({ title, fileUrl, youtubeUrl }: { title: string; fileUrl?: string; youtubeUrl?: string }) {
+  if (!fileUrl && !youtubeUrl) return null;
+  let embedUrl: string | null = null;
+  if (youtubeUrl) {
+    try {
+      const parsed = new URL(youtubeUrl);
+      const host = parsed.hostname.toLowerCase();
+      if (host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com")) {
+        const pathParts = parsed.pathname.split("/").filter(Boolean);
+        const id = host === "youtu.be" ? pathParts[0] : parsed.searchParams.get("v") ?? (pathParts[0] === "watch" ? null : pathParts[1]);
+        if (id && /^[a-zA-Z0-9_-]{6,20}$/.test(id)) embedUrl = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+      }
+    } catch { /* Keep an external link for non-URL input. */ }
+  }
+  return <section className="space-y-3"><div><h2 className="text-base font-bold">{title}</h2><p className="text-xs text-muted-foreground">Uploaded project media</p></div><div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{fileUrl && <video controls playsInline preload="metadata" className="aspect-video w-full rounded-lg bg-black object-contain"><source src={fileUrl} /></video>}{embedUrl ? <iframe src={embedUrl} title={`${title} YouTube video`} className="aspect-video w-full rounded-lg bg-black" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /> : youtubeUrl && <a href={youtubeUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">Watch {title}</a>}</div></section>;
+}
 
 export default function ProjectDetailPage() {
-  const { id }     = useParams();
-  const navigate   = useNavigate();
-  const p          = PROJECTS.find((x) => x.id === Number(id));
+  const { id = "" } = useParams();
+  const navigate = useNavigate();
+  const [project, setProject] = useState<ProjectListingRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activeImage, setActiveImage] = useState<number | null>(null);
+  const [mapsTarget, setMapsTarget] = useState<{ address: string; lat: number; lng: number } | null>(null);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReasons, setRejectReasons] = useState<string[]>([]);
+  const [rejectInput, setRejectInput] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  const [activeImg, setActiveImg] = useState(0);
-  const [lightbox, setLightbox]   = useState(false);
-  const [comment, setComment]     = useState("");
-  const [comments, setComments]   = useState<string[]>([]);
-  const textareaRef               = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    projectListingService.getById(id).then(({ data }) => {
+      if (!cancelled) { setProject(data.data); setError(""); }
+    }).catch((requestError) => {
+      if (!cancelled) setError(requestError?.response?.data?.message ?? "Failed to load project details");
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id]);
 
-  const handleComment = () => {
-    if (!comment.trim()) return;
-    setComments((c) => [...c, comment.trim()]);
-    setComment("");
+  const approveProject = async () => {
+    if (!project) return;
+    setApproving(true);
+    try {
+      const { data } = await projectListingService.approve(project._id);
+      setProject((current) => current ? { ...current, status: data.data.status, approvedAt: data.data.approvedAt, rejectedAt: null, rejectedReasons: [] } : current);
+      setApproveOpen(false);
+      toast.success(data.message);
+    } catch (requestError: any) { toast.error(requestError?.response?.data?.message ?? "Failed to approve project"); }
+    finally { setApproving(false); }
   };
 
-  if (!p) return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3">
-      <p className="text-muted-foreground text-lg">Project not found.</p>
-      <Button variant="outline" onClick={() => navigate("/projects")}>Back to Projects</Button>
+  const rejectProject = async () => {
+    if (!project || rejectReasons.length === 0) return;
+    setRejecting(true);
+    try {
+      const { data } = await projectListingService.reject(project._id, rejectReasons);
+      setProject((current) => current ? { ...current, status: data.data.status, rejectedAt: data.data.rejectedAt, rejectedReasons: data.data.rejectedReasons, approvedAt: null } : current);
+      setRejectOpen(false);
+      setRejectReasons([]);
+      setRejectInput("");
+      toast.success(data.message);
+    } catch (requestError: any) { toast.error(requestError?.response?.data?.message ?? "Failed to reject project"); }
+    finally { setRejecting(false); }
+  };
+
+  const updateStatus = async () => {
+    if (!project || !selectedStatus || updatingStatus) return;
+    setUpdatingStatus(true);
+    try {
+      const { data } = await projectListingService.updateStatus(project._id, selectedStatus);
+      setProject((current) => current ? { ...current, status: data.data.status } : current);
+      setStatusOpen(false);
+      setSelectedStatus("");
+      toast.success(data.message);
+    } catch (requestError: any) { toast.error(requestError?.response?.data?.message ?? "Failed to update project status"); }
+    finally { setUpdatingStatus(false); }
+  };
+
+  const addRejectReason = () => {
+    const reason = rejectInput.trim();
+    if (reason && !rejectReasons.includes(reason)) setRejectReasons((current) => [...current, reason]);
+    setRejectInput("");
+  };
+
+  if (loading) return <div className="py-20 text-center text-sm text-muted-foreground">Loading project…</div>;
+  if (!project) return <div className="space-y-4"><Button variant="outline" onClick={() => navigate("/projects")}><ArrowLeft className="mr-2 h-4 w-4" />Projects</Button><div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error || "Project not found"}</div></div>;
+
+  const images = project.media?.images ?? [];
+  const residential = project.category?.name?.toLowerCase().includes("residential") ?? false;
+  const configurations = residential
+    ? (project.residentialDetails?.configurations ?? [])
+    : (project.commercialDetails?.configurations ?? []);
+
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div><Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-3 px-0"><ArrowLeft className="mr-2 h-4 w-4" />Back to Projects</Button><h1 className="text-2xl font-bold">{project.projectName}</h1><p className="mt-1 text-sm text-muted-foreground">{project.developerName || "Developer not provided"} · {project.category?.name || "Project"}</p><p className="mt-2 flex items-start gap-1 text-sm text-muted-foreground"><MapPin className="mt-0.5 h-4 w-4 shrink-0" />{[project.locality?.address, project.cityName].filter(Boolean).join(", ") || "Location not provided"}</p></div>
+      <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${STATUS_STYLE[project.status] ?? ""}`}>{displayStatus(project.status)}</span>{project.status === "UnderReview" && <><Button variant="outline" className="text-blue-600" onClick={() => setApproveOpen(true)}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button><Button variant="outline" className="text-red-600" onClick={() => { setRejectReasons([]); setRejectInput(""); setRejectOpen(true); }}><XCircle className="mr-2 h-4 w-4" />Reject</Button></>}{statusOptions(project.status).length > 0 && <Button variant="outline" onClick={() => { setSelectedStatus(""); setStatusOpen(true); }}>Update Status</Button>}</div>
     </div>
-  );
 
-  const pctSold = Math.round((p.soldUnits / p.totalUnits) * 100);
+    {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+    {project.status === "UnderReview" && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800"><span>This project is under review. Approve or reject it after review.</span><div className="flex gap-2"><Button size="sm" onClick={() => setApproveOpen(true)}>Approve</Button><Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)}>Reject</Button></div></div>}
 
-  return (
-    <div className="space-y-6">
+    {images.length > 0 && <section className="space-y-3"><div><h2 className="text-base font-bold">Project Photos</h2><p className="text-xs text-muted-foreground">Uploaded project photos</p></div><div className="grid grid-cols-2 gap-2 overflow-hidden rounded-xl sm:grid-cols-4">{images.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} type="button" onClick={() => setActiveImage(index)} className="relative h-36 overflow-hidden bg-muted sm:h-52"><img src={image} alt={`${project.projectName} ${index + 1}`} className="h-full w-full object-cover" />{index === 0 && <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] text-white">Cover</span>}{index === 3 && images.length > 4 && <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-xl font-bold text-white">+{images.length - 4} more</span>}</button>)}</div></section>}
 
-      {/* Back + breadcrumb */}
-      <div className="space-y-1">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back
-        </button>
-        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span>Projects</span>
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-foreground font-medium">Project Details</span>
-        </nav>
-      </div>
-
-      {/* Gallery */}
-      <div className="grid grid-cols-4 grid-rows-2 gap-2 h-80 rounded-xl overflow-hidden">
-        <div className="col-span-2 row-span-2 relative cursor-pointer" onClick={() => setLightbox(true)}>
-          <img src={p.images[activeImg]} alt={p.title} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-          <div className="absolute bottom-3 left-3 flex items-center gap-2">
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyle[p.status]}`}>{p.status}</span>
-            <span className="px-2.5 py-0.5 rounded text-xs font-medium bg-white/20 text-white backdrop-blur-sm">Ideal for {p.idealFor.join(", ")}</span>
-          </div>
-        </div>
-        {p.images.slice(1, 5).map((img, i) => (
-          <div key={i} className="relative cursor-pointer overflow-hidden" onClick={() => { setActiveImg(i + 1); setLightbox(true); }}>
-            <img src={img} alt={`${p.title} ${i + 2}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
-          </div>
-        ))}
-      </div>
-
-      {/* Thumbnails */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {p.images.map((img, i) => (
-          <button key={i} onClick={() => setActiveImg(i)} className={`shrink-0 h-14 w-20 rounded-lg overflow-hidden border-2 transition-colors ${activeImg === i ? "border-primary" : "border-transparent"}`}>
-            <img src={img} alt={`thumb-${i}`} className="w-full h-full object-cover" />
-          </button>
-        ))}
-      </div>
-
-      {/* Lightbox */}
-      {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={() => setLightbox(false)}>
-          <button onClick={() => setLightbox(false)} className="absolute top-4 right-4 text-white p-2 rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
-          <button onClick={(e) => { e.stopPropagation(); setActiveImg((i) => (i - 1 + p.images.length) % p.images.length); }} className="absolute left-4 text-white p-2 rounded-full hover:bg-white/10"><ChevronLeft className="h-6 w-6" /></button>
-          <img src={p.images[activeImg]} alt={p.title} className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
-          <button onClick={(e) => { e.stopPropagation(); setActiveImg((i) => (i + 1) % p.images.length); }} className="absolute right-4 text-white p-2 rounded-full hover:bg-white/10"><ChevronRight className="h-6 w-6" /></button>
-          <p className="absolute bottom-4 text-white/70 text-sm">{activeImg + 1} / {p.images.length}</p>
-        </div>
-      )}
-
-      {/* Title row */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{p.title}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{p.developer.company}</p>
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-            <MapPin className="h-4 w-4 shrink-0" />{p.location}, {p.city}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Mail className="h-3.5 w-3.5" /> Contact
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <Share2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Main + Sidebar */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        <div className="xl:col-span-2 space-y-8">
-
-          <section>
-            <h2 className="text-base font-bold text-foreground mb-2">About the Project</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">{p.description}</p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-bold text-foreground mb-1">Sales & Construction Progress</h2>
-            <p className="text-xs text-muted-foreground mb-4">Live progress tracking</p>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Units Sold</span>
-                  <span className="font-semibold text-foreground">{p.soldUnits} / {p.totalUnits}</span>
-                </div>
-                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${pctSold}%` }} />
-                </div>
-                <p className="text-xs text-muted-foreground text-right">{pctSold}% sold</p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Construction</span>
-                  <span className="font-semibold text-foreground">{p.progress}%</span>
-                </div>
-                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${progressColor[p.status]}`} style={{ width: `${p.progress}%` }} />
-                </div>
-                <p className="text-xs text-muted-foreground text-right">Possession: {p.possessionDate}</p>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-base font-bold text-foreground">Project Details</h2>
-            <p className="text-xs text-muted-foreground mb-4">Key project information</p>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-5 text-sm">
-              {[
-                { label: "Developer",       value: p.developer.company },
-                { label: "Ideal For",       value: p.idealFor.join(", ") },
-                { label: "Status",          value: p.status },
-                { label: "Price From",      value: fmt(p.priceFrom) },
-                { label: "Price To",        value: fmt(p.priceTo) },
-                { label: "Total Units",     value: p.totalUnits },
-                { label: "Launch Date",     value: p.launchDate },
-                { label: "Possession Date", value: p.possessionDate },
-                { label: "Sales Manager",   value: p.developer.salesManager },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="font-semibold text-foreground mt-0.5">{value}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-base font-bold text-foreground">Amenities & Features</h2>
-            <p className="text-xs text-muted-foreground mb-4">What this project offers</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4">
-              {p.amenities.map((a) => (
-                <div key={a} className="flex items-center gap-2 text-sm text-foreground">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />{a}
-                </div>
-              ))}
-            </div>
-          </section>
-
-        </div>
-
-        {/* Sidebar */}
-        <div className="xl:col-span-1 space-y-4">
-          <div className="border rounded-xl p-4 bg-card space-y-3">
-            <h3 className="text-sm font-bold text-foreground">Quick Stats</h3>
-            <div className="space-y-2.5">
-              {[
-                { icon: Building2,  label: "Total Units",     value: p.totalUnits },
-                { icon: TrendingUp, label: "Units Sold",      value: p.soldUnits },
-                { icon: Users,      label: "Units Available", value: p.totalUnits - p.soldUnits },
-                { icon: Calendar,   label: "Possession",      value: p.possessionDate },
-              ].map((s) => (
-                <div key={s.label} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <s.icon className="h-3.5 w-3.5" />{s.label}
-                  </div>
-                  <span className="font-semibold text-foreground">{s.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="border rounded-xl p-4 bg-card space-y-3">
-            <h3 className="text-sm font-bold text-foreground">Comments</h3>
-            <p className="text-xs text-muted-foreground">It's good to talk</p>
-            {comments.length > 0 && (
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {comments.map((c, i) => (
-                  <div key={i} className="bg-muted rounded-lg px-3 py-2 text-sm text-foreground">{c}</div>
-                ))}
-              </div>
-            )}
-            <textarea
-              ref={textareaRef}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleComment(); }}
-              placeholder="Say something"
-              rows={3}
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
-            />
-            <p className="text-[10px] text-muted-foreground">Press Ctrl+Enter to submit</p>
-            <Button className="w-full" size="sm" onClick={handleComment}>Submit</Button>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6"><VideoSection title="Project Videos" fileUrl={project.media?.videos?.videoUrl} youtubeUrl={project.media?.videos?.ytVideoUrl} /><VideoSection title="Project Reels" fileUrl={project.media?.reelVideo?.reelUrl} youtubeUrl={project.media?.reelVideo?.ytReelUrl} />
+      {project.brochureUrl && <section className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-bold">Project Brochure (PDF)</h2><p className="text-xs text-muted-foreground">Uploaded brochure document</p></div><a href={project.brochureUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"><ExternalLink className="h-4 w-4" />Open PDF</a></div><iframe src={project.brochureUrl} title={`${project.projectName} brochure`} className="h-[70vh] min-h-[420px] w-full rounded-lg border bg-white" /></section>}
     </div>
-  );
+
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3"><div className="space-y-6 xl:col-span-2">
+      <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Project Details</h2><div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3"><Item label="Project Name" value={project.projectName} /><Item label="Developer Name" value={project.developerName} /><Item label="Category" value={project.category?.name} /><Item label="Project Status" value={project.projectStatus} /><Item label="Listing Status" value={displayStatus(project.status)} /><Item label="Total Units" value={project.totalUnits} /><Item label="Available Units" value={project.availableUnits} /><Item label="Number of Towers" value={project.towerCount} /><Item label="Minimum Price" value={money(project.minPrice)} /><Item label="Maximum Price" value={money(project.maxPrice)} /><Item label="Launch Date" value={dateText(project.launchDate)} /><Item label="Possession Date" value={dateText(project.possessionDate)} /><Item label="Created At" value={dateText(project.createdAt)} /><Item label="Updated At" value={dateText(project.updatedAt)} /></div>{project.locality?.address && <div className="mt-4 border-t pt-4"><p className="text-xs text-muted-foreground">Locality</p>{project.locality.latitude != null && project.locality.longitude != null ? <button type="button" onClick={() => setMapsTarget({ address: project.locality!.address!, lat: project.locality!.latitude!, lng: project.locality!.longitude! })} className="mt-1 inline-flex items-center gap-1 text-left text-sm font-semibold text-blue-600 hover:underline"><MapPin className="h-3.5 w-3.5" />{project.locality.address}</button> : <p className="mt-1 text-sm font-semibold">{project.locality.address}</p>}</div>}{project.projectDescription && <div className="mt-4 border-t pt-4"><h3 className="text-sm font-semibold">Description</h3><p className="mt-1 whitespace-pre-line text-sm leading-6 text-muted-foreground">{project.projectDescription}</p></div>}</section>
+
+      {project.idealFor?.length ? <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Ideal For</h2><div className="flex flex-wrap gap-3">{project.idealFor.map((item, index) => <div key={item.id ?? `${item.name}-${index}`} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">{item.image && <img src={item.image} alt="" className="h-8 w-8 object-contain" />}<span className="text-sm font-medium">{item.name}</span></div>)}</div></section> : null}
+
+      <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">{residential ? "Residential Configurations" : "Commercial Carpet Area Configurations"}</h2>{!configurations.length ? <p className="text-sm text-muted-foreground">No configurations provided.</p> : <><div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3"><Item label="Area Unit" value={residential ? project.residentialDetails?.areaUnit : project.commercialDetails?.areaUnit} />{!residential && <><Item label="Zone Type" value={project.commercialDetails?.zoneType} /><Item label="Location Hub" value={project.commercialDetails?.locationHub} /></>}</div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{configurations.map((configuration, index) => <div key={index} className="rounded-lg border bg-background p-4"><p className="mb-3 text-sm font-semibold">Configuration {index + 1}</p><div className="grid grid-cols-2 gap-3">{residential && <Item label="BHK" value={configuration.bhk} />}<Item label="Carpet Area" value={`${configuration.carpetArea ?? "—"} ${residential ? project.residentialDetails?.areaUnit ?? "" : project.commercialDetails?.areaUnit ?? ""}`} /><Item label="Price" value={money(configuration.price)} /></div><div className="mt-3"><p className="text-xs text-muted-foreground">Furnishing options</p>{configuration.furnishingOptions?.length ? <ul className="mt-1 space-y-1 text-sm">{configuration.furnishingOptions.map((option, optionIndex) => <li key={optionIndex}>{option}</li>)}</ul> : <p className="mt-1 text-sm text-muted-foreground">No furnishing options provided.</p>}</div><div className="mt-4 grid grid-cols-2 gap-3">{configuration.image2DUrl ? <div><p className="mb-1 text-xs text-muted-foreground">2D image</p><a href={configuration.image2DUrl} target="_blank" rel="noreferrer"><img src={configuration.image2DUrl} alt="2D image" className="h-28 w-full rounded-md border object-cover" /></a></div> : <div><p className="mb-1 text-xs text-muted-foreground">2D image</p><div className="flex h-28 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">—</div></div>}{configuration.model3DUrl ? <div><p className="mb-1 text-xs text-muted-foreground">Interactive 3D model</p><model-viewer src={configuration.model3DUrl} alt="Interactive 3D project configuration" camera-controls auto-rotate touch-action="pan-y" environment-image="neutral" shadow-intensity="1" exposure="0.8" style={{ display: "block", width: "100%", height: "180px", background: "#dbe3ee", border: "1px solid #cbd5e1", borderRadius: "0.5rem" }} /></div> : <div><p className="mb-1 text-xs text-muted-foreground">3D model</p><div className="flex h-28 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">—</div></div>}</div></div>)}</div></>}</section>
+
+      {(project.furnishings?.length || project.amenities?.length) ? <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Furnishings & Amenities</h2><div className="grid grid-cols-1 gap-5 sm:grid-cols-2">{project.furnishings?.length ? <div><h3 className="mb-2 text-sm font-semibold">Furnishings</h3><ul className="space-y-1 text-sm text-muted-foreground">{project.furnishings.map((item, index) => <li key={index}>{item.name}{item.count != null ? ` × ${item.count}` : ""}</li>)}</ul></div> : null}{project.amenities?.length ? <div><h3 className="mb-2 text-sm font-semibold">Amenities</h3><ul className="space-y-1 text-sm text-muted-foreground">{project.amenities.map((item, index) => <li key={index}>{item.name}{item.count != null ? ` × ${item.count}` : ""}</li>)}</ul></div> : null}</div></section> : null}
+
+      {project.rera?.reraId && <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">RERA Details</h2><div className="grid grid-cols-2 gap-4 sm:grid-cols-3"><Item label="RERA ID" value={project.rera.reraId} /><Item label="Verification Status" value={project.rera.reraStatus} /><Item label="Admin Approved" value={project.rera.reraAdminApproved ? "Yes" : "No"} /><Item label="Verified At" value={dateText(project.rera.verifiedAt)} /></div>{project.rera.projectDetails && <div className="mt-4 grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-3">{Object.entries(project.rera.projectDetails).filter(([, value]) => value != null && value !== "").map(([key, value]) => <Item key={key} label={key.replace(/[A-Z]/g, (letter) => ` ${letter}`).replace(/^./, (letter) => letter.toUpperCase())} value={value} />)}</div>}{project.rera.sources?.length ? <div className="mt-4 border-t pt-4"><h3 className="mb-2 text-sm font-semibold">Sources</h3>{project.rera.sources.map((source, index) => <a key={`${source}-${index}`} href={source} target="_blank" rel="noreferrer" className="block break-all text-sm text-blue-600 hover:underline">{source}</a>)}</div> : null}</section>}
+    </div>
+
+    <aside className="space-y-6"><section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Listed By</h2><div className="grid grid-cols-1 gap-4"><Item label="Name" value={project.listedBy?.name} /><Item label="Mobile" value={project.listedBy?.mobile} /><Item label="Email" value={project.listedBy?.email} /><Item label="Role" value={project.listedBy?.role?.name} /></div></section><section className="rounded-xl border bg-card p-5"><h2 className="mb-4 text-base font-bold">Review History</h2><div className="grid grid-cols-1 gap-4"><Item label="Approved At" value={dateText(project.approvedAt ?? undefined)} /><Item label="Rejected At" value={dateText(project.rejectedAt ?? undefined)} /></div>{project.rejectedReasons?.length ? <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-red-600">{project.rejectedReasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul> : null}</section>{project.locality?.latitude != null && project.locality?.longitude != null && <Button variant="outline" className="w-full" onClick={() => setMapsTarget({ address: project.locality?.address ?? project.cityName ?? "Project location", lat: project.locality!.latitude!, lng: project.locality!.longitude! })}><Map className="mr-2 h-4 w-4" />Open in Google Maps</Button>}</aside></div>
+
+    {activeImage != null && images[activeImage] && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90" onClick={() => setActiveImage(null)}><img src={images[activeImage]} alt="Project" className="max-h-[85vh] max-w-[85vw] object-contain" onClick={(event) => event.stopPropagation()} /><button type="button" aria-label="Close image" onClick={() => setActiveImage(null)} className="absolute right-5 top-4 text-3xl text-white">×</button>{images.length > 1 && <><button type="button" aria-label="Previous image" onClick={(event) => { event.stopPropagation(); setActiveImage((activeImage - 1 + images.length) % images.length); }} className="absolute left-4 top-1/2 rounded-full bg-black/50 p-3 text-white"><ChevronLeft /></button><button type="button" aria-label="Next image" onClick={(event) => { event.stopPropagation(); setActiveImage((activeImage + 1) % images.length); }} className="absolute right-4 top-1/2 rounded-full bg-black/50 p-3 text-white"><ChevronRight /></button></>}</div>}
+
+    <Dialog open={approveOpen} onOpenChange={(open) => { if (!approving) setApproveOpen(open); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Approve Project</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Approve “{project.projectName}”? The listing will become Active.</p><DialogFooter><Button variant="outline" disabled={approving} onClick={() => setApproveOpen(false)}>Cancel</Button><Button disabled={approving} onClick={() => void approveProject()}>{approving ? "Approving…" : "Approve"}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={rejectOpen} onOpenChange={(open) => { if (!rejecting) setRejectOpen(open); }}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Reject Project</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Add at least one reason for rejecting this project.</p><div className="flex gap-2"><Input value={rejectInput} onChange={(event) => setRejectInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addRejectReason(); } }} placeholder="Rejection reason" /><Button variant="outline" onClick={addRejectReason}>Add</Button></div>{rejectReasons.length > 0 && <ul className="space-y-1">{rejectReasons.map((reason, index) => <li key={`${reason}-${index}`} className="flex justify-between rounded bg-muted px-3 py-2 text-sm">{reason}<button type="button" onClick={() => setRejectReasons((current) => current.filter((_, i) => i !== index))}>×</button></li>)}</ul>}<DialogFooter><Button variant="outline" disabled={rejecting} onClick={() => setRejectOpen(false)}>Cancel</Button><Button variant="destructive" disabled={rejecting || !rejectReasons.length} onClick={() => void rejectProject()}>{rejecting ? "Rejecting…" : "Reject Project"}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={statusOpen} onOpenChange={(open) => { if (!updatingStatus) setStatusOpen(open); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Update Project Status</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Current status: {displayStatus(project.status)}</p><div className="flex flex-col gap-2">{statusOptions(project.status).map((option) => <button key={option} type="button" onClick={() => setSelectedStatus(option)} className={`rounded-lg border px-3 py-2 text-left text-sm ${selectedStatus === option ? "border-primary bg-primary/5" : ""}`}>{option === "Active" ? "Mark as Active" : `Mark as ${option}`}</button>)}</div><DialogFooter><Button variant="outline" disabled={updatingStatus} onClick={() => { setStatusOpen(false); setSelectedStatus(""); }}>Cancel</Button><Button disabled={updatingStatus || !selectedStatus} onClick={() => void updateStatus()}>{updatingStatus ? "Updating…" : "Confirm"}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={!!mapsTarget} onOpenChange={(open) => { if (!open) setMapsTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle className="flex items-center gap-2"><Map className="h-4 w-4 text-blue-500" />Open in Google Maps</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Open “{mapsTarget?.address}” in Google Maps?</p><DialogFooter><Button variant="outline" onClick={() => setMapsTarget(null)}>Cancel</Button><Button onClick={() => { if (!mapsTarget) return; window.open(`https://www.google.com/maps?q=${mapsTarget.lat},${mapsTarget.lng}`, "_blank", "noopener,noreferrer"); setMapsTarget(null); }}>Open Maps</Button></DialogFooter></DialogContent></Dialog>
+  </div>;
 }

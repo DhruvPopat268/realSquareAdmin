@@ -5,9 +5,10 @@ const fs      = require("fs");
 const IMAGES_DIR    = "/var/www/storage/images";
 const VIDEOS_DIR    = "/var/www/storage/videos";
 const DOCUMENTS_DIR = "/var/www/storage/documents";
+const MODELS_DIR = "/var/www/storage/models";
 
 // ensure dirs exist at startup
-[IMAGES_DIR, VIDEOS_DIR, DOCUMENTS_DIR].forEach((dir) => {
+[IMAGES_DIR, VIDEOS_DIR, DOCUMENTS_DIR, MODELS_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -79,7 +80,8 @@ const propertyMediaFilter = (req, file, cb) => {
 
 const projectMediaStorage = multer.diskStorage({
   destination: (_req, file, cb) => {
-    const destination = file.fieldname === "images" ? IMAGES_DIR
+    const isModel = file.fieldname === "configurationMedia" && [".glb", ".gltf"].includes(path.extname(file.originalname).toLowerCase());
+    const destination = isModel ? MODELS_DIR : ["images", "configurationMedia"].includes(file.fieldname) ? IMAGES_DIR
       : file.fieldname === "brochure" ? DOCUMENTS_DIR
         : VIDEOS_DIR;
     cb(null, destination);
@@ -91,6 +93,19 @@ const projectMediaStorage = multer.diskStorage({
 });
 
 const projectMediaFilter = (req, file, cb) => {
+  if (file.fieldname === "configurationMedia") {
+    const modelExtension = path.extname(file.originalname).toLowerCase();
+    const isModel = modelExtension === ".glb" || modelExtension === ".gltf";
+    if (isModel) {
+      const validMimeTypes = modelExtension === ".glb"
+        ? ["model/gltf-binary", "application/octet-stream"]
+        : ["model/gltf+json", "application/json", "text/plain", "application/octet-stream"];
+      return validMimeTypes.includes(file.mimetype)
+      ? cb(null, true)
+      : cb(new Error("3D configuration models must be GLB or glTF files"), false);
+    }
+    return imageFilter(req, file, cb);
+  }
   if (file.fieldname === "brochure") {
     return file.mimetype === "application/pdf" || path.extname(file.originalname).toLowerCase() === ".pdf"
       ? cb(null, true)
@@ -162,12 +177,13 @@ const projectMediaFields = multer({
   fileFilter: projectMediaFilter,
   limits: {
     fileSize: Math.max(IMAGE_MAX_FILE_SIZE_BYTES, VIDEO_MAX_FILE_SIZE_BYTES, DOCUMENT_MAX_FILE_SIZE_BYTES),
-    files: 23,
-    fields: 12,
-    parts: 36,
+    files: 123,
+    fields: 13,
+    parts: 140,
   },
 }).fields([
   { name: "images", maxCount: 20 },
+  { name: "configurationMedia", maxCount: 100 },
   { name: "video", maxCount: 1 },
   { name: "reelVideo", maxCount: 1 },
   { name: "brochure", maxCount: 1 },
@@ -179,20 +195,27 @@ const handleProjectMediaUpload = (req, res, next) => {
     if (error) {
       await removeUploadedFiles(files);
       const status = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+      const message = error.code === "LIMIT_FILE_SIZE" && error.field === "configurationMedia"
+        ? `The 3D model exceeds the maximum allowed size of ${formatMaxFileSize(VIDEO_MAX_FILE_SIZE_BYTES)}.`
+        : error.code === "LIMIT_FILE_SIZE" ? getUploadSizeErrorMessage(error.field) : error.message;
       return res.status(status).json({
         success: false,
-        message: error.code === "LIMIT_FILE_SIZE" ? getUploadSizeErrorMessage(error.field) : error.message,
+        message,
       });
     }
 
     const oversizedImage = (req.files?.images ?? []).some((file) => file.size > IMAGE_MAX_FILE_SIZE_BYTES);
+    const configurationMediaFiles = req.files?.configurationMedia ?? [];
+    const oversizedConfigurationImage = configurationMediaFiles.some((file) => ![".glb", ".gltf"].includes(path.extname(file.originalname).toLowerCase()) && file.size > IMAGE_MAX_FILE_SIZE_BYTES);
+    const oversizedConfigurationModel = configurationMediaFiles.some((file) => [".glb", ".gltf"].includes(path.extname(file.originalname).toLowerCase()) && file.size > VIDEO_MAX_FILE_SIZE_BYTES);
     const oversizedVideo = [...(req.files?.video ?? []), ...(req.files?.reelVideo ?? [])]
       .some((file) => file.size > VIDEO_MAX_FILE_SIZE_BYTES);
     const oversizedDocument = (req.files?.brochure ?? []).some((file) => file.size > DOCUMENT_MAX_FILE_SIZE_BYTES);
-    if (oversizedImage || oversizedVideo || oversizedDocument) {
+    if (oversizedImage || oversizedConfigurationImage || oversizedConfigurationModel || oversizedVideo || oversizedDocument) {
       await removeUploadedFiles(files);
       const field = oversizedDocument ? "brochure" : oversizedVideo ? "video" : "images";
-      return res.status(413).json({ success: false, message: getUploadSizeErrorMessage(field) });
+      const message = oversizedConfigurationModel ? `The 3D model exceeds the maximum allowed size of ${formatMaxFileSize(VIDEO_MAX_FILE_SIZE_BYTES)}.` : getUploadSizeErrorMessage(field);
+      return res.status(413).json({ success: false, message });
     }
     next();
   });

@@ -63,7 +63,16 @@ const buildQuery = (reqQuery, listingTypeId = null) => {
   // Filter by city
   if (typeof city === "string") {
     const c = city.trim().slice(0, 100);
-    if (c) query.cityName = { $regex: escapeRegex(c), $options: "i" };
+    if (c) {
+      const locationPattern = { $regex: escapeRegex(c), $options: "i" };
+      const locationFilter = { $or: [{ cityName: locationPattern }, { "locality.address": locationPattern }] };
+      if (query.$or) {
+        query.$and = [...(query.$and ?? []), { $or: query.$or }, locationFilter];
+        delete query.$or;
+      } else {
+        Object.assign(query, locationFilter);
+      }
+    }
   }
 
   // Date range filter on createdAt

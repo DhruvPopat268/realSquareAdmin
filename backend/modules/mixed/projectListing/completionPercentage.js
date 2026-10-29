@@ -55,7 +55,12 @@ function calculateProjectCompletionPercentage(project) {
 
   for (const configuration of configurations) {
     checks.push(hasValue(configuration.carpetArea));
-    checks.push(hasValue(configuration.furnishType));
+    checks.push(Number.isFinite(Number(configuration.price)) && Number(configuration.price) > 0);
+    checks.push(hasValue(configuration.image2DUrl));
+    checks.push(hasValue(configuration.model3DUrl));
+    for (const option of configuration.furnishingOptions ?? []) {
+      checks.push(hasValue(option));
+    }
   }
 
   const completed = checks.filter(Boolean).length;

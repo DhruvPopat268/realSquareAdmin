@@ -71,7 +71,10 @@ const residentialProjectConfigurationSchema = new Schema(
   {
     bhk:         { type: String, trim: true, enum: ["1 RK", ...Array.from({ length: 12 }, (_, index) => `${index + 1} BHK`)] },
     carpetArea:  { type: Number, min: 0 },
-    furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
+    furnishingOptions: { type: [{ type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] }], default: [] },
+    price: { type: Number, min: 1 },
+    image2DUrl: { type: String, trim: true },
+    model3DUrl: { type: String, trim: true },
   },
   { _id: false }
 );
@@ -79,7 +82,10 @@ const residentialProjectConfigurationSchema = new Schema(
 const commercialProjectConfigurationSchema = new Schema(
   {
     carpetArea:  { type: Number, min: 0 },
-    furnishType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
+    furnishingOptions: { type: [{ type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] }], default: [] },
+    price: { type: Number, min: 1 },
+    image2DUrl: { type: String, trim: true },
+    model3DUrl: { type: String, trim: true },
   },
   { _id: false }
 );
@@ -182,7 +188,10 @@ const projectListingSchema = new Schema(
     brochureUrl: { type: String, trim: true },
 
     // ── Meta ──────────────────────────────────────────────────────────────────
-    status: { type: String, enum: ["Active", "Inactive", "UnderReview", "Rejected","sold"], default: "UnderReview" },
+    status: { type: String, enum: ["Active", "Inactive", "UnderReview", "Rejected", "Sold"], default: "UnderReview" },
+    approvedAt: { type: Date, default: null },
+    rejectedAt: { type: Date, default: null },
+    rejectedReasons: { type: [String], default: [] },
   },
   { timestamps: true }
 );

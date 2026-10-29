@@ -1,442 +1,292 @@
-import { useState, useMemo, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "@/lib/axiosInterceptor";
+import { systemUsersService, type ActiveUser } from "@/services/systemUsersService";
+import { projectListingService, type ProjectListingRecord } from "@/services/projectListingService";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Search, Plus, MapPin, Calendar, ChevronDown, Pencil, Trash2, Eye, LayoutGrid, List, Map, ChevronLeft, ChevronRight } from "lucide-react";
-import { PROJECTS, type Project, type ProjectStage, type ListingStatus, PROJECT_STAGE_LABEL, LISTING_STATUS_LABEL } from "@/data/projectsData";
-import ProjectMapView from "@/components/ProjectMapView";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Eye, LayoutGrid, List, MapPin, XCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  return `$${(n / 1_000).toFixed(0)}K`;
+const STATUSES = ["UnderReview", "Active", "Inactive", "Sold", "Rejected"];
+const STATUS_STYLE: Record<string, string> = {
+  UnderReview: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  Active: "bg-green-50 text-green-700 border-green-200",
+  Inactive: "bg-slate-100 text-slate-600 border-slate-200",
+  Sold: "bg-gray-100 text-gray-600 border-gray-200",
+  Rejected: "bg-red-50 text-red-600 border-red-200",
+};
+
+function getStatusOptions(status: string) {
+  if (status === "Active") return ["Inactive", "Sold"];
+  if (["Inactive", "Sold", "sold", "Rejected"].includes(status)) return ["Active"];
+  return [];
 }
 
-const stageStyle: Record<ProjectStage, string> = {
-  PRE_LAUNCH:         "bg-purple-50 text-purple-600 border border-purple-200",
-  NEW_LAUNCH:         "bg-blue-50 text-blue-600 border border-blue-200",
-  UNDER_CONSTRUCTION: "bg-amber-50 text-amber-600 border border-amber-200",
-  READY_TO_MOVE:      "bg-green-50 text-green-700 border border-green-200",
-  SOLD_OUT:           "bg-gray-100 text-gray-600 border border-gray-200",
-};
-
-const listingStatusStyle: Record<ListingStatus, string> = {
-  PENDING_APPROVAL: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  ACTIVE:           "bg-green-50 text-green-700 border border-green-200",
-  SOLD:             "bg-gray-100 text-gray-600 border border-gray-200",
-  EXPIRED:          "bg-orange-50 text-orange-700 border border-orange-200",
-  INACTIVE:         "bg-slate-100 text-slate-500 border border-slate-200",
-  ARCHIVED:         "bg-stone-100 text-stone-500 border border-stone-200",
-  REJECTED:         "bg-red-50 text-red-600 border border-red-200",
-};
-
-const progressColor: Record<ProjectStage, string> = {
-  PRE_LAUNCH:         "bg-purple-400",
-  NEW_LAUNCH:         "bg-blue-500",
-  UNDER_CONSTRUCTION: "bg-amber-400",
-  READY_TO_MOVE:      "bg-green-500",
-  SOLD_OUT:           "bg-gray-400",
-};
-
-const STATS = [
-  { label: "Total Projects",      value: PROJECTS.length,                                                  color: "bg-card" },
-  { label: "Pre Launch",          value: PROJECTS.filter((p) => p.stage === "PRE_LAUNCH").length,           color: "bg-purple-50" },
-  { label: "New Launch",          value: PROJECTS.filter((p) => p.stage === "NEW_LAUNCH").length,           color: "bg-blue-50" },
-  { label: "Under Construction",  value: PROJECTS.filter((p) => p.stage === "UNDER_CONSTRUCTION").length,  color: "bg-amber-50" },
-  { label: "Ready To Move",       value: PROJECTS.filter((p) => p.stage === "READY_TO_MOVE").length,       color: "bg-green-50" },
-  { label: "Sold Out",            value: PROJECTS.filter((p) => p.stage === "SOLD_OUT").length,            color: "bg-gray-50" },
-];
-
-const LISTING_STATS = [
-  { label: "Pending Approval", value: PROJECTS.filter((p) => p.listingStatus === "PENDING_APPROVAL").length, color: "bg-yellow-50",  text: "text-yellow-700" },
-  { label: "Active",           value: PROJECTS.filter((p) => p.listingStatus === "ACTIVE").length,           color: "bg-green-50",  text: "text-green-700"  },
-  { label: "Sold",             value: PROJECTS.filter((p) => p.listingStatus === "SOLD").length,             color: "bg-gray-50",   text: "text-gray-600"   },
-  { label: "Expired",          value: PROJECTS.filter((p) => p.listingStatus === "EXPIRED").length,          color: "bg-orange-50", text: "text-orange-700" },
-  { label: "Inactive",         value: PROJECTS.filter((p) => p.listingStatus === "INACTIVE").length,         color: "bg-slate-100", text: "text-slate-600"  },
-  { label: "Archived",         value: PROJECTS.filter((p) => p.listingStatus === "ARCHIVED").length,         color: "bg-stone-100", text: "text-stone-600"  },
-  { label: "Rejected",         value: PROJECTS.filter((p) => p.listingStatus === "REJECTED").length,         color: "bg-red-50",    text: "text-red-600"    },
-];
-
-function ProjectCard({ p, onClick }: { p: Project; onClick: () => void }) {
-  const [imgIdx, setImgIdx] = useState(0);
-  const total = p.images.length;
-  const prev = (e: React.MouseEvent) => { e.stopPropagation(); setImgIdx((i) => (i - 1 + total) % total); };
-  const next = (e: React.MouseEvent) => { e.stopPropagation(); setImgIdx((i) => (i + 1) % total); };
-  const pctSold = Math.round((p.soldUnits / p.totalUnits) * 100);
-  return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow">
-      <div className="p-[9px] pb-0">
-        <div className="relative h-52 overflow-hidden rounded-lg">
-          <img src={p.images[imgIdx]} alt={p.title} className="w-full h-full object-cover transition-opacity duration-300" />
-          {/* Top-left checkbox */}
-          <div className="absolute top-3 left-3">
-            <div className="h-7 w-7 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center">
-              <div className="h-4 w-4 rounded border-2 border-white" />
-            </div>
-          </div>
-          {/* Top-right actions */}
-          <div className="absolute top-3 right-3 flex gap-1">
-            <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-1.5 rounded-full bg-white/90 hover:bg-green-50 text-green-600 transition-colors">
-              <Eye className="h-3.5 w-3.5" />
-            </button>
-            <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-full bg-white/90 hover:bg-blue-50 text-blue-600 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-full bg-white/90 hover:bg-red-50 text-red-500 transition-colors">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          {/* Bottom - stage + listing status badges */}
-          <div className="absolute bottom-8 right-3 flex gap-1">
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${stageStyle[p.stage]}`}>{PROJECT_STAGE_LABEL[p.stage]}</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${listingStatusStyle[p.listingStatus]}`}>{LISTING_STATUS_LABEL[p.listingStatus]}</span>
-          </div>
-          {/* Image dots */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-            {p.images.slice(0, 5).map((_, i) => (
-              <div key={i} className={`h-1.5 rounded-full transition-all ${i === imgIdx ? "w-3 bg-white" : "w-1.5 bg-white/50"}`} />
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="p-3">
-        <p className="text-xl font-bold text-foreground">{fmt(p.priceFrom)} – {fmt(p.priceTo)}</p>
-        <p className="text-sm text-muted-foreground mt-0.5">{p.category} · Ideal for {p.idealFor.join(", ")}</p>
-        <p className="text-sm text-foreground mt-0.5">{p.city}</p>
-        <div className="mt-2 space-y-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{p.soldUnits}/{p.totalUnits} units sold</span>
-            <span>{pctSold}%</span>
-          </div>
-          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${progressColor[p.stage]}`} style={{ width: `${p.progress}%` }} />
-          </div>
-        </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
-          <Calendar className="h-3.5 w-3.5" />{p.possessionDate}
-        </div>
-      </div>
-    </div>
-  );
+function formatStatus(status: string) {
+  return status === "UnderReview" ? "Under Review" : status === "sold" ? "Sold" : status;
 }
-function ProjectRow({ p, onClick }: { p: Project; onClick: () => void }) {
-  const pctSold = Math.round((p.soldUnits / p.totalUnits) * 100);
-  return (
-    <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
-          <button onClick={onClick} className="p-1.5 rounded-md bg-green-50 hover:bg-green-100 text-green-600 transition-colors"><Eye className="h-3.5 w-3.5" /></button>
-          <button className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
-          <button className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <img src={p.images[0]} alt={p.title} className="h-12 w-16 rounded-lg object-cover shrink-0" />
-          <div>
-            <p className="font-semibold text-sm text-foreground">{p.title}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-              <MapPin className="h-3 w-3" />{p.city}
-            </p>
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{p.reraNumber}</td>
-      <td className="px-4 py-3 text-xs">
-        <p className="font-medium text-foreground">{p.developer.company}</p>
-      </td>
-      <td className="px-4 py-3 text-xs">
-        <p className="font-medium text-foreground">{p.developer.salesManager}</p>
-        <p className="text-muted-foreground">{p.developer.mobile}</p>
-        <p className="text-muted-foreground">{p.developer.email}</p>
-      </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{p.category}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{p.idealFor.join(", ")}</td>
-      <td className="px-4 py-3">
-        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${stageStyle[p.stage]}`}>{PROJECT_STAGE_LABEL[p.stage]}</span>
-      </td>
-      <td className="px-4 py-3">
-        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${listingStatusStyle[p.listingStatus]}`}>{LISTING_STATUS_LABEL[p.listingStatus]}</span>
-      </td>
-      <td className="px-4 py-3 text-sm text-foreground">
-        <span className="font-semibold">{fmt(p.priceFrom)}</span>
-        <span className="text-muted-foreground"> – {fmt(p.priceTo)}</span>
-      </td>
-      <td className="px-4 py-3">
-        <div className="space-y-1 min-w-[120px]">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{p.soldUnits}/{p.totalUnits} sold</span>
-            <span>{pctSold}%</span>
-          </div>
-          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${progressColor[p.stage]}`} style={{ width: `${p.progress}%` }} />
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{p.possessionDate}</div>
-      </td>
-      <td className="px-4 py-3 text-xs">
-        <span className="inline-block px-1.5 py-0.5 rounded bg-muted text-muted-foreground mb-1">{p.listedByType}</span>
-      </td>
-      <td className="px-4 py-3 text-xs">
-        <p className="font-medium text-foreground">{p.listedByInfo.name}</p>
-        <p className="text-muted-foreground">{p.listedByInfo.mobile}</p>
-        <p className="text-muted-foreground">{p.listedByInfo.email}</p>
-      </td>
-      <td className="px-4 py-3 text-center text-sm font-medium text-foreground">{p.leads}</td>
-      <td className="px-4 py-3 text-center text-sm font-medium text-foreground">{p.views}</td>
-      <td className="px-4 py-3 text-center text-sm font-medium text-foreground">{p.wishlist}</td>
-    </tr>
-  );
+
+function formatPrice(value?: number) {
+  if (value == null) return "—";
+  if (value >= 10_000_000) return `₹${(value / 10_000_000).toFixed(2).replace(/\.?0+$/, "")} Cr`;
+  if (value >= 100_000) return `₹${(value / 100_000).toFixed(2).replace(/\.?0+$/, "")} L`;
+  return `₹${value.toLocaleString("en-IN")}`;
+}
+
+function formatDate(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const { state } = useLocation();
-  const [search, setSearch]               = useState(state?.listedByName ?? "");
-  const [view, setView] = useState<"grid" | "list" | "map">("list");
-  const [stageFilter, setStageFilter]               = useState("All");
-  const [listingStatusFilter, setListingStatusFilter] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [idealForFilter, setIdealForFilter] = useState("All");
-  const [developerFilter, setDeveloperFilter] = useState("All");
-  const [listedByFilter, setListedByFilter]   = useState(state?.listedByType ?? "All");
+  const [projects, setProjects] = useState<ProjectListingRecord[]>([]);
+  const [stats, setStats] = useState<Record<string, number>>({ total: 0, Active: 0, Inactive: 0, Sold: 0, UnderReview: 0, Rejected: 0 });
+  const [categories, setCategories] = useState<Array<{ _id: string; name: string }>>([]);
+  const [roles, setRoles] = useState<Array<{ _id: string; name: string }>>([]);
+  const [users, setUsers] = useState<ActiveUser[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [categoryId, setCategoryId] = useState("");
+  const [city, setCity] = useState("");
+  const [roleId, setRoleId] = useState("");
+  const [userId, setUserId] = useState("");
+  const [status, setStatus] = useState("");
+  const [pendingCategoryId, setPendingCategoryId] = useState("");
+  const [pendingCity, setPendingCity] = useState("");
+  const [pendingRoleId, setPendingRoleId] = useState("");
+  const [pendingUserId, setPendingUserId] = useState("");
+  const [pendingStatus, setPendingStatus] = useState("");
+  const [view, setView] = useState<"list" | "grid">("list");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [rejectTarget, setRejectTarget] = useState<ProjectListingRecord | null>(null);
+  const [rejectReasons, setRejectReasons] = useState<string[]>([]);
+  const [rejectInput, setRejectInput] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<{ project: ProjectListingRecord; status: string } | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [mapsTarget, setMapsTarget] = useState<{ address: string; lat: number; lng: number } | null>(null);
 
-  const hasFilters = stageFilter !== "All" || listingStatusFilter !== "All" || categoryFilter !== "All" || idealForFilter !== "All" || developerFilter !== "All" || listedByFilter !== "All" || search !== "";
+  useEffect(() => {
+    Promise.all([
+      api.get("/admin/property-categories"),
+      api.get("/admin/property-listings/listing-user-roles"),
+    ]).then(([categoryResponse, roleResponse]) => {
+      setCategories(categoryResponse.data?.data ?? []);
+      setRoles(roleResponse.data?.data ?? []);
+    }).catch(() => toast.error("Failed to load project filter options"));
+  }, []);
 
-  function clearAll() {
-    setSearch(""); setStageFilter("All"); setListingStatusFilter("All");
-    setCategoryFilter("All"); setIdealForFilter("All"); setDeveloperFilter("All"); setListedByFilter("All");
-  }
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!userSearch.trim()) { setUsers([]); return; }
+      systemUsersService.getActiveUsers({ search: userSearch.trim() })
+        .then((response) => setUsers(response.data?.data ?? []))
+        .catch(() => setUsers([]));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [userSearch]);
 
-  const developerNames = useMemo(() => ["All", ...Array.from(new Set(PROJECTS.map((p) => p.developer.company)))], []);
-  const filteredIdealFor = useMemo(() => ["All", ...Array.from(new Set(PROJECTS.filter((p) => categoryFilter === "All" || p.category === categoryFilter).flatMap((p) => p.idealFor)))], [categoryFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    projectListingService.getAll({ page, limit, categoryId, city, roleId, userId, status })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setProjects(data.data.projects);
+        setStats(data.data.stats);
+        setTotal(data.pagination.total);
+        setTotalPages(data.pagination.totalPages);
+        setError("");
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+        setError(requestError?.response?.data?.message ?? "Failed to load project listings");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [page, limit, categoryId, city, roleId, userId, status]);
 
-  const tableRef = useRef<HTMLDivElement>(null);
+  const selectedUser = useMemo(() => users.find((user) => user._id === pendingUserId), [users, pendingUserId]);
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "ArrowLeft")  tableRef.current?.scrollBy({ left: -200, behavior: "smooth" });
-    if (e.key === "ArrowRight") tableRef.current?.scrollBy({ left:  200, behavior: "smooth" });
-  }
+  const updateLocalStatus = (projectId: string, nextStatus: string, extra: Partial<ProjectListingRecord> = {}) => {
+    setProjects((current) => current.map((project) => project._id === projectId ? { ...project, ...extra, status: nextStatus } : project));
+    setStats((current) => {
+      const next = { ...current };
+      const old = projects.find((project) => project._id === projectId)?.status;
+      const oldKey = old === "sold" ? "Sold" : old;
+      if (oldKey && next[oldKey] > 0) next[oldKey] -= 1;
+      const nextKey = nextStatus === "sold" ? "Sold" : nextStatus;
+      next[nextKey] = (next[nextKey] ?? 0) + 1;
+      return next;
+    });
+  };
 
-  const filtered = useMemo(() => PROJECTS.filter((p) => {
-      const q = search.toLowerCase();
-      const matchSearch = p.title.toLowerCase().includes(q) || p.developer.salesManager.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.listedByInfo.name.toLowerCase().includes(q);
-      const matchStage         = stageFilter         === "All" || p.stage         === stageFilter;
-      const matchListingStatus = listingStatusFilter === "All" || p.listingStatus === listingStatusFilter;
-      const matchCategory  = categoryFilter  === "All" || p.category          === categoryFilter;
-      const matchIdealFor  = idealForFilter  === "All" || p.idealFor.includes(idealForFilter);
-      const matchDeveloper = developerFilter === "All" || p.developer.company === developerFilter;
-      const matchListedBy  = listedByFilter  === "All" || p.listedByType      === listedByFilter;
-      return matchSearch && matchStage && matchListingStatus && matchCategory && matchIdealFor && matchDeveloper && matchListedBy;
-    }), [search, stageFilter, listingStatusFilter, categoryFilter, idealForFilter, developerFilter, listedByFilter]);
+  const handleApprove = async (project: ProjectListingRecord) => {
+    try {
+      const { data } = await projectListingService.approve(project._id);
+      updateLocalStatus(project._id, data.data.status, { approvedAt: data.data.approvedAt, rejectedAt: null, rejectedReasons: [] });
+      toast.success(data.message);
+    } catch (requestError: any) {
+      toast.error(requestError?.response?.data?.message ?? "Failed to approve project");
+    }
+  };
+
+  const addRejectReason = () => {
+    const reason = rejectInput.trim();
+    if (reason && !rejectReasons.includes(reason)) setRejectReasons((current) => [...current, reason]);
+    setRejectInput("");
+  };
+
+  const handleReject = async () => {
+    if (!rejectTarget || rejectReasons.length === 0) return;
+    setRejectLoading(true);
+    try {
+      const { data } = await projectListingService.reject(rejectTarget._id, rejectReasons);
+      updateLocalStatus(rejectTarget._id, data.data.status, { rejectedAt: data.data.rejectedAt, rejectedReasons: data.data.rejectedReasons, approvedAt: null });
+      toast.success(data.message);
+      setRejectTarget(null);
+      setRejectReasons([]);
+      setRejectInput("");
+    } catch (requestError: any) {
+      toast.error(requestError?.response?.data?.message ?? "Failed to reject project");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!statusTarget || statusLoading) return;
+    setStatusLoading(true);
+    try {
+      const { data } = await projectListingService.updateStatus(statusTarget.project._id, statusTarget.status);
+      updateLocalStatus(statusTarget.project._id, data.data.status);
+      toast.success(data.message);
+      setStatusTarget(null);
+    } catch (requestError: any) {
+      toast.error(requestError?.response?.data?.message ?? "Failed to update project status");
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const applyFilters = () => {
+    setCategoryId(pendingCategoryId);
+    setCity(pendingCity.trim());
+    setRoleId(pendingRoleId);
+    setUserId(pendingUserId);
+    setStatus(pendingStatus);
+    setPage(1);
+  };
+  const clearFilters = () => {
+    setPendingCategoryId(""); setPendingCity(""); setPendingRoleId(""); setPendingUserId(""); setPendingStatus(""); setUserSearch("");
+    setCategoryId(""); setCity(""); setRoleId(""); setUserId(""); setStatus(""); setPage(1);
+  };
+  const hasAppliedFilters = Boolean(categoryId || city || roleId || userId || status);
+
+  const actions = (project: ProjectListingRecord) => (
+    <div className="flex items-center gap-1 whitespace-nowrap">
+      <button onClick={() => navigate(`/projects/${project._id}`)} className="rounded-md bg-green-50 p-1.5 text-green-600 transition-colors hover:bg-green-100" title="View" aria-label="View project"><Eye className="h-3.5 w-3.5" /></button>
+      {project.status === "UnderReview" && <>
+        <button onClick={() => void handleApprove(project)} className="rounded-md bg-blue-50 p-1.5 text-blue-600 transition-colors hover:bg-blue-100" title="Approve" aria-label="Approve project"><CheckCircle className="h-3.5 w-3.5" /></button>
+        <button onClick={() => { setRejectTarget(project); setRejectReasons([]); setRejectInput(""); }} className="rounded-md bg-red-50 p-1.5 text-red-500 transition-colors hover:bg-red-100" title="Reject" aria-label="Reject project"><XCircle className="h-3.5 w-3.5" /></button>
+      </>}
+    </div>
+  );
 
   return (
-    <div className="space-y-5">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Projects</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Real estate development pipeline</p>
-        </div>
-        <Button size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" /> Add Project
-        </Button>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Projects</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">Review and manage project listings</p>
       </div>
 
-      {/* Stats strip - Stage */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-        {STATS.map((s) => (
-          <div key={s.label} className={`${s.color} rounded-xl border px-4 py-3`}>
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className="text-2xl font-bold text-foreground mt-0.5">{s.value}</p>
-          </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {[["Total", stats.total], ["Under Review", stats.UnderReview], ["Active", stats.Active], ["Sold", stats.Sold], ["Inactive", stats.Inactive], ["Rejected", stats.Rejected]].map(([label, count]) => (
+          <div key={String(label)} className={`rounded-xl border p-4 ${label === "Under Review" ? "bg-yellow-50" : label === "Active" ? "bg-green-50" : label === "Sold" ? "bg-gray-50" : label === "Inactive" ? "bg-slate-100" : label === "Rejected" ? "bg-red-50" : "bg-card"}`}><p className={`text-xs ${label === "Under Review" ? "text-yellow-600" : label === "Active" ? "text-green-600" : label === "Sold" ? "text-gray-500" : label === "Inactive" ? "text-slate-500" : label === "Rejected" ? "text-red-500" : "text-muted-foreground"}`}>{label === "Total" ? "Total Projects" : label}</p><p className={`mt-1 text-2xl font-bold ${label === "Under Review" ? "text-yellow-700" : label === "Active" ? "text-green-700" : label === "Sold" ? "text-gray-600" : label === "Inactive" ? "text-slate-600" : label === "Rejected" ? "text-red-600" : "text-foreground"}`}>{count}</p></div>
         ))}
       </div>
 
-      {/* Stats strip - Listing Status */}
-      <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
-        {LISTING_STATS.map((s) => (
-          <div key={s.label} className={`${s.color} rounded-xl border px-4 py-3`}>
-            <p className={`text-xs ${s.text}`}>{s.label}</p>
-            <p className={`text-2xl font-bold ${s.text} mt-0.5`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Toolbar - Row 1 */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Search projects..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 w-56 text-sm" />
-        </div>
-
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2"><span className="text-sm text-muted-foreground">Rows per page</span><select value={limit} onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }} className="h-8 w-20 rounded-md border bg-background px-2 text-sm">{[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}</select></div>
+        <p className="text-sm text-muted-foreground">{total} project{total === 1 ? "" : "s"}</p>
         <div className="flex-1" />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {categoryFilter === "All" ? "All Categories" : categoryFilter} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {["All", "Residential", "Commercial", "Mixed Use", "Industrial"].map((c) => (
-              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setIdealForFilter("All"); }}>{c === "All" ? "All Categories" : c}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {idealForFilter === "All" ? "All Ideal For" : idealForFilter} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {filteredIdealFor.map((t) => (
-              <DropdownMenuItem key={t} onClick={() => setIdealForFilter(t)}>{t === "All" ? "All Ideal For" : t}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {stageFilter === "All" ? "All Stages" : PROJECT_STAGE_LABEL[stageFilter as ProjectStage]} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {(["All", "PRE_LAUNCH", "NEW_LAUNCH", "UNDER_CONSTRUCTION", "READY_TO_MOVE", "SOLD_OUT"] as const).map((s) => (
-              <DropdownMenuItem key={s} onClick={() => setStageFilter(s)}>{s === "All" ? "All Stages" : PROJECT_STAGE_LABEL[s]}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className="flex items-center gap-0.5 border rounded-lg p-1">
-          <button onClick={() => setView("grid")}
-            className={`p-1.5 rounded-md transition-colors ${view === "grid" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
-            <LayoutGrid className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => setView("list")}
-            className={`p-1.5 rounded-md transition-colors ${view === "list" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
-            <List className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => setView("map")}
-            className={`p-1.5 rounded-md transition-colors ${view === "map" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}>
-            <Map className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">{pendingCategoryId ? categories.find((item) => item._id === pendingCategoryId)?.name ?? "All Categories" : "All Categories"}<ChevronDown className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuItem onClick={() => setPendingCategoryId("")}>All Categories</DropdownMenuItem>{categories.map((item) => <DropdownMenuItem key={item._id} onClick={() => setPendingCategoryId(item._id)}>{item.name}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+        <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">{pendingStatus ? formatStatus(pendingStatus) : "All Statuses"}<ChevronDown className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuItem onClick={() => setPendingStatus("")}>All Statuses</DropdownMenuItem>{STATUSES.map((value) => <DropdownMenuItem key={value} onClick={() => setPendingStatus(value)}>{formatStatus(value)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+        <div className="flex items-center gap-0.5 rounded-lg border p-1"><button type="button" title="Grid view" onClick={() => setView("grid")} className={`rounded-md p-1.5 ${view === "grid" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}><LayoutGrid className="h-3.5 w-3.5" /></button><button type="button" title="List view" onClick={() => setView("list")} className={`rounded-md p-1.5 ${view === "list" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}><List className="h-3.5 w-3.5" /></button></div>
       </div>
-
-      {/* Toolbar - Row 2 */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input value={pendingCity} onChange={(event) => setPendingCity(event.target.value)} placeholder="Search by city or locality..." className="h-9 w-[300px]" />
         <div className="flex-1" />
-
-        <p className="text-sm text-muted-foreground">{filtered.length} project{filtered.length !== 1 ? "s" : ""}</p>
-
+        <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">{pendingRoleId ? roles.find((item) => item._id === pendingRoleId)?.name ?? "All Roles" : "All Roles"}<ChevronDown className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuItem onClick={() => setPendingRoleId("")}>All Roles</DropdownMenuItem>{roles.map((item) => <DropdownMenuItem key={item._id} onClick={() => setPendingRoleId(item._id)}>{item.name}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {developerFilter === "All" ? "All Builders" : developerFilter} <ChevronDown className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
+              {selectedUser ? (selectedUser.name || selectedUser.mobile) : pendingUserId ? "Selected User" : "All Users"}
+              <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {developerNames.map((d) => (
-              <DropdownMenuItem key={d} onClick={() => setDeveloperFilter(d)}>{d === "All" ? "All Builders" : d}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {listingStatusFilter === "All" ? "All Statuses" : LISTING_STATUS_LABEL[listingStatusFilter as ListingStatus]} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {(["All", "PENDING_APPROVAL", "ACTIVE", "SOLD", "EXPIRED", "INACTIVE", "ARCHIVED", "REJECTED"] as const).map((s) => (
-              <DropdownMenuItem key={s} onClick={() => setListingStatusFilter(s)}>{s === "All" ? "All Statuses" : LISTING_STATUS_LABEL[s]}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 text-muted-foreground">
-              {listedByFilter === "All" ? "All Listed By" : listedByFilter} <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {["All", "Owner", "Agent / Broker", "Builder / Developer"].map((t) => (
-              <DropdownMenuItem key={t} onClick={() => setListedByFilter(t)}>{t === "All" ? "All Listed By" : t}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {hasFilters && (
-          <button onClick={clearAll} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors ml-1 underline underline-offset-2">Clear all</button>
-        )}
-      </div>
-
-      <p className="text-sm text-muted-foreground">{filtered.length} project{filtered.length !== 1 ? "s" : ""} found</p>
-
-      {/* Map view */}
-      {view === "map" && (
-        <ProjectMapView projects={filtered} onViewProject={(id) => navigate(`/projects/${id}`)} />
-      )}
-
-      {/* Grid view */}
-      {view === "grid" && (
-        filtered.length === 0
-          ? <p className="text-center text-muted-foreground py-16">No projects found</p>
-          : <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-              {filtered.map((p) => (
-                <ProjectCard key={p.id} p={p} onClick={() => navigate(`/projects/${p.id}`)} />
-              ))}
+          <DropdownMenuContent align="end" className="w-64">
+            <div className="px-2 py-1.5">
+              <input
+                autoFocus
+                value={userSearch}
+                onChange={(event) => { setUserSearch(event.target.value); setPendingUserId(""); }}
+                onKeyDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                placeholder="Search by name..."
+                className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
             </div>
-      )}
+            <DropdownMenuItem onClick={() => { setPendingUserId(""); setUserSearch(""); }}>All Users</DropdownMenuItem>
+            {users.map((user) => <DropdownMenuItem key={user._id} onClick={() => setPendingUserId(user._id)}>{user.name ?? user.mobile} — {user.roleName || user.role}</DropdownMenuItem>)}
+            {userSearch.trim() && users.length === 0 && <div className="px-2 py-2 text-xs text-muted-foreground">No users found</div>}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="flex items-center gap-2"><Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>{hasAppliedFilters && <Button size="sm" variant="outline" className="h-9" onClick={clearFilters}>Clear</Button>}</div>
+      </div>
 
-      {/* List view */}
-      {view === "list" && (
-        filtered.length === 0
-          ? <div className="flex items-center justify-center h-48 text-muted-foreground">No projects match your search.</div>
-          : (
-        <div className="rounded-lg border bg-card overflow-x-auto" ref={tableRef} tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
+      {loading ? <div className="py-16 text-center text-sm text-muted-foreground">Loading projects…</div> : error ? <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : projects.length === 0 ? <div className="rounded-xl border bg-card py-16 text-center text-muted-foreground">No projects found.</div> : view === "grid" ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project) => <article key={project._id} className="overflow-hidden rounded-xl border bg-card">
+            {project.media?.images?.[0] ? <img src={project.media.images[0]} alt={project.projectName} className="h-48 w-full object-cover" /> : <div className="flex h-48 items-center justify-center bg-muted text-sm text-muted-foreground">No project photo</div>}
+            <div className="space-y-2 p-4"><div className="flex items-start justify-between gap-2"><h2 className="font-bold">{project.projectName}</h2><span className={`rounded-full border px-2 py-0.5 text-[11px] ${STATUS_STYLE[project.status] ?? ""}`}>{formatStatus(project.status)}</span></div>
+              <p className="text-xs text-muted-foreground">{project.category?.name ?? "—"} · {project.developerName ?? "Developer not provided"}</p>
+              <p className="flex items-start gap-1 text-xs text-muted-foreground"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{[project.locality?.address, project.cityName].filter(Boolean).join(", ") || "—"}</p>
+              <p className="text-sm font-semibold">{formatPrice(project.minPrice)} – {formatPrice(project.maxPrice)}</p>{actions(project)}
+            </div>
+          </article>)}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border bg-card">
           <table className="min-w-max w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Project</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">RERA Number</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Builder / Developer</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Sales Manager</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ideal For</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[160px]">Project Stage</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[160px]">Listing Status</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Price Range</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Progress</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Possession</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Listed By</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Listed By Info</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Leads</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Views</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Saved</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <ProjectRow key={p.id} p={p} onClick={() => navigate(`/projects/${p.id}`)} />
-              ))}
-            </tbody>
+            <thead><tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">{["Actions", "#", "Image", "Project Name", "Developer Name", "Category", "City", "Locality", "Project Status", "Price Range", "Units", "Status", "Rejected Reasons", "Listed By", "Approved At", "Rejected At", "Created At"].map((heading) => <th key={heading} className="whitespace-nowrap px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
+            <tbody>{projects.map((project, index) => <tr key={project._id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
+              <td className="px-4 py-3">{actions(project)}</td><td className="whitespace-nowrap px-4 py-3 font-medium">{(page - 1) * limit + index + 1}</td>
+              <td className="px-4 py-3">{project.media?.images?.[0] ? <img src={project.media.images[0]} alt="" className="h-12 w-16 shrink-0 rounded-lg object-cover" /> : <span className="text-muted-foreground">—</span>}</td>
+              <td className="max-w-56 px-4 py-3 font-semibold"><span className="block truncate" title={project.projectName}>{project.projectName || "—"}</span></td><td className="max-w-48 px-4 py-3"><span className="block truncate" title={project.developerName || "—"}>{project.developerName || "—"}</span></td><td className="whitespace-nowrap px-4 py-3">{project.category?.name || "—"}</td><td className="whitespace-nowrap px-4 py-3">{project.cityName || "—"}</td>
+              <td className="px-4 py-3"><div className="w-36">{project.locality?.address ? <button type="button" title={project.locality.address} disabled={project.locality.latitude == null || project.locality.longitude == null} onClick={() => setMapsTarget({ address: project.locality!.address!, lat: project.locality!.latitude!, lng: project.locality!.longitude! })} className="block w-full truncate text-left text-blue-600 hover:underline disabled:text-muted-foreground disabled:no-underline">{project.locality.address}</button> : <span className="text-muted-foreground">—</span>}</div></td>
+              <td className="whitespace-nowrap px-4 py-3">{project.projectStatus || "—"}</td><td className="whitespace-nowrap px-4 py-3 font-semibold">{formatPrice(project.minPrice)} – {formatPrice(project.maxPrice)}</td><td className="whitespace-nowrap px-4 py-3">{project.availableUnits ?? "—"}/{project.totalUnits ?? "—"}</td>
+              <td className="whitespace-nowrap px-4 py-3">{getStatusOptions(project.status).length ? <select value={project.status === "sold" ? "Sold" : project.status} onChange={(event) => setStatusTarget({ project, status: event.target.value })} className={`h-8 rounded-full border px-2 text-xs ${STATUS_STYLE[project.status] ?? ""}`}><option value={project.status === "sold" ? "Sold" : project.status}>{formatStatus(project.status)}</option>{getStatusOptions(project.status).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_STYLE[project.status] ?? ""}`}>{formatStatus(project.status)}</span>}</td>
+              <td className="max-w-[180px] px-4 py-3 text-xs"><div className="space-y-0.5">{project.rejectedReasons?.length ? project.rejectedReasons.map((reason, reasonIndex) => <p key={`${reason}-${reasonIndex}`} className="line-clamp-2 break-words text-red-500" title={reason}>{reason}</p>) : "—"}</div></td><td className="px-4 py-3 text-xs"><p className="whitespace-nowrap font-medium">{project.listedBy?.name || "—"}</p><p className="whitespace-nowrap text-muted-foreground">{project.listedBy?.role?.name || "—"}</p></td><td className="whitespace-nowrap px-4 py-3 text-xs">{formatDate(project.approvedAt ?? undefined)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{formatDate(project.rejectedAt ?? undefined)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{formatDate(project.createdAt)}</td>
+            </tr>)}</tbody>
           </table>
         </div>
-          )
       )}
+
+      <div className="flex items-center justify-end gap-3"><span className="text-sm text-muted-foreground">Page {page} of {Math.max(1, totalPages)}</span><Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}><ChevronLeft className="h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>Next<ChevronRight className="h-4 w-4" /></Button></div>
+
+      <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open && !rejectLoading) setRejectTarget(null); }}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Reject Project</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Add one or more reasons for rejecting {rejectTarget?.projectName}.</p><div className="flex gap-2"><Input value={rejectInput} onChange={(event) => setRejectInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addRejectReason(); } }} placeholder="Enter a rejection reason" /><Button type="button" variant="outline" onClick={addRejectReason}>Add</Button></div>{rejectReasons.length > 0 && <ul className="space-y-1">{rejectReasons.map((reason, index) => <li key={`${reason}-${index}`} className="flex items-center justify-between rounded bg-muted px-3 py-2 text-sm">{reason}<button type="button" onClick={() => setRejectReasons((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove reason">×</button></li>)}</ul>}<DialogFooter><Button variant="outline" disabled={rejectLoading} onClick={() => setRejectTarget(null)}>Cancel</Button><Button variant="destructive" disabled={rejectLoading || rejectReasons.length === 0} onClick={() => void handleReject()}>{rejectLoading ? "Rejecting…" : "Reject Project"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open && !statusLoading) setStatusTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Update Project Status</DialogTitle></DialogHeader><p>Change {statusTarget?.project.projectName} to <strong>{statusTarget ? formatStatus(statusTarget.status) : ""}</strong>?</p><DialogFooter><Button variant="outline" disabled={statusLoading} onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={statusLoading} onClick={() => void handleStatusUpdate()}>{statusLoading ? "Updating…" : "Confirm"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!mapsTarget} onOpenChange={(open) => { if (!open) setMapsTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Open in Google Maps</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Open “{mapsTarget?.address}” in Google Maps?</p><DialogFooter><Button variant="outline" onClick={() => setMapsTarget(null)}>Cancel</Button><Button onClick={() => { if (!mapsTarget) return; window.open(`https://www.google.com/maps?q=${mapsTarget.lat},${mapsTarget.lng}`, "_blank", "noopener,noreferrer"); setMapsTarget(null); }}>Open Maps</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }

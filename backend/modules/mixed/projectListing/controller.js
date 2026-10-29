@@ -19,6 +19,35 @@ const toIST = (value) => new Date(new Date(value).getTime() + 5.5 * 60 * 60 * 10
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
 
+const validateConfigurationOptions = (configurations, label) => {
+  if (!Array.isArray(configurations)) return `Each ${label} configuration list must be an array.`;
+  const validFurnishTypes = new Set(["Unfurnished", "Semi-Furnished", "Fully-Furnished"]);
+  for (const [index, configuration] of configurations.entries()) {
+    if (!configuration || typeof configuration !== "object" || Array.isArray(configuration)) {
+      return `${label} configuration ${index + 1} must be an object.`;
+    }
+    if (configuration.price !== undefined && configuration.price !== null && configuration.price !== ""
+      && (!Number.isFinite(Number(configuration.price)) || Number(configuration.price) <= 0)) {
+      return `Enter a price greater than zero for ${label} configuration ${index + 1}.`;
+    }
+    if (configuration.furnishingOptions === undefined) continue;
+    if (!Array.isArray(configuration.furnishingOptions)) {
+      return `Furnishing options for ${label} configuration ${index + 1} must be an array.`;
+    }
+    const selectedTypes = new Set();
+    for (const option of configuration.furnishingOptions) {
+      if (!validFurnishTypes.has(option)) {
+        return `Choose a valid furnishing type for ${label} configuration ${index + 1}.`;
+      }
+      if (selectedTypes.has(option)) {
+        return `A furnishing type can only be selected once for ${label} configuration ${index + 1}.`;
+      }
+      selectedTypes.add(option);
+    }
+  }
+  return null;
+};
+
 const resolveStoredBrochurePath = (fileUrl) => {
   if (typeof fileUrl !== "string") return null;
   try {
@@ -89,9 +118,10 @@ const getMyListings = async (req, res) => {
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
     ]);
-    const stats = { total: 0, Active: 0, Inactive: 0, UnderReview: 0, Rejected: 0, sold: 0 };
+    const stats = { total: 0, Active: 0, Inactive: 0, UnderReview: 0, Rejected: 0, Sold: 0 };
     for (const { _id, count } of statusCounts) {
-      stats[_id] = count;
+      const status = _id === "sold" ? "Sold" : _id;
+      stats[status] = (stats[status] ?? 0) + count;
       stats.total += count;
     }
     const projects = projectRecords.map(({ minPrice, maxPrice, idealFor, ...project }) => ({
@@ -145,6 +175,42 @@ const getProjectById = async (req, res) => {
     if (error.name === "CastError") {
       return res.status(404).json({ success: false, message: "Project listing not found" });
     }
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateProjectStatus = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid project listing ID" });
+    }
+
+    const listing = await ProjectListing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ success: false, message: "Project listing not found" });
+    if (String(listing.listedBy?.id ?? "") !== String(req.user?._id ?? "")) {
+      return res.status(403).json({ success: false, message: "You are not allowed to update this listing" });
+    }
+
+    const transitions = {
+      Active: ["Inactive", "Sold"],
+      Inactive: ["Active"],
+      Sold: ["Active"],
+      sold: ["Active"], // Allow legacy lowercase records to be reactivated.
+      UnderReview: [],
+      Rejected: [],
+    };
+    const allowedStatuses = transitions[listing.status] ?? [];
+    if (!allowedStatuses.includes(req.body?.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Project cannot be changed from '${listing.status}' to '${req.body?.status ?? ""}'. Allowed status changes: ${allowedStatuses.join(", ") || "none"}.`,
+      });
+    }
+
+    listing.status = req.body.status;
+    await listing.save();
+    return res.json({ success: true, message: "Project listing status updated", data: { status: listing.status } });
+  } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -215,18 +281,15 @@ const updateProject = async (req, res) => {
       listing.idealFor = options.map((option) => ({ id: option._id, name: option.name, image: option.image, order: option.order }));
     }
 
-    for (const key of ["projectDescription", "projectStatus", "launchDate", "possessionDate", "totalUnits", "availableUnits", "towerCount", "furnishType", "minPrice", "maxPrice"]) {
+    for (const key of ["projectDescription", "projectStatus", "launchDate", "possessionDate", "totalUnits", "availableUnits", "towerCount", "minPrice", "maxPrice"]) {
       if (changes[key] !== undefined) listing[key] = changes[key] === "" ? undefined : changes[key];
     }
     for (const key of ["residentialDetails", "commercialDetails"]) {
       if (changes[key] !== undefined) {
         const incoming = { ...changes[key] };
-        // Strip empty furnishType from each configuration to avoid enum validation errors
-        if (Array.isArray(incoming.configurations)) {
-          incoming.configurations = incoming.configurations.map((config) => {
-            const { furnishType, ...rest } = config;
-            return furnishType ? { ...rest, furnishType } : rest;
-          });
+        if (incoming.configurations !== undefined) {
+          const configurationError = validateConfigurationOptions(incoming.configurations, key === "residentialDetails" ? "residential" : "commercial");
+          if (configurationError) return res.status(400).json({ success: false, message: configurationError });
         }
         listing[key] = { ...(listing[key]?.toObject?.() ?? listing[key] ?? {}), ...incoming };
       }
@@ -418,7 +481,6 @@ const create = async (req, res) => {
       towerCount: req.body.towerCount === "" || req.body.towerCount == null ? undefined : Number(req.body.towerCount),
       residentialDetails: normalizeResidentialConfigurations(req.body),
       commercialDetails: normalizeCommercialConfigurations(req.body),
-      furnishType: req.body.furnishType,
       furnishings: req.body.furnishings,
       amenities: req.body.amenities,
       minPrice: Number(req.body.minPrice),
@@ -531,6 +593,55 @@ const updateMedia = async (req, res) => {
       nextImages = isPrimary ? [...newImages, ...retained] : [...retained, ...newImages];
     }
 
+    const configurationImageFiles = req.files?.configurationMedia ?? [];
+    if (configurationImageFiles.length > 0 || req.body.configurationImageMap !== undefined) {
+      let imageMap;
+      try { imageMap = JSON.parse(req.body.configurationImageMap ?? "[]"); }
+      catch {
+        await removeUploads();
+        return res.status(400).json({ success: false, message: "configurationImageMap must be a valid JSON array" });
+      }
+      if (!Array.isArray(imageMap) || imageMap.length !== configurationImageFiles.length) {
+        await removeUploads();
+        return res.status(400).json({ success: false, message: "configurationImageMap must describe every uploaded configuration image" });
+      }
+      const seenSlots = new Set();
+      for (const [fileIndex, target] of imageMap.entries()) {
+        const section = target?.section;
+        const index = Number(target?.index);
+        const field = target?.slot;
+        const isSupportedSection = section === "residentialDetails" || section === "commercialDetails";
+        const isSupportedField = field === "image2DUrl" || field === "model3DUrl";
+        const configurations = isSupportedSection ? listing[section]?.configurations : null;
+        const slotKey = `${section}:${index}:${field}`;
+        if (!isSupportedSection || !isSupportedField || !Number.isInteger(index) || index < 0 || !configurations?.[index] || seenSlots.has(slotKey)) {
+          await removeUploads();
+          return res.status(400).json({ success: false, message: "A configuration image target is invalid" });
+        }
+        const uploadedFile = configurationImageFiles[fileIndex];
+        const isModel = field === "model3DUrl";
+        const modelExtension = path.extname(uploadedFile.originalname).toLowerCase();
+        const isSupportedModelExtension = [".glb", ".gltf"].includes(modelExtension);
+        if ((isModel && !isSupportedModelExtension) || (!isModel && !/^image\/(jpeg|jpg|png|webp)$/.test(uploadedFile.mimetype))) {
+          await removeUploads();
+          return res.status(400).json({ success: false, message: isModel ? "3D configuration models must be GLB or self-contained glTF files" : "2D configuration files must be JPEG, PNG, or WebP images" });
+        }
+        if (isModel && modelExtension === ".gltf") {
+          try {
+            const gltf = JSON.parse(await fs.readFile(uploadedFile.path, "utf8"));
+            const externalAssets = [...(gltf.buffers ?? []), ...(gltf.images ?? [])].some((asset) => asset.uri && !asset.uri.startsWith("data:"));
+            if (externalAssets) throw new Error("glTF model assets must be embedded in the .gltf file");
+          } catch (error) {
+            await removeUploads();
+            return res.status(400).json({ success: false, message: error.message === "glTF model assets must be embedded in the .gltf file" ? error.message : "The .gltf file is invalid or has external assets; upload a self-contained glTF file or GLB" });
+          }
+        }
+        seenSlots.add(slotKey);
+        configurations[index][field] = toUrl(uploadedFile.path);
+        listing.markModified(`${section}.configurations`);
+      }
+    }
+
     const validateYoutube = (value, field) => {
       if (value === undefined) return { valid: true };
       if (value === "null" || value === "") return { valid: true, value: undefined };
@@ -589,4 +700,4 @@ const updateMedia = async (req, res) => {
   }
 };
 
-module.exports = { create, uploadMedia, updateProject, updateMedia, getActiveIdealFor, getMyListings, getProjectById };
+module.exports = { create, uploadMedia, updateProject, updateProjectStatus, updateMedia, getActiveIdealFor, getMyListings, getProjectById };

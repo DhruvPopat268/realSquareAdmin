@@ -241,7 +241,7 @@ function PropertyRow({ p, index, onView, onApprove, onReject, onLocalityClick, o
           )}
         </div>
       </td>
-      
+
       {/* # (Index) */}
       <td className="px-4 py-3 text-sm font-medium text-foreground">
         {index + 1}
@@ -729,7 +729,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
 
       {/* Stats — hidden in map view */}
       {view !== "map" && (<>
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <div className="rounded-xl border bg-card p-4 col-span-1">
           <p className="text-xs text-muted-foreground">Total Properties</p>
           <p className="text-2xl font-bold text-foreground mt-1">{stats.total}</p>
@@ -750,8 +750,7 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
           <p className="text-xs text-teal-600">Rented</p>
           <p className="text-2xl font-bold text-teal-700 mt-1">{stats.Rented}</p>
         </div>
-      </div>
-      <div className="grid grid-cols-5 gap-3">
+      
         <div className="rounded-xl border bg-slate-100 p-4">
           <p className="text-xs text-slate-500">Inactive</p>
           <p className="text-2xl font-bold text-slate-600 mt-1">{stats.Inactive}</p>
@@ -921,15 +920,14 @@ export default function PropertiesPage({ filterType, listedByType: lockedListedB
       {/* Toolbar - Row 2 — hidden in map view (all its filters moved to row 1 above) */}
       {view !== "map" && (
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex-1" />
-
         {/* City filter */}
         <input
           value={pendingCity}
           onChange={(e) => setPendingCity(e.target.value)}
-          placeholder="Filter by city..."
-          className="h-9 w-40 rounded-md border px-2.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+          placeholder="Search by city or locality..."
+          className="h-9 w-[300px] rounded-md border px-2.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
         />
+        <div className="flex-1" />
 
         {/* Role filter */}
         <DropdownMenu>
