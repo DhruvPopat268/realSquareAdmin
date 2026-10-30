@@ -339,10 +339,13 @@ export default function PropertyDetailPage() {
       {/* Title Row */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-foreground">{p.title}</h1>
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[p.status] ?? "bg-muted text-muted-foreground border"}`}>
               {p.status}
             </span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
             {p.listingType?.name && (
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${purposeStyle[p.listingType.name] ?? "bg-muted text-muted-foreground border"}`}>
                 {p.listingType.name}

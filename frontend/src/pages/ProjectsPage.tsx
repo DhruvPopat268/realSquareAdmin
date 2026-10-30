@@ -18,6 +18,11 @@ const STATUS_STYLE: Record<string, string> = {
   Sold: "bg-gray-100 text-gray-600 border-gray-200",
   Rejected: "bg-red-50 text-red-600 border-red-200",
 };
+const PROJECT_STATUS_STYLE: Record<string, string> = {
+  "Ready to Move": "bg-green-50 text-green-700 border-green-200",
+  "Under Construction": "bg-yellow-50 text-yellow-700 border-yellow-200",
+  "New Launch": "bg-blue-50 text-blue-700 border-blue-200",
+};
 
 function getStatusOptions(status: string) {
   if (status === "Active") return ["Inactive", "Sold"];
@@ -36,10 +41,14 @@ function formatPrice(value?: number) {
   return `₹${value.toLocaleString("en-IN")}`;
 }
 
-function formatDate(value?: string) {
-  if (!value) return "—";
+function formatDateTime(value?: string) {
+  if (!value) return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    date: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+    time: date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+  };
 }
 
 export default function ProjectsPage() {
@@ -86,8 +95,13 @@ export default function ProjectsPage() {
   }, []);
 
   useEffect(() => {
+    if (!userSearch.trim()) {
+      systemUsersService.getActiveUsers()
+        .then((response) => setUsers(response.data?.data ?? []))
+        .catch(() => setUsers([]));
+      return;
+    }
     const timer = window.setTimeout(() => {
-      if (!userSearch.trim()) { setUsers([]); return; }
       systemUsersService.getActiveUsers({ search: userSearch.trim() })
         .then((response) => setUsers(response.data?.data ?? []))
         .catch(() => setUsers([]));
@@ -251,7 +265,7 @@ export default function ProjectsPage() {
             {userSearch.trim() && users.length === 0 && <div className="px-2 py-2 text-xs text-muted-foreground">No users found</div>}
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="flex items-center gap-2"><Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>{hasAppliedFilters && <Button size="sm" variant="outline" className="h-9" onClick={clearFilters}>Clear</Button>}</div>
+        <div className="flex items-center gap-2"><Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>{hasAppliedFilters && <button onClick={clearFilters} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors ml-1 underline underline-offset-2">Clear all</button>}</div>
       </div>
 
       {loading ? <div className="py-16 text-center text-sm text-muted-foreground">Loading projects…</div> : error ? <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : projects.length === 0 ? <div className="rounded-xl border bg-card py-16 text-center text-muted-foreground">No projects found.</div> : view === "grid" ? (
@@ -268,15 +282,19 @@ export default function ProjectsPage() {
       ) : (
         <div className="overflow-x-auto rounded-xl border bg-card">
           <table className="min-w-max w-full text-sm">
-            <thead><tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">{["Actions", "#", "Image", "Project Name", "Developer Name", "Category", "City", "Locality", "Project Status", "Price Range", "Units", "Status", "Rejected Reasons", "Listed By", "Approved At", "Rejected At", "Created At"].map((heading) => <th key={heading} className="whitespace-nowrap px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
+            <thead><tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">{["Actions", "#", "Image", "Project Name", "Developer Name", "Category", "City", "Locality", "Project Status", "Price Range", "Units", "Status", "Rejected Reasons", "Listed By", "Approved At", "Rejected At", "Created At", "Updated At"].map((heading) => <th key={heading} className="whitespace-nowrap px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
             <tbody>{projects.map((project, index) => <tr key={project._id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
               <td className="px-4 py-3">{actions(project)}</td><td className="whitespace-nowrap px-4 py-3 font-medium">{(page - 1) * limit + index + 1}</td>
               <td className="px-4 py-3">{project.media?.images?.[0] ? <img src={project.media.images[0]} alt="" className="h-12 w-16 shrink-0 rounded-lg object-cover" /> : <span className="text-muted-foreground">—</span>}</td>
               <td className="max-w-56 px-4 py-3 font-semibold"><span className="block truncate" title={project.projectName}>{project.projectName || "—"}</span></td><td className="max-w-48 px-4 py-3"><span className="block truncate" title={project.developerName || "—"}>{project.developerName || "—"}</span></td><td className="whitespace-nowrap px-4 py-3">{project.category?.name || "—"}</td><td className="whitespace-nowrap px-4 py-3">{project.cityName || "—"}</td>
               <td className="px-4 py-3"><div className="w-36">{project.locality?.address ? <button type="button" title={project.locality.address} disabled={project.locality.latitude == null || project.locality.longitude == null} onClick={() => setMapsTarget({ address: project.locality!.address!, lat: project.locality!.latitude!, lng: project.locality!.longitude! })} className="block w-full truncate text-left text-blue-600 hover:underline disabled:text-muted-foreground disabled:no-underline">{project.locality.address}</button> : <span className="text-muted-foreground">—</span>}</div></td>
-              <td className="whitespace-nowrap px-4 py-3">{project.projectStatus || "—"}</td><td className="whitespace-nowrap px-4 py-3 font-semibold">{formatPrice(project.minPrice)} – {formatPrice(project.maxPrice)}</td><td className="whitespace-nowrap px-4 py-3">{project.availableUnits ?? "—"}/{project.totalUnits ?? "—"}</td>
+              <td className="whitespace-nowrap px-4 py-3">{project.projectStatus ? <span className={`rounded-full border px-2 py-0.5 text-xs ${PROJECT_STATUS_STYLE[project.projectStatus] ?? "bg-muted text-muted-foreground border-border"}`}>{project.projectStatus}</span> : "—"}</td><td className="whitespace-nowrap px-4 py-3 font-semibold">{formatPrice(project.minPrice)} – {formatPrice(project.maxPrice)}</td><td className="whitespace-nowrap px-4 py-3">{project.availableUnits ?? "—"}/{project.totalUnits ?? "—"}</td>
               <td className="whitespace-nowrap px-4 py-3">{getStatusOptions(project.status).length ? <select value={project.status === "sold" ? "Sold" : project.status} onChange={(event) => setStatusTarget({ project, status: event.target.value })} className={`h-8 rounded-full border px-2 text-xs ${STATUS_STYLE[project.status] ?? ""}`}><option value={project.status === "sold" ? "Sold" : project.status}>{formatStatus(project.status)}</option>{getStatusOptions(project.status).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_STYLE[project.status] ?? ""}`}>{formatStatus(project.status)}</span>}</td>
-              <td className="max-w-[180px] px-4 py-3 text-xs"><div className="space-y-0.5">{project.rejectedReasons?.length ? project.rejectedReasons.map((reason, reasonIndex) => <p key={`${reason}-${reasonIndex}`} className="line-clamp-2 break-words text-red-500" title={reason}>{reason}</p>) : "—"}</div></td><td className="px-4 py-3 text-xs"><p className="whitespace-nowrap font-medium">{project.listedBy?.name || "—"}</p><p className="whitespace-nowrap text-muted-foreground">{project.listedBy?.role?.name || "—"}</p></td><td className="whitespace-nowrap px-4 py-3 text-xs">{formatDate(project.approvedAt ?? undefined)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{formatDate(project.rejectedAt ?? undefined)}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{formatDate(project.createdAt)}</td>
+              <td className="max-w-[180px] px-4 py-3 text-xs"><div className="space-y-0.5">{project.rejectedReasons?.length ? project.rejectedReasons.map((reason, reasonIndex) => <p key={`${reason}-${reasonIndex}`} className="line-clamp-2 break-words text-red-500" title={reason}>{reason}</p>) : "—"}</div></td><td className="px-4 py-3 text-xs"><p className="whitespace-nowrap font-medium">{project.listedBy?.name || "—"}</p><p className="whitespace-nowrap text-muted-foreground">{project.listedBy?.role?.name || "—"}</p></td>
+              {[project.approvedAt, project.rejectedAt, project.createdAt, project.updatedAt].map((value, dateIndex) => {
+                const formatted = formatDateTime(value);
+                return <td key={dateIndex} className="whitespace-nowrap px-4 py-3 text-xs">{formatted ? <><p className="font-medium text-foreground">{formatted.date}</p><p className="text-muted-foreground">{formatted.time}</p></> : <span className="text-muted-foreground">—</span>}</td>;
+              })}
             </tr>)}</tbody>
           </table>
         </div>
@@ -284,7 +302,7 @@ export default function ProjectsPage() {
 
       <div className="flex items-center justify-end gap-3"><span className="text-sm text-muted-foreground">Page {page} of {Math.max(1, totalPages)}</span><Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}><ChevronLeft className="h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>Next<ChevronRight className="h-4 w-4" /></Button></div>
 
-      <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open && !rejectLoading) setRejectTarget(null); }}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Reject Project</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Add one or more reasons for rejecting {rejectTarget?.projectName}.</p><div className="flex gap-2"><Input value={rejectInput} onChange={(event) => setRejectInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addRejectReason(); } }} placeholder="Enter a rejection reason" /><Button type="button" variant="outline" onClick={addRejectReason}>Add</Button></div>{rejectReasons.length > 0 && <ul className="space-y-1">{rejectReasons.map((reason, index) => <li key={`${reason}-${index}`} className="flex items-center justify-between rounded bg-muted px-3 py-2 text-sm">{reason}<button type="button" onClick={() => setRejectReasons((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove reason">×</button></li>)}</ul>}<DialogFooter><Button variant="outline" disabled={rejectLoading} onClick={() => setRejectTarget(null)}>Cancel</Button><Button variant="destructive" disabled={rejectLoading || rejectReasons.length === 0} onClick={() => void handleReject()}>{rejectLoading ? "Rejecting…" : "Reject Project"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open && !rejectLoading) { setRejectTarget(null); setRejectReasons([]); setRejectInput(""); } }}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Reject Project</DialogTitle></DialogHeader><div className="space-y-3"><p className="text-sm text-muted-foreground">Add one or more rejection reasons. Press <kbd className="rounded border px-1.5 py-0.5 font-mono text-xs">Enter</kbd> after each reason to add it.</p>{rejectReasons.length > 0 && <div className="flex flex-wrap gap-2">{rejectReasons.map((reason, index) => <span key={`${reason}-${index}`} className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700">{reason}<button type="button" onClick={() => setRejectReasons((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="font-bold leading-none hover:text-red-900" aria-label={`Remove ${reason}`}>×</button></span>)}</div>}<input autoFocus value={rejectInput} onChange={(event) => setRejectInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addRejectReason(); } }} placeholder="Type a reason and press Enter..." className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />{rejectReasons.length === 0 && <p className="text-xs text-red-500">At least 1 reason is required</p>}</div><DialogFooter className="gap-2"><Button variant="outline" onClick={() => { setRejectTarget(null); setRejectReasons([]); setRejectInput(""); }} disabled={rejectLoading}>Cancel</Button><Button variant="destructive" onClick={() => void handleReject()} disabled={rejectLoading || rejectReasons.length === 0}>{rejectLoading ? "Rejecting..." : "Reject"}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open && !statusLoading) setStatusTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Update Project Status</DialogTitle></DialogHeader><p>Change {statusTarget?.project.projectName} to <strong>{statusTarget ? formatStatus(statusTarget.status) : ""}</strong>?</p><DialogFooter><Button variant="outline" disabled={statusLoading} onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={statusLoading} onClick={() => void handleStatusUpdate()}>{statusLoading ? "Updating…" : "Confirm"}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={!!mapsTarget} onOpenChange={(open) => { if (!open) setMapsTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Open in Google Maps</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Open “{mapsTarget?.address}” in Google Maps?</p><DialogFooter><Button variant="outline" onClick={() => setMapsTarget(null)}>Cancel</Button><Button onClick={() => { if (!mapsTarget) return; window.open(`https://www.google.com/maps?q=${mapsTarget.lat},${mapsTarget.lng}`, "_blank", "noopener,noreferrer"); setMapsTarget(null); }}>Open Maps</Button></DialogFooter></DialogContent></Dialog>
     </div>

@@ -106,6 +106,9 @@ const getMyListings = async (req, res) => {
       }
       filter["idealFor.id"] = new mongoose.Types.ObjectId(req.query.idealForId);
     }
+    if (req.query.status && ["Active", "Inactive", "UnderReview", "Rejected", "Sold"].includes(req.query.status)) {
+      filter.status = req.query.status;
+    }
 
     const [projectRecords, totalCount, statusCounts] = await Promise.all([
       ProjectListing.find(filter)

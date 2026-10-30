@@ -132,6 +132,7 @@ export interface ReraDetails {
 
 export interface PropertyListing {
   _id: string;
+  title?: string;
   category: { id: string; name: string };
   listingType: { id: string; name: string };
   propertyType?: { id: string; name: string };

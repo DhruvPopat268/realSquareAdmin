@@ -908,13 +908,14 @@ const getMe = async (req, res) => {
       status: "Active",
       $or: [{ expiryDate: null }, { expiryDate: { $gt: now } }],
     };
-    const [wallet, purchased, purchasedEnquiry, hasListings, hasProjectListings, rejectedPropertiesCount, leadEnquiryCoinsConfig] = await Promise.all([
+    const [wallet, purchased, purchasedEnquiry, hasListings, hasProjectListings, rejectedPropertiesCount, rejectedProjectListingsCount, leadEnquiryCoinsConfig] = await Promise.all([
       UserCoinsWallet.findOne({ user: req.user._id }).select("currentBalance"),
       ListingPurchasedPlan.findOne(activePlanFilter),
       EnquiryPurchasedPlan.findOne(activePlanFilter),
       PropertyListing.exists({ "listedBy.id": req.user._id }),
       ProjectListing.exists({ "listedBy.id": req.user._id }),
       PropertyListing.countDocuments({ "listedBy.id": req.user._id, status: "Rejected" }),
+      ProjectListing.countDocuments({ "listedBy.id": req.user._id, status: "Rejected" }),
       LeadEnquiryCoinsConfig.findOne({ _configKey: "singleton" }).select("coinsPerEnquiry").lean(),
     ]);
 
@@ -1022,6 +1023,7 @@ const getMe = async (req, res) => {
         profileCompletionPercentage,
         canListProperty,
         rejectedPropertiesCount,
+        rejectedProjectListingsCount,
         haveAssignedInquiries,
       } 
     });
