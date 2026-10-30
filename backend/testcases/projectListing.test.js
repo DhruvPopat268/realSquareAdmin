@@ -43,6 +43,10 @@ jest.mock("../utils/upload", () => ({
   DOCUMENTS_DIR: "/tmp/project-listing-test-documents",
 }));
 
+// Location/API tests do not exercise model uploads; avoid loading the GLB
+// compressor's ESM-only dependency graph in Jest's CommonJS runtime.
+jest.mock("../utils/glbCompress", () => ({ compressGlb: jest.fn().mockResolvedValue(undefined) }));
+
 const PropertyCategory = require("../modules/admin/propertyCategories/model");
 const IdealFor = require("../modules/admin/idealFor/model");
 const ListingPurchasedPlan = require("../modules/mixed/purchasedPlans/model");
@@ -75,6 +79,7 @@ beforeEach(() => {
     json: () => Promise.resolve({
       status: "OK",
       results: [{
+        formatted_address: "Gachibowli, Hyderabad, Telangana, India",
         address_components: [
           { long_name: "Hyderabad", types: ["locality"] },
           { long_name: "Telangana", types: ["administrative_area_level_1"] },
@@ -88,7 +93,7 @@ beforeEach(() => {
 const residentialPayload = () => ({
   categoryId: RESIDENTIAL_CATEGORY_ID,
   cityName: "Hyderabad",
-  locality: { address: "Gachibowli", latitude: 17.4401, longitude: 78.3489 },
+  locality: { address: "Gachibowli, Hyderabad, Telangana, India", latitude: 17.4401, longitude: 78.3489 },
   projectName: "Greenview Residences",
   developerName: "Greenview Group",
   projectStatus: "Under Construction",
@@ -211,6 +216,18 @@ describe("POST /api/mixed/project-listings", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.errors.some((error) => /locality belongs to/i.test(error.msg))).toBe(true);
+    expect(savedListings).toHaveLength(0);
+  });
+
+  test("rejects an address label from another city even when coordinates resolve to the submitted city", async () => {
+    const payload = {
+      ...residentialPayload(),
+      locality: { address: "Koregaon Park, Pune, Maharashtra, India", latitude: 17.4401, longitude: 78.3489 },
+    };
+    const response = await postProject(payload);
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors.some((error) => /address does not identify the city/i.test(error.msg))).toBe(true);
     expect(savedListings).toHaveLength(0);
   });
 

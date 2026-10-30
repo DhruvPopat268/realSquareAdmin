@@ -88,32 +88,59 @@ function ConfigurationCard({ configuration, areaUnit }: { configuration: Project
 
 function ConfigurationSection({ project, residential, configurations }: { project: ProjectListingRecord; residential: boolean; configurations: ProjectConfiguration[] }) {
   const areaUnit = residential ? project.residentialDetails?.areaUnit : project.commercialDetails?.areaUnit;
-  const groups: Array<{ key: string; label: string; configurations: Array<{ configuration: ProjectConfiguration; index: number }> }> = [];
-  const groupMap = new Map<string, (typeof groups)[number]>();
-
-  configurations.forEach((configuration, index) => {
-    const bhk = formatBhk(configuration.bhk);
-    const area = configuration.carpetArea == null ? "Area not specified" : String(configuration.carpetArea);
-    const key = residential ? bhk : area;
-    if (!groupMap.has(key)) {
-      const group = { key, label: residential ? bhk : configuration.carpetArea == null ? area : formatArea(configuration.carpetArea, areaUnit), configurations: [] };
-      groupMap.set(key, group);
-      groups.push(group);
-    }
-    groupMap.get(key)!.configurations.push({ configuration, index });
-  });
-
+  type AreaGroup = { key: string; label: string; configurations: ProjectConfiguration[] };
+  type PrimaryGroup = { key: string; label: string; carpetAreas?: AreaGroup[]; configurations?: ProjectConfiguration[] };
+  const groups: PrimaryGroup[] = residential
+    ? (project.configurationGroups?.residential ?? []).map((group) => ({
+      key: group.bhk,
+      label: formatBhk(group.bhk),
+      carpetAreas: group.carpetAreas.map((area) => ({
+        key: area.carpetArea == null ? "__unspecified__" : String(Number(area.carpetArea)),
+        label: formatArea(area.carpetArea ?? undefined, areaUnit),
+        configurations: area.configurations,
+      })),
+    }))
+    : (project.configurationGroups?.commercial ?? []).map((group) => ({
+      key: group.carpetArea == null ? "__unspecified__" : String(Number(group.carpetArea)),
+      label: formatArea(group.carpetArea ?? undefined, areaUnit),
+      configurations: group.configurations,
+    }));
   const [selectedGroupKey, setSelectedGroupKey] = useState(groups[0]?.key ?? "");
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey) ?? groups[0];
+  const areaGroups = residential ? selectedGroup?.carpetAreas ?? [] : [];
+  const firstAreaKey = areaGroups[0]?.key ?? "";
+  const [selectedAreaKey, setSelectedAreaKey] = useState(areaGroups[0]?.key ?? "");
+  const selectedArea = residential ? areaGroups.find((area) => area.key === selectedAreaKey) ?? areaGroups[0] : selectedGroup;
+  const currentConfigurations = selectedArea?.configurations ?? [];
+  const [activeConfigurationIndex, setActiveConfigurationIndex] = useState(0);
+
+  useEffect(() => {
+    setSelectedAreaKey(firstAreaKey);
+    setActiveConfigurationIndex(0);
+  }, [selectedGroup?.key, firstAreaKey]);
+  useEffect(() => setActiveConfigurationIndex(0), [selectedArea?.key]);
 
   return <section className="rounded-xl border bg-card p-5">
     <h2 className="mb-4 text-base font-bold">{residential ? "Residential Configurations" : "Commercial Carpet Area Configurations"}</h2>
     {!configurations.length ? <p className="text-sm text-muted-foreground">No configurations provided.</p> : <>
       <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3"><Item label="Area Unit" value={areaUnit} />{!residential && <><Item label="Zone Type" value={project.commercialDetails?.zoneType} /><Item label="Location Hub" value={project.commercialDetails?.locationHub} /></>}</div>
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label={residential ? "Configurations by BHK" : "Configurations by carpet area"}>
-        {groups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup?.key === group.key} onClick={() => setSelectedGroupKey(group.key)} className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition ${selectedGroup?.key === group.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>{group.label}</button>)}
+        {groups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup?.key === group.key} onClick={() => { setSelectedGroupKey(group.key); setActiveConfigurationIndex(0); }} className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition ${selectedGroup?.key === group.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>{group.label}</button>)}
       </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">{selectedGroup?.configurations.map(({ configuration, index }) => <ConfigurationCard key={`${selectedGroup.key}-${index}`} configuration={configuration} areaUnit={areaUnit} />)}</div>
+      {residential && areaGroups.length > 0 && <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Carpet area configurations">
+        {areaGroups.map((area) => <button key={area.key} type="button" role="tab" aria-selected={selectedArea?.key === area.key} onClick={() => { setSelectedAreaKey(area.key); setActiveConfigurationIndex(0); }} className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition ${selectedArea?.key === area.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>{area.label}</button>)}
+      </div>}
+      {currentConfigurations.length > 0 && <>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{currentConfigurations.length} {currentConfigurations.length === 1 ? "configuration" : "configurations"} available</span>
+          {currentConfigurations.length > 1 && <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" aria-label="Previous configuration" onClick={() => setActiveConfigurationIndex((index) => (index - 1 + currentConfigurations.length) % currentConfigurations.length)}>‹</Button>
+            <span className="min-w-12 text-center text-xs text-muted-foreground">{activeConfigurationIndex + 1} / {currentConfigurations.length}</span>
+            <Button variant="outline" size="icon" aria-label="Next configuration" onClick={() => setActiveConfigurationIndex((index) => (index + 1) % currentConfigurations.length)}>›</Button>
+          </div>}
+        </div>
+        <ConfigurationCard key={`${selectedGroup?.key}-${selectedArea?.key}-${activeConfigurationIndex}`} configuration={currentConfigurations[activeConfigurationIndex] ?? currentConfigurations[0]} areaUnit={areaUnit} />
+      </>}
     </>}
   </section>;
 }

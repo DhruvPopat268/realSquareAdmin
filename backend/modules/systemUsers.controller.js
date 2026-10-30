@@ -56,6 +56,129 @@ const getNestedValue = (obj, path) => {
   return path.split(".").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
 };
 
+const CITY_SUGGESTIONS_URL = "https://places.googleapis.com/v1/places:autocomplete";
+const CITY_SESSION_TOKEN_REGEX = /^[A-Za-z0-9._~-]{1,128}$/;
+const normalizeLocationText = (value = "") => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+const getCitySuggestions = async (req, res) => {
+  const input = typeof req.body?.input === "string" ? req.body.input.trim() : "";
+  const sessionToken = typeof req.body?.sessionToken === "string" ? req.body.sessionToken.trim() : "";
+
+  if (input.length < 2 || input.length > 100) {
+    return res.status(400).json({ success: false, message: "input must be between 2 and 100 characters." });
+  }
+  if (!CITY_SESSION_TOKEN_REGEX.test(sessionToken)) {
+    return res.status(400).json({ success: false, message: "A valid autocomplete sessionToken is required." });
+  }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ success: false, message: "City suggestions are not configured." });
+  }
+
+  try {
+    const googleResponse = await fetch(CITY_SUGGESTIONS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+      },
+      body: JSON.stringify({
+        input,
+        includedPrimaryTypes: ["locality"],
+        sessionToken,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!googleResponse.ok) {
+      return res.status(502).json({ success: false, message: "Google Places could not return city suggestions." });
+    }
+
+    const googleData = await googleResponse.json();
+    const suggestions = (Array.isArray(googleData.suggestions) ? googleData.suggestions : [])
+      .map((item) => item?.placePrediction)
+      .filter(Boolean)
+      .map((prediction) => {
+        const city = prediction.structuredFormat?.mainText?.text?.trim() ?? "";
+        const displayAddress = prediction.text?.text?.trim() ?? "";
+        const addressParts = displayAddress.split(",").map((part) => part.trim()).filter(Boolean);
+        if (!prediction.placeId || !city || addressParts.length !== 3) return null;
+        return { placeId: prediction.placeId, city, displayAddress };
+      })
+      .filter(Boolean);
+
+    return res.status(200).json({ success: true, data: { suggestions } });
+  } catch (error) {
+    const timedOut = error.name === "TimeoutError" || error.name === "AbortError";
+    return res.status(timedOut ? 504 : 502).json({
+      success: false,
+      message: timedOut ? "Google Places city suggestions timed out." : "Google Places could not return city suggestions.",
+    });
+  }
+};
+
+const getCityAddressSuggestions = async (req, res) => {
+  const input = typeof req.body?.input === "string" ? req.body.input.trim() : "";
+  const cityName = typeof req.body?.cityName === "string" ? req.body.cityName.trim() : "";
+  const sessionToken = typeof req.body?.sessionToken === "string" ? req.body.sessionToken.trim() : "";
+
+  if (input.length < 2 || input.length > 150) {
+    return res.status(400).json({ success: false, message: "input must be between 2 and 150 characters." });
+  }
+  if (cityName.length < 2 || cityName.length > 100) {
+    return res.status(400).json({ success: false, message: "A valid cityName is required." });
+  }
+  if (!CITY_SESSION_TOKEN_REGEX.test(sessionToken)) {
+    return res.status(400).json({ success: false, message: "A valid autocomplete sessionToken is required." });
+  }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ success: false, message: "Address suggestions are not configured." });
+  }
+
+  try {
+    const googleResponse = await fetch(CITY_SUGGESTIONS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+      },
+      body: JSON.stringify({
+        input: `${input}, ${cityName}`,
+        sessionToken,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!googleResponse.ok) {
+      return res.status(502).json({ success: false, message: "Google Places could not return address suggestions." });
+    }
+
+    const googleData = await googleResponse.json();
+    const normalizedCity = normalizeLocationText(cityName);
+    const suggestions = (Array.isArray(googleData.suggestions) ? googleData.suggestions : [])
+      .map((item) => item?.placePrediction)
+      .filter(Boolean)
+      .map((prediction) => {
+        const address = prediction.text?.text?.trim() ?? "";
+        const addressParts = address.split(",").map(normalizeLocationText).filter(Boolean);
+        if (!prediction.placeId || !address || !addressParts.includes(normalizedCity)) return null;
+        return { placeId: prediction.placeId, address };
+      })
+      .filter(Boolean);
+
+    return res.status(200).json({ success: true, data: { suggestions } });
+  } catch (error) {
+    const timedOut = error.name === "TimeoutError" || error.name === "AbortError";
+    return res.status(timedOut ? 504 : 502).json({
+      success: false,
+      message: timedOut ? "Google Places address suggestions timed out." : "Google Places could not return address suggestions.",
+    });
+  }
+};
+
 const MOBILE_OR_QUERY = (mobile) => [
   { mobile },
   ...Object.values(ALLOWED_ROLES).map((field) => ({ [`${field}.mobile`]: mobile })),
@@ -989,5 +1112,5 @@ const logout = async (req, res) => {
 module.exports = {
   sendOtp, verifyOtp, sendEmailOtp, verifyEmailOtp, completeProfile, assignCustomerRole,
   updateProfile, switchRole, logout, getMe, getActiveUsers,
-  expirePurchasedPlans, consumePurchasedPlans,
+  expirePurchasedPlans, consumePurchasedPlans, getCitySuggestions, getCityAddressSuggestions,
 };

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const ProjectListing = require("../../mixed/projectListing/model");
+const { groupConfigurations } = require("../../../utils/projectConfigurationGroups");
 
 const STATUSES = ["Active", "Inactive", "UnderReview", "Rejected", "Sold"];
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -72,7 +73,16 @@ const getById = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid project listing ID" });
     const project = await ProjectListing.findById(req.params.id).lean();
     if (!project) return res.status(404).json({ success: false, message: "Project listing not found" });
-    return res.json({ success: true, data: project });
+    return res.json({
+      success: true,
+      data: {
+        ...project,
+        configurationGroups: groupConfigurations({
+          residential: project.residentialDetails?.configurations ?? [],
+          commercial: project.commercialDetails?.configurations ?? [],
+        }),
+      },
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

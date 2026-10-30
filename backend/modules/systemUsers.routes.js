@@ -1,7 +1,8 @@
 const express            = require("express");
-const { completeProfile, assignCustomerRole, sendEmailOtp, verifyEmailOtp, sendOtp, verifyOtp, logout, updateProfile, switchRole, getMe, getActiveUsers, expirePurchasedPlans, consumePurchasedPlans } = require("./systemUsers.controller");
+const { completeProfile, assignCustomerRole, sendEmailOtp, verifyEmailOtp, sendOtp, verifyOtp, logout, updateProfile, switchRole, getMe, getActiveUsers, expirePurchasedPlans, consumePurchasedPlans, getCitySuggestions, getCityAddressSuggestions } = require("./systemUsers.controller");
 const { uploadImage }    = require("../utils/upload");
 const cronProtect = require("../utils/cronProtect");
+const citySuggestionsRateLimit = require("../utils/citySuggestionsRateLimit");
 const { userProtect } = require("../middleware/userAuth");
 
 const router = express.Router();
@@ -10,6 +11,8 @@ router.get("/me",                        userProtect, getMe);
 router.get("/cron-expire-plans",         cronProtect, expirePurchasedPlans);
 router.get("/cron-consume-plans",        cronProtect, consumePurchasedPlans);
 router.get("/active-users",              getActiveUsers);
+router.post("/city-suggestions",         citySuggestionsRateLimit, getCitySuggestions);
+router.post("/city-address-suggestions", citySuggestionsRateLimit, getCityAddressSuggestions);
 router.post("/send-otp",                 sendOtp);
 
 router.post("/verify-otp",           verifyOtp);

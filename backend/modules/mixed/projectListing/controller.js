@@ -13,6 +13,7 @@ const FreeListingConfig = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser = require("../../systemUsers.model");
 const { verifyCityAndLocality } = require("../../../utils/locationState");
+const { groupConfigurations } = require("../../../utils/projectConfigurationGroups");
 const { DOCUMENTS_DIR } = require("../../../utils/upload");
 
 const nowIST = () => new Date(Date.now() + 5.5 * 60 * 60 * 1000);
@@ -168,6 +169,10 @@ const getProjectById = async (req, res) => {
       success: true,
       data: {
         ...project,
+        configurationGroups: groupConfigurations({
+          residential: project.residentialDetails?.configurations ?? [],
+          commercial: project.commercialDetails?.configurations ?? [],
+        }),
         budgetRange: formatBudgetRange(project.minPrice, project.maxPrice),
         isListedByCurrentUser: String(project.listedBy?.id ?? "") === String(req.user?._id ?? ""),
       },
@@ -228,6 +233,9 @@ const updateProject = async (req, res) => {
       return res.status(403).json({ success: false, message: "You can only update your own project listings" });
     }
 
+    const previousCityName = listing.cityName ?? "";
+    const previousLocality = listing.locality?.toObject?.() ?? listing.locality ?? {};
+
     const allowed = [
       "projectName", "developerName", "projectDescription", "projectStatus", "launchDate",
       "possessionDate", "totalUnits", "availableUnits", "towerCount", "cityName", "locality",
@@ -252,15 +260,27 @@ const updateProject = async (req, res) => {
       if (!changes.locality || typeof changes.locality !== "object" || Array.isArray(changes.locality)) {
         return res.status(400).json({ success: false, message: "locality must be an object" });
       }
+      if (changes.locality.address !== undefined &&
+          (typeof changes.locality.address !== "string" || !changes.locality.address.trim())) {
+        return res.status(400).json({ success: false, message: "locality.address must be a non-empty string" });
+      }
+      for (const [coordinate, min, max] of [["latitude", -90, 90], ["longitude", -180, 180]]) {
+        if (changes.locality[coordinate] !== undefined &&
+            (typeof changes.locality[coordinate] !== "number" ||
+              !Number.isFinite(changes.locality[coordinate]) ||
+              changes.locality[coordinate] < min || changes.locality[coordinate] > max)) {
+          return res.status(400).json({ success: false, message: `locality.${coordinate} must be a valid coordinate` });
+        }
+      }
       listing.locality = { ...(listing.locality?.toObject?.() ?? listing.locality ?? {}), ...changes.locality };
     }
 
     // ── Reverse-geocode city & locality verification ─────────────────────────
-    const cityChanged = changes.cityName !== undefined && changes.cityName.trim() !== (listing.cityName ?? "");
+    const cityChanged = changes.cityName !== undefined && changes.cityName.trim() !== previousCityName;
     const localityChanged = changes.locality !== undefined && (
-      (changes.locality.address !== undefined && changes.locality.address.trim() !== (listing.locality?.address ?? "")) ||
-      (changes.locality.latitude !== undefined && changes.locality.latitude !== (listing.locality?.latitude ?? null)) ||
-      (changes.locality.longitude !== undefined && changes.locality.longitude !== (listing.locality?.longitude ?? null))
+      (changes.locality.address !== undefined && changes.locality.address.trim() !== (previousLocality.address ?? "")) ||
+      (changes.locality.latitude !== undefined && (previousLocality.latitude == null || changes.locality.latitude !== Number(previousLocality.latitude))) ||
+      (changes.locality.longitude !== undefined && (previousLocality.longitude == null || changes.locality.longitude !== Number(previousLocality.longitude)))
     );
 
     if (cityChanged || localityChanged) {

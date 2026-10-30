@@ -20,6 +20,10 @@ export interface ProjectListingRecord {
   listedBy?: { id?: string; name?: string; mobile?: string; email?: string; profilePhoto?: string; role?: { id?: string; name?: string } };
   residentialDetails?: { areaUnit?: string; configurations?: Array<ProjectConfiguration> };
   commercialDetails?: { zoneType?: string; locationHub?: string; areaUnit?: string; configurations?: Array<ProjectConfiguration> };
+  configurationGroups?: {
+    residential?: Array<{ bhk: string; carpetAreas: Array<{ carpetArea?: number | null; configurations: ProjectConfiguration[] }> }>;
+    commercial?: Array<{ carpetArea?: number | null; configurations: ProjectConfiguration[] }>;
+  };
   furnishings?: Array<{ name?: string; count?: number; icon?: string }>;
   amenities?: Array<{ name?: string; count?: number; icon?: string }>;
   media?: { images?: string[]; videos?: { videoUrl?: string; ytVideoUrl?: string }; reelVideo?: { reelUrl?: string; ytReelUrl?: string } };

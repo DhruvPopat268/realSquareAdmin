@@ -836,9 +836,12 @@ const updateListing = async (req, res) => {
     const effectiveLatitude    = locality?.latitude  !== undefined ? locality.latitude  : listing.locality?.latitude  ?? null;
     const effectiveLongitude   = locality?.longitude !== undefined ? locality.longitude : listing.locality?.longitude ?? null;
     const cityChanged          = cityName    !== undefined && cityName.trim()    !== (listing.cityName ?? "");
-    const localityChanged      = locality?.address !== undefined && locality.address.trim() !== (listing.locality?.address ?? "");
+    const localityChanged =
+      (locality?.address !== undefined && locality.address.trim() !== (listing.locality?.address ?? "")) ||
+      (locality?.latitude !== undefined && locality.latitude !== (listing.locality?.latitude ?? null)) ||
+      (locality?.longitude !== undefined && locality.longitude !== (listing.locality?.longitude ?? null));
 
-    if ((cityChanged || localityChanged) && effectiveCityName && effectiveAddress) {
+    if (cityChanged || localityChanged) {
       try {
         await verifyCityAndLocality(effectiveCityName, { address: effectiveAddress, latitude: effectiveLatitude, longitude: effectiveLongitude });
       } catch (verifyError) {

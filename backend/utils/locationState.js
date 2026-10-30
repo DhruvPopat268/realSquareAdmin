@@ -106,8 +106,17 @@ const verifyCityAndLocality = async (cityName, locality) => {
     throw makeLocationError("cityName is required.");
   }
 
-  const latitude = Number(locality?.latitude);
-  const longitude = Number(locality?.longitude);
+  if (!locality?.address || typeof locality.address !== "string" || !locality.address.trim()) {
+    throw makeLocationError("A selected locality address is required for location verification.");
+  }
+
+  if (locality.latitude === undefined || locality.latitude === null || locality.latitude === "" ||
+      locality.longitude === undefined || locality.longitude === null || locality.longitude === "") {
+    throw makeLocationError("A valid locality latitude and longitude are required for city verification.");
+  }
+
+  const latitude = Number(locality.latitude);
+  const longitude = Number(locality.longitude);
 
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
       !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
@@ -168,6 +177,18 @@ const verifyCityAndLocality = async (cityName, locality) => {
   if (!matches) {
     throw makeLocationError(
       `The selected locality belongs to "${geocodedCity}", not "${sentCity}". Please select a locality within ${sentCity}.`
+    );
+  }
+
+  // A reverse lookup validates the coordinates and city in one Google API
+  // request. Also require the submitted address label to identify that same
+  // city, so a label from a different city cannot be paired with these coords.
+  const normalizeAddress = (value) => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const normalizedAddress = normalizeAddress(locality.address);
+  const normalizedGeocodedCity = normalizeAddress(geocodedCity);
+  if (!normalizedAddress.includes(normalizedGeocodedCity)) {
+    throw makeLocationError(
+      `The selected address does not identify the city returned for its coordinates ("${geocodedCity}"). Please select an address within ${geocodedCity}.`
     );
   }
 
