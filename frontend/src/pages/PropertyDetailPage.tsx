@@ -250,22 +250,6 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      {/* Update Status — above gallery */}
-      {(() => {
-        const statusOptions = getAvailableStatusOptions(p.status, p.listingType?.id?.toString());
-        return statusOptions.length > 0 ? (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              className="gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
-              onClick={handleOpenStatusModal}
-            >
-              <Zap className="h-3.5 w-3.5" /> Update Status
-            </Button>
-          </div>
-        ) : null;
-      })()}
-
       <ListingMediaSection
         images={imgs}
         onImageClick={setLightbox}
@@ -380,6 +364,9 @@ export default function PropertyDetailPage() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {getAvailableStatusOptions(p.status, p.listingType?.id?.toString()).length > 0 && (
+            <Button variant="outline" onClick={handleOpenStatusModal}>Update Status</Button>
+          )}
         </div>
       </div>
 

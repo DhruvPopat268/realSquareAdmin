@@ -13,6 +13,7 @@ const FreeListingConfig = require("../../admin/freeListingManagement/model");
 const ListingPurchasedPlan = require("../purchasedPlans/model");
 const SystemUser = require("../../systemUsers.model");
 const { verifyCityAndLocality } = require("../../../utils/locationState");
+const { runReraVerification } = require("../reraVerification/controller");
 const { groupConfigurations } = require("../../../utils/projectConfigurationGroups");
 const { DOCUMENTS_DIR } = require("../../../utils/upload");
 
@@ -224,6 +225,39 @@ const updateProjectStatus = async (req, res) => {
   }
 };
 
+const updateProjectAvailableUnits = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid project listing ID" });
+    }
+
+    const listing = await ProjectListing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ success: false, message: "Project listing not found" });
+    if (String(listing.listedBy?.id ?? "") !== String(req.user?._id ?? "")) {
+      return res.status(403).json({ success: false, message: "You are not allowed to update this listing" });
+    }
+
+    const availableUnits = Number(req.body?.availableUnits);
+    const totalUnits = Number(listing.totalUnits);
+    if (!Number.isInteger(availableUnits) || availableUnits < 1 || availableUnits > totalUnits) {
+      return res.status(400).json({
+        success: false,
+        message: "Available units must be a whole number from 1 to " + totalUnits + ".",
+      });
+    }
+
+    listing.availableUnits = availableUnits;
+    await listing.save();
+    return res.json({
+      success: true,
+      message: "Available units updated successfully",
+      data: { availableUnits: listing.availableUnits },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 const updateProject = async (req, res) => {
   try {
     const { projectListingId, ...changes } = req.body;
@@ -293,10 +327,41 @@ const updateProject = async (req, res) => {
         return res.status(400).json({ success: false, message: verifyError.message });
       }
     }
-    if (changes.reraId !== undefined) {
-      listing.rera = { ...(listing.rera?.toObject?.() ?? listing.rera ?? {}), reraId: changes.reraId || undefined };
+    const submittedReraId = changes.reraId !== undefined ? changes.reraId : changes.rera?.reraId;
+    if (submittedReraId !== undefined) {
+      if (submittedReraId === null || submittedReraId === "") {
+        listing.rera = undefined;
+      } else if (typeof submittedReraId === "string" && submittedReraId.trim()) {
+        const cleanReraId = submittedReraId.trim();
+        const existingReraId = listing.rera?.reraId ?? "";
+
+        if (cleanReraId !== existingReraId) {
+          try {
+            const reraResult = await runReraVerification(cleanReraId);
+            listing.rera = {
+              reraId: cleanReraId,
+              reraStatus: reraResult.verified ? "verified" : "unverified",
+              reraAdminApproved: false,
+              verifiedAt: reraResult.verified ? new Date() : null,
+              projectDetails: reraResult.projectDetails ?? undefined,
+              sources: reraResult.sources ?? [],
+            };
+          } catch (reraError) {
+            console.error("[updateProject] RERA verification failed:", reraError.message);
+            listing.rera = {
+              reraId: cleanReraId,
+              reraStatus: "unverified",
+              reraAdminApproved: false,
+              verifiedAt: null,
+              projectDetails: undefined,
+              sources: [],
+            };
+          }
+        }
+      } else {
+        return res.status(400).json({ success: false, message: "reraId must be a non-empty string or null" });
+      }
     }
-    if (changes.rera !== undefined) listing.rera = { ...(listing.rera?.toObject?.() ?? listing.rera ?? {}), ...changes.rera };
     if (changes.idealFor !== undefined) {
       if (!Array.isArray(changes.idealFor)) return res.status(400).json({ success: false, message: "idealFor must be an array" });
       const ids = changes.idealFor.map((item) => typeof item === "string" ? item : item.id ?? item._id);
@@ -743,4 +808,4 @@ const updateMedia = async (req, res) => {
   }
 };
 
-module.exports = { create, uploadMedia, updateProject, updateProjectStatus, updateMedia, getActiveIdealFor, getMyListings, getProjectById };
+module.exports = { create, uploadMedia, updateProject, updateProjectStatus, updateProjectAvailableUnits, updateMedia, getActiveIdealFor, getMyListings, getProjectById };

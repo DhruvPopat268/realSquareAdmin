@@ -136,6 +136,39 @@ const reject = async (req, res) => {
   }
 };
 
+const updateAvailableUnits = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid project listing ID" });
+    }
+
+    const project = await ProjectListing.findById(req.params.id);
+    if (!project) return res.status(404).json({ success: false, message: "Project listing not found" });
+    if (project.status !== "Active") {
+      return res.status(400).json({ success: false, message: "Available units can only be updated for active projects" });
+    }
+
+    const { availableUnits } = req.body ?? {};
+    const totalUnits = Number(project.totalUnits);
+    if (!Number.isInteger(availableUnits) || availableUnits < 1 || !Number.isInteger(totalUnits) || totalUnits < 1 || availableUnits > totalUnits) {
+      return res.status(400).json({
+        success: false,
+        message: "availableUnits must be a whole number from 1 to " + totalUnits + ".",
+      });
+    }
+
+    project.availableUnits = availableUnits;
+    await project.save();
+    return res.json({
+      success: true,
+      message: "Available units updated successfully",
+      data: { availableUnits: project.availableUnits },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 const updateStatus = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid project listing ID" });
@@ -162,4 +195,4 @@ const updateStatus = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getById, approve, reject, updateStatus };
+module.exports = { getAll, getById, approve, reject, updateStatus, updateAvailableUnits };

@@ -67,4 +67,6 @@ export const projectListingService = {
     api.patch<{ success: boolean; message: string; data: { status: string; rejectedAt: string; rejectedReasons: string[] } }>(`/admin/project-listings/${id}/reject`, { reasons }),
   updateStatus: (id: string, status: string) =>
     api.patch<{ success: boolean; message: string; data: { status: string } }>(`/admin/project-listings/${id}/status`, { status }),
+  updateAvailableUnits: (id: string, availableUnits: number) =>
+    api.patch<{ success: boolean; message: string; data: { availableUnits: number } }>(`/admin/project-listings/${id}/available-units`, { availableUnits }),
 };

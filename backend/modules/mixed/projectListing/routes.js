@@ -1,7 +1,7 @@
 const express = require("express");
 const { userProtect } = require("../../../middleware/userAuth");
 const { uploadImage, handleProjectMediaUpload } = require("../../../utils/upload");
-const { create, uploadMedia, updateProject, updateProjectStatus, updateMedia, getActiveIdealFor, getMyListings, getProjectById } = require("./controller");
+const { create, uploadMedia, updateProject, updateProjectStatus, updateProjectAvailableUnits, updateMedia, getActiveIdealFor, getMyListings, getProjectById } = require("./controller");
 const { projectListingValidator } = require("./validator");
 
 const router = express.Router();
@@ -9,6 +9,7 @@ const router = express.Router();
 router.get("/ideal-for", userProtect, getActiveIdealFor);
 router.get("/my-listings", userProtect, getMyListings);
 router.patch("/status/:id", userProtect, updateProjectStatus);
+router.patch("/available-units/:id", userProtect, updateProjectAvailableUnits);
 router.get("/:id", userProtect, getProjectById);
 router.post("/", userProtect, projectListingValidator, create);
 router.patch("/", userProtect, updateProject);
