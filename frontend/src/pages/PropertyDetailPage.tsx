@@ -365,7 +365,7 @@ export default function PropertyDetailPage() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {getAvailableStatusOptions(p.status, p.listingType?.id?.toString()).length > 0 && (
-            <Button variant="outline" onClick={handleOpenStatusModal}>Update Status</Button>
+            <Button variant="outline" className="bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground" onClick={handleOpenStatusModal}>Update Status</Button>
           )}
         </div>
       </div>

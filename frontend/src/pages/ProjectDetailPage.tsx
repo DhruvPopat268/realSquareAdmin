@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, Map, MapPin, XCircle } from "lucide-react";
 import { projectListingService, type ProjectConfiguration, type ProjectListingRecord } from "@/services/projectListingService";
 import ListingMediaSection from "@/components/ListingMediaSection";
+import Spinner from "@/components/Spinner";
 
 const STATUS_STYLE: Record<string, string> = {
   UnderReview: "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -241,7 +242,7 @@ export default function ProjectDetailPage() {
     setRejectInput("");
   };
 
-  if (loading) return <div className="py-20 text-center text-sm text-muted-foreground">Loading project…</div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Spinner fullPage={false} size="md" label="Loading project..." /></div>;
   if (!project) return <div className="space-y-4"><Button variant="outline" onClick={() => navigate("/projects")}><ArrowLeft className="mr-2 h-4 w-4" />Projects</Button><div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error || "Project not found"}</div></div>;
 
   const images = project.media?.images ?? [];
@@ -253,7 +254,7 @@ export default function ProjectDetailPage() {
   return <div className="space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-3 px-0"><ArrowLeft className="mr-2 h-4 w-4" />Back to Projects</Button><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-bold">{project.projectName}</h1><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${STATUS_STYLE[project.status] ?? ""}`}>{displayStatus(project.status)}</span></div><p className="mt-1 text-sm text-muted-foreground">{project.developerName || "Developer not provided"} · {project.category?.name || "Project"}</p><p className="mt-2 flex items-start gap-1 text-sm text-muted-foreground"><MapPin className="mt-0.5 h-4 w-4 shrink-0" />{project.locality?.latitude != null && project.locality?.longitude != null ? <button type="button" onClick={() => setMapsTarget({ address: [project.locality?.address, project.cityName].filter(Boolean).join(", ") || "Project location", lat: project.locality!.latitude!, lng: project.locality!.longitude! })} className="text-left text-blue-600 hover:underline">{[project.locality?.address, project.cityName].filter(Boolean).join(", ")}</button> : <span>{[project.locality?.address, project.cityName].filter(Boolean).join(", ") || "Location not provided"}</span>}</p></div>
-      <div className="flex flex-wrap items-center gap-2">{project.status === "Active" && <Button variant="outline" onClick={() => { setAvailableUnitsInput(String(project.availableUnits ?? "")); setUnitsOpen(true); }}>Update Units</Button>}{statusOptions(project.status).length > 0 && <Button variant="outline" onClick={() => { setSelectedStatus(""); setStatusOpen(true); }}>Update Status</Button>}</div>
+      <div className="flex flex-wrap items-center gap-2">{project.status === "Active" && <Button variant="outline" className="bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground" onClick={() => { setAvailableUnitsInput(String(project.availableUnits ?? "")); setUnitsOpen(true); }}>Update Units</Button>}{statusOptions(project.status).length > 0 && <Button variant="outline" className="bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground" onClick={() => { setSelectedStatus(""); setStatusOpen(true); }}>Update Status</Button>}</div>
     </div>
 
     {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}

@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Eye, LayoutGrid, List, MapPin, XCircle } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Eye, LayoutGrid, List, Map, MapPin, XCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import Spinner from "@/components/Spinner";
+import ProjectMapView from "@/components/ProjectMapView";
 
 const STATUSES = ["UnderReview", "Active", "Inactive", "Sold", "Rejected"];
 const STATUS_STYLE: Record<string, string> = {
@@ -73,7 +75,7 @@ export default function ProjectsPage() {
   const [pendingRoleId, setPendingRoleId] = useState("");
   const [pendingUserId, setPendingUserId] = useState("");
   const [pendingStatus, setPendingStatus] = useState("");
-  const [view, setView] = useState<"list" | "grid">("list");
+  const [view, setView] = useState<"list" | "grid" | "map">("list");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rejectTarget, setRejectTarget] = useState<ProjectListingRecord | null>(null);
@@ -208,10 +210,10 @@ export default function ProjectsPage() {
 
   const actions = (project: ProjectListingRecord) => (
     <div className="flex items-center gap-1 whitespace-nowrap">
-      <button onClick={() => navigate(`/projects/${project._id}`)} className="rounded-md bg-green-50 p-1.5 text-green-600 transition-colors hover:bg-green-100" title="View" aria-label="View project"><Eye className="h-3.5 w-3.5" /></button>
+      <button onClick={(event) => { event.stopPropagation(); navigate(`/projects/${project._id}`); }} className="rounded-md bg-green-50 p-1.5 text-green-600 transition-colors hover:bg-green-100" title="View" aria-label="View project"><Eye className="h-3.5 w-3.5" /></button>
       {project.status === "UnderReview" && <>
-        <button onClick={() => void handleApprove(project)} className="rounded-md bg-blue-50 p-1.5 text-blue-600 transition-colors hover:bg-blue-100" title="Approve" aria-label="Approve project"><CheckCircle className="h-3.5 w-3.5" /></button>
-        <button onClick={() => { setRejectTarget(project); setRejectReasons([]); setRejectInput(""); }} className="rounded-md bg-red-50 p-1.5 text-red-500 transition-colors hover:bg-red-100" title="Reject" aria-label="Reject project"><XCircle className="h-3.5 w-3.5" /></button>
+        <button onClick={(event) => { event.stopPropagation(); void handleApprove(project); }} className="rounded-md bg-blue-50 p-1.5 text-blue-600 transition-colors hover:bg-blue-100" title="Approve" aria-label="Approve project"><CheckCircle className="h-3.5 w-3.5" /></button>
+        <button onClick={(event) => { event.stopPropagation(); setRejectTarget(project); setRejectReasons([]); setRejectInput(""); }} className="rounded-md bg-red-50 p-1.5 text-red-500 transition-colors hover:bg-red-100" title="Reject" aria-label="Reject project"><XCircle className="h-3.5 w-3.5" /></button>
       </>}
     </div>
   );
@@ -235,7 +237,7 @@ export default function ProjectsPage() {
         <div className="flex-1" />
         <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">{pendingCategoryId ? categories.find((item) => item._id === pendingCategoryId)?.name ?? "All Categories" : "All Categories"}<ChevronDown className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuItem onClick={() => setPendingCategoryId("")}>All Categories</DropdownMenuItem>{categories.map((item) => <DropdownMenuItem key={item._id} onClick={() => setPendingCategoryId(item._id)}>{item.name}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
         <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">{pendingStatus ? formatStatus(pendingStatus) : "All Statuses"}<ChevronDown className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuItem onClick={() => setPendingStatus("")}>All Statuses</DropdownMenuItem>{STATUSES.map((value) => <DropdownMenuItem key={value} onClick={() => setPendingStatus(value)}>{formatStatus(value)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
-        <div className="flex items-center gap-0.5 rounded-lg border p-1"><button type="button" title="Grid view" onClick={() => setView("grid")} className={`rounded-md p-1.5 ${view === "grid" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}><LayoutGrid className="h-3.5 w-3.5" /></button><button type="button" title="List view" onClick={() => setView("list")} className={`rounded-md p-1.5 ${view === "list" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}><List className="h-3.5 w-3.5" /></button></div>
+        <div className="flex items-center gap-0.5 rounded-lg border p-1"><button type="button" title="Grid view" onClick={() => setView("grid")} className={`rounded-md p-1.5 ${view === "grid" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}><LayoutGrid className="h-3.5 w-3.5" /></button><button type="button" title="List view" onClick={() => setView("list")} className={`rounded-md p-1.5 ${view === "list" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}><List className="h-3.5 w-3.5" /></button><button type="button" title="Map view" onClick={() => setView("map")} className={`rounded-md p-1.5 ${view === "map" ? "bg-muted" : "text-muted-foreground hover:text-foreground"}`}><Map className="h-3.5 w-3.5" /></button></div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Input value={pendingCity} onChange={(event) => setPendingCity(event.target.value)} placeholder="Search by city or locality..." className="h-9 w-[300px]" />
@@ -268,14 +270,18 @@ export default function ProjectsPage() {
         <div className="flex items-center gap-2"><Button size="sm" className="h-9" onClick={applyFilters}>Apply</Button>{hasAppliedFilters && <button onClick={clearFilters} className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-500 font-medium transition-colors ml-1 underline underline-offset-2">Clear all</button>}</div>
       </div>
 
-      {loading ? <div className="py-16 text-center text-sm text-muted-foreground">Loading projects…</div> : error ? <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : projects.length === 0 ? <div className="rounded-xl border bg-card py-16 text-center text-muted-foreground">No projects found.</div> : view === "grid" ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {projects.map((project) => <article key={project._id} className="overflow-hidden rounded-xl border bg-card">
+      {view === "map" ? <ProjectMapView filters={{ categoryId, city, roleId, userId, status }} onViewProject={(id) => navigate(`/projects/${id}`)} /> : loading ? <div className="flex items-center justify-center py-16"><Spinner fullPage={false} size="md" label="Loading projects..." /></div> : error ? <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : projects.length === 0 ? <div className="rounded-xl border bg-card py-16 text-center text-muted-foreground">No projects found.</div> : view === "grid" ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {projects.map((project) => <article key={project._id} role="link" tabIndex={0} onClick={() => navigate(`/projects/${project._id}`)} onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); navigate(`/projects/${project._id}`); } }} className="cursor-pointer overflow-hidden rounded-xl border bg-card">
             {project.media?.images?.[0] ? <img src={project.media.images[0]} alt={project.projectName} className="h-48 w-full object-cover" /> : <div className="flex h-48 items-center justify-center bg-muted text-sm text-muted-foreground">No project photo</div>}
             <div className="space-y-2 p-4"><div className="flex items-start justify-between gap-2"><h2 className="font-bold">{project.projectName}</h2><span className={`rounded-full border px-2 py-0.5 text-[11px] ${STATUS_STYLE[project.status] ?? ""}`}>{formatStatus(project.status)}</span></div>
               <p className="text-xs text-muted-foreground">{project.category?.name ?? "—"} · {project.developerName ?? "Developer not provided"}</p>
               <p className="flex items-start gap-1 text-xs text-muted-foreground"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{[project.locality?.address, project.cityName].filter(Boolean).join(", ") || "—"}</p>
-              <p className="text-sm font-semibold">{formatPrice(project.minPrice)} – {formatPrice(project.maxPrice)}</p>{actions(project)}
+              <p className="text-sm font-semibold">{formatPrice(project.minPrice)} – {formatPrice(project.maxPrice)}</p>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                {actions(project)}
+                {getStatusOptions(project.status).length > 0 && <Button variant="outline" size="sm" className="h-8 bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground" onClick={(event) => { event.stopPropagation(); setStatusTarget({ project, status: "" }); }}>Update Status</Button>}
+              </div>
             </div>
           </article>)}
         </div>
@@ -303,7 +309,13 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-end gap-3"><span className="text-sm text-muted-foreground">Page {page} of {Math.max(1, totalPages)}</span><Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}><ChevronLeft className="h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>Next<ChevronRight className="h-4 w-4" /></Button></div>
 
       <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open && !rejectLoading) { setRejectTarget(null); setRejectReasons([]); setRejectInput(""); } }}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Reject Project</DialogTitle></DialogHeader><div className="space-y-3"><p className="text-sm text-muted-foreground">Add one or more rejection reasons. Press <kbd className="rounded border px-1.5 py-0.5 font-mono text-xs">Enter</kbd> after each reason to add it.</p>{rejectReasons.length > 0 && <div className="flex flex-wrap gap-2">{rejectReasons.map((reason, index) => <span key={`${reason}-${index}`} className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700">{reason}<button type="button" onClick={() => setRejectReasons((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="font-bold leading-none hover:text-red-900" aria-label={`Remove ${reason}`}>×</button></span>)}</div>}<input autoFocus value={rejectInput} onChange={(event) => setRejectInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addRejectReason(); } }} placeholder="Type a reason and press Enter..." className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />{rejectReasons.length === 0 && <p className="text-xs text-red-500">At least 1 reason is required</p>}</div><DialogFooter className="gap-2"><Button variant="outline" onClick={() => { setRejectTarget(null); setRejectReasons([]); setRejectInput(""); }} disabled={rejectLoading}>Cancel</Button><Button variant="destructive" onClick={() => void handleReject()} disabled={rejectLoading || rejectReasons.length === 0}>{rejectLoading ? "Rejecting..." : "Reject"}</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open && !statusLoading) setStatusTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Update Project Status</DialogTitle></DialogHeader><p>Change {statusTarget?.project.projectName} to <strong>{statusTarget ? formatStatus(statusTarget.status) : ""}</strong>?</p><DialogFooter><Button variant="outline" disabled={statusLoading} onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={statusLoading} onClick={() => void handleStatusUpdate()}>{statusLoading ? "Updating…" : "Confirm"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open && !statusLoading) setStatusTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Update Project Status</DialogTitle></DialogHeader>
+        {statusTarget && !statusTarget.status ? <>
+          <p className="text-sm text-muted-foreground">Current status: {formatStatus(statusTarget.project.status)}</p>
+          <div className="flex flex-col gap-2">{getStatusOptions(statusTarget.project.status).map((option) => <button key={option} type="button" onClick={() => setStatusTarget((current) => current ? { ...current, status: option } : current)} className={`rounded-lg border px-3 py-2 text-left text-sm ${statusTarget.status === option ? "border-primary bg-primary/5" : ""}`}>{option === "Active" ? "Mark as Active" : `Mark as ${option}`}</button>)}</div>
+        </> : <p className="text-sm text-muted-foreground">Change {statusTarget?.project.projectName} to <strong>{statusTarget ? formatStatus(statusTarget.status) : ""}</strong>?</p>}
+        <DialogFooter><Button variant="outline" disabled={statusLoading} onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={statusLoading || !statusTarget?.status} onClick={() => void handleStatusUpdate()}>{statusLoading ? "Updating…" : "Confirm"}</Button></DialogFooter>
+      </DialogContent></Dialog>
       <Dialog open={!!mapsTarget} onOpenChange={(open) => { if (!open) setMapsTarget(null); }}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Open in Google Maps</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Open “{mapsTarget?.address}” in Google Maps?</p><DialogFooter><Button variant="outline" onClick={() => setMapsTarget(null)}>Cancel</Button><Button onClick={() => { if (!mapsTarget) return; window.open(`https://www.google.com/maps?q=${mapsTarget.lat},${mapsTarget.lng}`, "_blank", "noopener,noreferrer"); setMapsTarget(null); }}>Open Maps</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );

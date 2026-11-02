@@ -68,6 +68,26 @@ const getAll = async (req, res) => {
   }
 };
 
+// GET /admin/project-listings/map-pins (admin auth)
+// Optional query: categoryId, city, roleId, userId, status (same filters as GET /admin/project-listings).
+// Returns all matching records with coordinates as { success: true, data: [...] }; deliberately unpaginated for map rendering.
+const getMapPins = async (req, res) => {
+  try {
+    const filter = buildQuery(req.query);
+    filter["locality.latitude"] = { $exists: true, $ne: null };
+    filter["locality.longitude"] = { $exists: true, $ne: null };
+
+    const pins = await ProjectListing.find(filter)
+      .select("projectName developerName category cityName locality media.images status projectStatus minPrice maxPrice totalUnits availableUnits possessionDate")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ success: true, data: pins });
+  } catch (error) {
+    return res.status(error.message.startsWith("Invalid ") ? 400 : 500).json({ success: false, message: error.message });
+  }
+};
+
 const getById = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid project listing ID" });
@@ -195,4 +215,4 @@ const updateStatus = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getById, approve, reject, updateStatus, updateAvailableUnits };
+module.exports = { getAll, getMapPins, getById, approve, reject, updateStatus, updateAvailableUnits };

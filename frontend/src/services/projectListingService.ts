@@ -56,9 +56,16 @@ export interface ProjectListingFilters {
   status?: string;
 }
 
+export type ProjectMapPin = Pick<ProjectListingRecord, "_id" | "projectName" | "developerName" | "category" | "cityName" | "locality" | "media" | "status" | "projectStatus" | "minPrice" | "maxPrice" | "totalUnits" | "availableUnits" | "possessionDate">;
+
+export type ProjectMapFilters = Omit<ProjectListingFilters, "page" | "limit">;
+
 export const projectListingService = {
   getAll: (filters: ProjectListingFilters = {}) =>
     api.get<{ success: boolean; data: { projects: ProjectListingRecord[]; stats: Record<string, number> }; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/admin/project-listings", { params: filters }),
+  // Returns every matching project with coordinates; results are not paginated for map rendering.
+  getMapPins: (filters: ProjectMapFilters = {}) =>
+    api.get<{ success: boolean; data: ProjectMapPin[] }>("/admin/project-listings/map-pins", { params: filters }),
   getById: (id: string) =>
     api.get<{ success: boolean; data: ProjectListingRecord }>(`/admin/project-listings/${id}`),
   approve: (id: string) =>

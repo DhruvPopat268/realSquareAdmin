@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 import {
   ChevronDown, LayoutGrid, List, Map,
-  Bed, Eye, ChevronLeft, ChevronRight, CheckCircle, XCircle, Zap,
+  Bed, Eye, ChevronLeft, ChevronRight, CheckCircle, XCircle,
 } from "lucide-react";
 import { type ListingStatus } from "@/data/propertiesData";
 import PropertyMapView from "@/components/PropertyMapView";
@@ -85,7 +85,19 @@ function PropertyCard({ p, onClick, onApprove, onReject, onStatusUpdate }: {
   const statusOptions = getAvailableStatusOptions(p.status, p.listingType?.id?.toString());
 
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer"
+    >
       <div className="p-[9px] pb-0">
         <div className="relative h-48 overflow-hidden rounded-lg">
           {images.length > 0 ? (
@@ -93,12 +105,6 @@ function PropertyCard({ p, onClick, onApprove, onReject, onStatusUpdate }: {
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground text-xs">No image</div>
           )}
-          {/* Top-right actions */}
-          <div className="absolute top-3 right-3 flex gap-1">
-            <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-1.5 rounded-full bg-white/90 hover:bg-green-50 text-green-600 transition-colors">
-              <Eye className="h-3.5 w-3.5" />
-            </button>
-          </div>
           {/* Status badge */}
           <div className="absolute bottom-2 left-2">
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusStyle[p.status] ?? "bg-gray-100 text-gray-600"}`}>{p.status}</span>
@@ -154,10 +160,17 @@ function PropertyCard({ p, onClick, onApprove, onReject, onStatusUpdate }: {
         )}
       </div>
 
-      {/* Card footer: Approve/Reject left · Update Status right */}
-      {(p.status === "UnderReview" || statusOptions.length > 0) && (
-        <div className="px-3 pb-3 pt-1 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+      {/* Card footer: View, Approve/Reject left · Update Status right */}
+      <div className="px-3 pb-3 pt-1 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-1">
+            <button
+              onClick={onClick}
+              className="p-1.5 rounded-md bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+              title="View"
+              aria-label="View property"
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </button>
             {p.status === "UnderReview" && (
               <>
                 <button
@@ -178,16 +191,17 @@ function PropertyCard({ p, onClick, onApprove, onReject, onStatusUpdate }: {
             )}
           </div>
           {statusOptions.length > 0 && (
-            <button
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => onStatusUpdate(p, statusOptions)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-amber-500 text-white text-[11px] font-semibold hover:bg-amber-600 transition-colors"
+              className="h-8 bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground"
             >
-              <Zap className="h-3 w-3" />
               Update Status
-            </button>
+            </Button>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
