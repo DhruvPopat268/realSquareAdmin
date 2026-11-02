@@ -59,7 +59,8 @@ const inquiryStatusStyle: Record<AdminInquiry["status"], string> = {
   rejected: "bg-rose-50 text-rose-700",
 };
 
-function formatBudget(min: number, max: number) {
+function formatBudget(min?: number, max?: number) {
+  if (min == null || max == null) return "—";
   const format = (amount: number) => new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
@@ -678,7 +679,7 @@ export default function EnquiriesPage() {
                   <p className="text-xs text-muted-foreground">{enquiry.preferredArea || "—"}</p>
                 </td>
                 {/* Budget */}
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatBudget(enquiry.budget.min, enquiry.budget.max)}</td>
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatBudget(enquiry.budget?.min, enquiry.budget?.max)}</td>
                 {/* BHK */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                   {enquiry.bhk != null ? enquiry.bhk : "—"}

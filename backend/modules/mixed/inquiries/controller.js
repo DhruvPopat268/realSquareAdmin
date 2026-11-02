@@ -27,7 +27,7 @@ const createInquiry = async (req, res) => {
     const {
       isProperty, listingType, propertyCategory, propertyType,
       preferredCity, preferredArea, budget, bhk, builtUpArea,
-      plotArea, furnishingType, inquiryClassification, lastFollowUpDate,
+      plotArea, coworkingWorkspaces, furnishingType, inquiryClassification, lastFollowUpDate,
       remarks, preferredCommunication,
     } = req.body;
 
@@ -54,10 +54,11 @@ const createInquiry = async (req, res) => {
       isProperty,
       listingType,
       preferredCity,
-      budget: { min: budget.min, max: budget.max },
       inquiryClassification,
       lastFollowUpDate,
       preferredCommunication,
+      ...(budget && { budget: { min: budget.min, max: budget.max } }),
+      ...(coworkingWorkspaces && { coworkingWorkspaces }),
       status: "active",
       ...(furnishingType                  && { furnishingType }),
       ...(propertyCategory                && { propertyCategory }),

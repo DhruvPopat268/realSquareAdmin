@@ -49,6 +49,11 @@ const PT_RESIDENTIAL_APARTMENT   = "6a4221fc1fb23447b0936b10"; // Apartment (res
 const PT_RESIDENTIAL_PLOT        = "6a670a5f34d4283bdc621933"; // Plot (residential)
 const PT_COMMERCIAL_OFFICE       = "6a4221fc1fb23447b0936b12"; // Office (commercial)
 const PT_COMMERCIAL_PLOT         = "6a670ab234d4283bdc621960"; // Plot (commercial)
+const PT_COMMERCIAL_COWORKING    = process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID;
+const coworkingFixtureTest = (...args) =>
+  USER_TOKEN && LISTING_TYPE_RENT_ID && CATEGORY_COMMERCIAL_ID && PT_COMMERCIAL_COWORKING
+    ? test(...args)
+    : test.skip(...args);
 
 const FAKE_VALID_ID = "000000000000000000000001"; // Valid ObjectId format, no doc in DB
 const INVALID_ID    = "not-a-valid-mongo-id";
@@ -662,6 +667,77 @@ describe("Happy path — 201 successful inquiry creation", () => {
     expect(res.body.inquiry.builtUpArea.unit).toBe("sqft");
   });
 
+  coworkingFixtureTest("201 — Co-working inquiry stores workspace seat and rent requirements without a global budget", async () => {
+    const payload = {
+      isProperty: true,
+      listingType: LISTING_TYPE_RENT_ID,
+      propertyCategory: CATEGORY_COMMERCIAL_ID,
+      propertyType: PT_COMMERCIAL_COWORKING,
+      preferredCity: "Hyderabad",
+      preferredArea: "HITEC City",
+      coworkingWorkspaces: [
+        { type: "hall", requiredSeats: 12, minRentPerSeat: 4000, maxRentPerSeat: 6000 },
+        { type: "cabin", requiredSeats: 4, minRentPerSeat: 7000, maxRentPerSeat: 10000 },
+        { type: "virtualSpace", minMonthlyRent: 1500, maxMonthlyRent: 3000 },
+      ],
+      inquiryClassification: "warm",
+      lastFollowUpDate: "2026-12-15T00:00:00.000Z",
+      preferredCommunication: ["call"],
+    };
+
+    const created = await postInquiry(payload);
+    expect(created.statusCode).toBe(201);
+    expect(created.body.inquiry.budget).toBeUndefined();
+    expect(created.body.inquiry.coworkingWorkspaces).toEqual(payload.coworkingWorkspaces);
+
+    const mine = await request(app)
+      .get(`/api/mixed/inquiries/my?typeId=${PT_COMMERCIAL_COWORKING}&categoryId=${CATEGORY_COMMERCIAL_ID}&purposeId=${LISTING_TYPE_RENT_ID}`)
+      .set("Authorization", `Bearer ${USER_TOKEN}`);
+    expect(mine.statusCode).toBe(200);
+    const persisted = mine.body.data.inquiries.find((inquiry) => inquiry._id === created.body.inquiry._id);
+    expect(persisted?.coworkingWorkspaces).toEqual(payload.coworkingWorkspaces);
+  });
+
+  coworkingFixtureTest("400 — Co-working inquiry rejects a rent range whose maximum is below its minimum", async () => {
+    const res = await postInquiry({
+      isProperty: true,
+      listingType: LISTING_TYPE_RENT_ID,
+      propertyCategory: CATEGORY_COMMERCIAL_ID,
+      propertyType: PT_COMMERCIAL_COWORKING,
+      preferredCity: "Hyderabad",
+      coworkingWorkspaces: [{ type: "hall", requiredSeats: 4, minRentPerSeat: 6000, maxRentPerSeat: 5000 }],
+      inquiryClassification: "warm",
+      lastFollowUpDate: "2026-12-15T00:00:00.000Z",
+      preferredCommunication: ["call"],
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/maximum.*minimum/i);
+  });
+
+  coworkingFixtureTest("400 — Co-working property type requires Rent purpose", async () => {
+    const res = await postInquiry({
+      ...BASE_PAYLOAD,
+      listingType: LISTING_TYPE_SELL_ID,
+      propertyCategory: CATEGORY_COMMERCIAL_ID,
+      propertyType: PT_COMMERCIAL_COWORKING,
+      budget: { min: 1000, max: 5000 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/requires the Rent purpose/i);
+  });
+
+  coworkingFixtureTest("400 — Co-working property type requires Commercial category", async () => {
+    const res = await postInquiry({
+      ...BASE_PAYLOAD,
+      listingType: LISTING_TYPE_RENT_ID,
+      propertyCategory: CATEGORY_RESIDENTIAL_ID,
+      propertyType: PT_COMMERCIAL_COWORKING,
+      budget: { min: 1000, max: 5000 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/requires the Commercial category/i);
+  });
+
   test("201 — Residential Plot inquiry with plotArea", async () => {
     const res = await postInquiry({
       isProperty:             true,
@@ -921,6 +997,48 @@ describe("GET /api/mixed/inquiries/assigned", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data.assignments)).toBe(true);
+  });
+
+  coworkingFixtureTest("200 — assigned inquiry results include stored co-working workspace requirements", async () => {
+    const { id: decodedUserId } = jwt.verify(USER_TOKEN, process.env.USER_JWT_SECRET);
+    const userId = new mongoose.Types.ObjectId(decodedUserId);
+    const roleId = new mongoose.Types.ObjectId();
+    const uniqueCity = `coworkingInquiry${Date.now()}`;
+    let inquiryId;
+
+    try {
+      const inquiry = await Inquiry.create({
+        createdBy: { id: userId, name: "Co-working Test Creator", mobile: "9000000000", role: roleId },
+        isProperty: true,
+        listingType: LISTING_TYPE_RENT_ID,
+        propertyCategory: CATEGORY_COMMERCIAL_ID,
+        propertyType: PT_COMMERCIAL_COWORKING,
+        preferredCity: uniqueCity,
+        coworkingWorkspaces: [{ type: "hall", requiredSeats: 8, minRentPerSeat: 3000, maxRentPerSeat: 5000 }],
+        inquiryClassification: "warm",
+        lastFollowUpDate: new Date("2026-12-15T00:00:00.000Z"),
+        preferredCommunication: ["call"],
+        status: "active",
+      });
+      inquiryId = inquiry._id;
+      await AssignedInquiry.create({
+        inquiry: inquiry._id,
+        assignedTo: { id: userId, name: "Co-working Test Assignee", mobile: "9111111111", role: roleId },
+        status: "active",
+        assignmentSource: "automatic",
+      });
+
+      const response = await getAssigned(USER_TOKEN, { search: uniqueCity });
+      expect(response.statusCode).toBe(200);
+      expect(response.body.data.assignments[0]?.inquiry.coworkingWorkspaces).toEqual([
+        { type: "hall", requiredSeats: 8, minRentPerSeat: 3000, maxRentPerSeat: 5000 },
+      ]);
+    } finally {
+      if (inquiryId) {
+        await AssignedInquiry.deleteMany({ inquiry: inquiryId });
+        await Inquiry.deleteOne({ _id: inquiryId });
+      }
+    }
   });
 
   userFixtureTest("hides closed locked assignments, retains purchased ones, and excludes hidden records from stats", async () => {

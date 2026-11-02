@@ -20,7 +20,7 @@ export interface AdminInquiry {
   propertyType?: InquiryReference | null;
   preferredCity: string;
   preferredArea?: string;
-  budget: { min: number; max: number };
+  budget?: { min?: number; max?: number } | null;
   bhk?: number;
   builtUpArea?: { value?: number; unit?: string };
   plotArea?: { value?: number; unit?: string };

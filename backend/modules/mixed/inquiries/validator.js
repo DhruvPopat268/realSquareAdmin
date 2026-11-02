@@ -3,6 +3,15 @@ const PropertyPurpose = require("../../admin/propertyPurposes/model");
 const PropertyCategory = require("../../admin/propertyCategories/model");
 const PropertyType = require("../../admin/propertyTypes/model");
 
+const isCoworkingInquiry = (body = {}) => Boolean(
+  process.env.LISTING_TYPE_RENT_ID &&
+  process.env.CATEGORY_COMMERCIAL_ID &&
+  process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID &&
+  String(body.listingType ?? "") === String(process.env.LISTING_TYPE_RENT_ID) &&
+  String(body.propertyCategory ?? "") === String(process.env.CATEGORY_COMMERCIAL_ID) &&
+  String(body.propertyType ?? "") === String(process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID)
+);
+
 // ── Reusable middleware to return first validation error ──────────────────────
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -53,6 +62,14 @@ const createInquiryValidator = [
     .custom(async (id, { req }) => {
       const propertyType = await PropertyType.findOne({ _id: id, isActive: true }).select("_id propertyCategory").lean();
       if (!propertyType) throw new Error("propertyType must reference an existing active property type");
+      if (process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID && String(id) === String(process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID)) {
+        if (String(req.body.propertyCategory ?? "") !== String(process.env.CATEGORY_COMMERCIAL_ID ?? "")) {
+          throw new Error("Co-working property type requires the Commercial category");
+        }
+        if (String(req.body.listingType ?? "") !== String(process.env.LISTING_TYPE_RENT_ID ?? "")) {
+          throw new Error("Co-working property type requires the Rent purpose");
+        }
+      }
       if (req.body.propertyCategory && propertyType.propertyCategory.toString().toLowerCase() !== String(req.body.propertyCategory).toLowerCase()) {
         throw new Error("propertyType must belong to the selected propertyCategory");
       }
@@ -73,10 +90,12 @@ const createInquiryValidator = [
 
   // ── budget ──────────────────────────────────────────────────────────────────
   body("budget.min")
+    .if((_, { req }) => !isCoworkingInquiry(req.body))
     .notEmpty().withMessage("budget.min is required")
     .isFloat({ min: 0 }).withMessage("budget.min must be a positive number"),
 
   body("budget.max")
+    .if((_, { req }) => !isCoworkingInquiry(req.body))
     .notEmpty().withMessage("budget.max is required")
     .isFloat({ min: 0 }).withMessage("budget.max must be a positive number")
     .custom((max, { req }) => {
@@ -84,6 +103,52 @@ const createInquiryValidator = [
         throw new Error("budget.max must be greater than budget.min");
       return true;
     }),
+
+  // Co-working uses per-workspace rent ranges instead of a global budget.
+  body("coworkingWorkspaces").custom((workspaces, { req }) => {
+    const coworking = isCoworkingInquiry(req.body);
+    if (!coworking) {
+      if (workspaces !== undefined) throw new Error("coworkingWorkspaces is only allowed for Rent / Commercial / Co-working inquiries");
+      return true;
+    }
+
+    if (req.body.budget !== undefined) throw new Error("budget must be omitted for co-working inquiries");
+    if (!Array.isArray(workspaces) || workspaces.length < 1 || workspaces.length > 3) {
+      throw new Error("coworkingWorkspaces must contain one to three workspace types");
+    }
+
+    const seenTypes = new Set();
+    for (const [index, workspace] of workspaces.entries()) {
+      if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) {
+        throw new Error(`coworkingWorkspaces[${index}] must be an object`);
+      }
+      if (!["hall", "cabin", "virtualSpace"].includes(workspace.type)) {
+        throw new Error(`coworkingWorkspaces[${index}].type must be hall, cabin, or virtualSpace`);
+      }
+      if (seenTypes.has(workspace.type)) throw new Error(`coworkingWorkspaces cannot contain duplicate ${workspace.type} entries`);
+      seenTypes.add(workspace.type);
+
+      const isVirtual = workspace.type === "virtualSpace";
+      const minRent = Number(isVirtual ? workspace.minMonthlyRent : workspace.minRentPerSeat);
+      const maxRent = Number(isVirtual ? workspace.maxMonthlyRent : workspace.maxRentPerSeat);
+      if (!Number.isFinite(minRent) || minRent <= 0 || !Number.isFinite(maxRent) || maxRent <= 0 || maxRent < minRent) {
+        throw new Error(`${workspace.type} must include a valid minimum and maximum rent, with maximum at least the minimum`);
+      }
+
+      if (isVirtual) {
+        if (workspace.requiredSeats !== undefined || workspace.minRentPerSeat !== undefined || workspace.maxRentPerSeat !== undefined) {
+          throw new Error("Virtual Space requirements use monthly rent and do not accept seat fields");
+        }
+      } else {
+        const seats = Number(workspace.requiredSeats);
+        if (!Number.isInteger(seats) || seats < 1) throw new Error(`${workspace.type} requiredSeats must be a positive whole number`);
+        if (workspace.minMonthlyRent !== undefined || workspace.maxMonthlyRent !== undefined) {
+          throw new Error(`${workspace.type} requirements use rent per seat and do not accept monthly total rent fields`);
+        }
+      }
+    }
+    return true;
+  }),
 
   // ── bhk (optional) ──────────────────────────────────────────────────────────
   body("bhk")

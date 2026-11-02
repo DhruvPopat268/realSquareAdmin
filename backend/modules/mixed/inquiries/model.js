@@ -1,5 +1,56 @@
 const mongoose = require("mongoose");
 
+const isCoworkingInquiry = (inquiry) => Boolean(
+  process.env.LISTING_TYPE_RENT_ID &&
+  process.env.CATEGORY_COMMERCIAL_ID &&
+  process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID &&
+  String(inquiry?.listingType ?? "") === String(process.env.LISTING_TYPE_RENT_ID) &&
+  String(inquiry?.propertyCategory ?? "") === String(process.env.CATEGORY_COMMERCIAL_ID) &&
+  String(inquiry?.propertyType ?? "") === String(process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID)
+);
+
+const coworkingWorkspaceRequirementSchema = new mongoose.Schema(
+  {
+    type: { type: String, enum: ["hall", "cabin", "virtualSpace"], required: true },
+    requiredSeats: {
+      type: Number,
+      min: 1,
+      required: function () { return this.type === "hall" || this.type === "cabin"; },
+    },
+    minRentPerSeat: {
+      type: Number,
+      min: 1,
+      required: function () { return this.type === "hall" || this.type === "cabin"; },
+    },
+    maxRentPerSeat: {
+      type: Number,
+      min: 1,
+      required: function () { return this.type === "hall" || this.type === "cabin"; },
+      validate: { validator: function (value) { return value >= this.minRentPerSeat; }, message: "maxRentPerSeat must be at least minRentPerSeat" },
+    },
+    minMonthlyRent: {
+      type: Number,
+      min: 1,
+      required: function () { return this.type === "virtualSpace"; },
+    },
+    maxMonthlyRent: {
+      type: Number,
+      min: 1,
+      required: function () { return this.type === "virtualSpace"; },
+      validate: { validator: function (value) { return value >= this.minMonthlyRent; }, message: "maxMonthlyRent must be at least minMonthlyRent" },
+    },
+  },
+  { _id: false },
+);
+
+const budgetRangeSchema = new mongoose.Schema(
+  {
+    min: { type: Number, min: 0, required: true },
+    max: { type: Number, min: 0, required: true },
+  },
+  { _id: false },
+);
+
 const inquirySchema = new mongoose.Schema(
   {
     // User who created the inquiry
@@ -71,16 +122,18 @@ const inquirySchema = new mongoose.Schema(
 
     // Budget range
     budget: {
-      min: {
-        type: Number,
-        min: 0,
-        required: true,
-      },
-      max: {
-        type: Number,
-        min: 0,
-        required: true,
-      },
+      type: budgetRangeSchema,
+      required: function () { return !isCoworkingInquiry(this); },
+    },
+
+    // Workspace requirements replace the global budget for co-working inquiries.
+    coworkingWorkspaces: {
+      type: [coworkingWorkspaceRequirementSchema],
+      default: undefined,
+      validate: [
+        { validator: (workspaces) => workspaces.length >= 1 && workspaces.length <= 3, message: "coworkingWorkspaces must contain one to three workspace types" },
+        { validator: (workspaces) => new Set(workspaces.map(({ type }) => type)).size === workspaces.length, message: "coworkingWorkspaces cannot contain duplicate workspace types" },
+      ],
     },
 
     // BHK requirement (for residential properties)
