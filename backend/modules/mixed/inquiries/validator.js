@@ -1,7 +1,16 @@
 const { body, validationResult } = require("express-validator");
+const mongoose = require("mongoose");
 const PropertyPurpose = require("../../admin/propertyPurposes/model");
 const PropertyCategory = require("../../admin/propertyCategories/model");
 const PropertyType = require("../../admin/propertyTypes/model");
+const IdealFor = require("../../admin/idealFor/model");
+
+const isUnderConstructionInquiry = (body = {}) => body.isProperty === false;
+const isUnderConstructionCommercial = (body = {}) => Boolean(
+  isUnderConstructionInquiry(body) &&
+  process.env.CATEGORY_COMMERCIAL_ID &&
+  String(body.propertyCategory ?? "") === String(process.env.CATEGORY_COMMERCIAL_ID)
+);
 
 const isCoworkingInquiry = (body = {}) => Boolean(
   process.env.LISTING_TYPE_RENT_ID &&
@@ -41,6 +50,12 @@ const createInquiryValidator = [
       const purpose = await PropertyPurpose.findOne({ _id: id, isActive: true }).select("_id").lean();
       if (!purpose) throw new Error("listingType must reference an existing active property purpose");
       return true;
+    })
+    .custom((id, { req }) => {
+      if (isUnderConstructionInquiry(req.body) && String(id) !== String(process.env.LISTING_TYPE_SELL_ID ?? "")) {
+        throw new Error("Under Construction requirements must use the Sell purpose");
+      }
+      return true;
     }),
 
   // ── propertyCategory (optional) ─────────────────────────────────────────────
@@ -54,12 +69,23 @@ const createInquiryValidator = [
       return true;
     }),
 
+  body("propertyCategory").custom((id, { req }) => {
+    if (!isUnderConstructionInquiry(req.body)) return true;
+    if (!id) throw new Error("propertyCategory is required for Under Construction requirements");
+    const supported = [process.env.CATEGORY_RESIDENTIAL_ID, process.env.CATEGORY_COMMERCIAL_ID].filter(Boolean).map(String);
+    if (!supported.includes(String(id))) throw new Error("Under Construction requirements must use Residential or Commercial category");
+    return true;
+  }),
+
   // ── propertyType (optional) ─────────────────────────────────────────────────
   body("propertyType")
     .optional()
     .isMongoId().withMessage("propertyType must be a valid ID")
     .bail()
     .custom(async (id, { req }) => {
+      if (isUnderConstructionInquiry(req.body)) {
+        throw new Error("propertyType must be omitted for Under Construction requirements");
+      }
       const propertyType = await PropertyType.findOne({ _id: id, isActive: true }).select("_id propertyCategory").lean();
       if (!propertyType) throw new Error("propertyType must reference an existing active property type");
       if (process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID && String(id) === String(process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID)) {
@@ -75,6 +101,13 @@ const createInquiryValidator = [
       }
       return true;
     }),
+
+  body("propertyType").custom((id, { req }) => {
+    if (isUnderConstructionInquiry(req.body) && id !== undefined) {
+      throw new Error("propertyType must be omitted for Under Construction requirements");
+    }
+    return true;
+  }),
 
   // ── preferredCity ───────────────────────────────────────────────────────────
   body("preferredCity")
@@ -154,6 +187,67 @@ const createInquiryValidator = [
   body("bhk")
     .optional()
     .isInt({ min: 0 }).withMessage("bhk must be a non-negative integer"),
+
+  body("bhk").custom((value, { req }) => {
+    if (!isUnderConstructionInquiry(req.body)) return true;
+    if (String(req.body.propertyCategory ?? "") === String(process.env.CATEGORY_RESIDENTIAL_ID ?? "") && value === undefined) {
+      throw new Error("bhk is required for Under Construction Residential requirements");
+    }
+    if (isUnderConstructionCommercial(req.body) && value !== undefined) {
+      throw new Error("bhk is only allowed for Under Construction Residential requirements");
+    }
+    return true;
+  }),
+
+  body("carpetArea").custom((area, { req }) => {
+    if (!isUnderConstructionCommercial(req.body)) {
+      if (area !== undefined) throw new Error("carpetArea is only allowed for Under Construction Commercial requirements");
+      return true;
+    }
+    if (!area || typeof area !== "object" || Array.isArray(area)) {
+      throw new Error("carpetArea with value and unit is required for Under Construction Commercial requirements");
+    }
+    if (!Number.isFinite(Number(area.value)) || Number(area.value) <= 0) {
+      throw new Error("carpetArea.value must be greater than zero");
+    }
+    if (!["sqft", "sqyd", "sqmt"].includes(area.unit)) {
+      throw new Error("carpetArea.unit must be sqft, sqyd, or sqmt");
+    }
+    return true;
+  }),
+
+  body("idealFor").custom(async (options, { req }) => {
+    if (!isUnderConstructionCommercial(req.body)) {
+      if (options !== undefined) throw new Error("idealFor is only allowed for Under Construction Commercial requirements");
+      return true;
+    }
+    if (!Array.isArray(options) || options.length !== 1) {
+      throw new Error("idealFor must include exactly one configured option for Under Construction Commercial requirements");
+    }
+    if (options.some((id) => !mongoose.isValidObjectId(id))) {
+      throw new Error("idealFor must contain valid option IDs");
+    }
+    if (new Set(options.map(String)).size !== options.length) {
+      throw new Error("idealFor cannot contain duplicate options");
+    }
+    const activeCount = await IdealFor.countDocuments({ _id: { $in: options }, isActive: true });
+    if (activeCount !== options.length) throw new Error("idealFor must reference active configured options");
+    return true;
+  }),
+
+  body("builtUpArea").custom((area, { req }) => {
+    if (isUnderConstructionInquiry(req.body) && area !== undefined) {
+      throw new Error("builtUpArea is not used for Under Construction requirements; use carpetArea for Commercial");
+    }
+    return true;
+  }),
+
+  body("plotArea").custom((area, { req }) => {
+    if (isUnderConstructionInquiry(req.body) && area !== undefined) {
+      throw new Error("plotArea is not used for Under Construction requirements");
+    }
+    return true;
+  }),
 
   // ── builtUpArea (optional) ──────────────────────────────────────────────────
   body("builtUpArea.value")

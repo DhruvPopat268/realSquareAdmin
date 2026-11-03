@@ -25,6 +25,7 @@ const mongoose = require("mongoose");
 const app     = require("../../../server");
 const { Inquiry } = require("./model");
 const { AssignedInquiry } = require("./assignedInquiriesModel");
+const IdealFor = require("../../admin/idealFor/model");
 const EnquiryPurchasedPlan = require("../enquiryPurchasedPlans/model");
 const UserCoinsWallet = require("../userCoinsWallet/model");
 const CoinsTransaction = require("../coinsTransactions/model");
@@ -52,6 +53,10 @@ const PT_COMMERCIAL_PLOT         = "6a670ab234d4283bdc621960"; // Plot (commerci
 const PT_COMMERCIAL_COWORKING    = process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID;
 const coworkingFixtureTest = (...args) =>
   USER_TOKEN && LISTING_TYPE_RENT_ID && CATEGORY_COMMERCIAL_ID && PT_COMMERCIAL_COWORKING
+    ? test(...args)
+    : test.skip(...args);
+const underConstructionFixtureTest = (...args) =>
+  USER_TOKEN && LISTING_TYPE_SELL_ID && CATEGORY_RESIDENTIAL_ID && CATEGORY_COMMERCIAL_ID
     ? test(...args)
     : test.skip(...args);
 
@@ -777,20 +782,98 @@ describe("Happy path — 201 successful inquiry creation", () => {
     expect(res.body.inquiry.propertyType).toBeUndefined();
   });
 
-  test("400 — Project inquiry is rejected because isProperty is false", async () => {
+  underConstructionFixtureTest("201 — Under Construction Residential requirement stores one BHK without a property type", async () => {
+    const city = `UnderConstructionResidential${Date.now()}`;
+    const payload = {
+      isProperty: false,
+      listingType: LISTING_TYPE_SELL_ID,
+      propertyCategory: CATEGORY_RESIDENTIAL_ID,
+      preferredCity: city,
+      budget: { min: 5000000, max: 10000000 },
+      bhk: 2,
+      inquiryClassification: "warm",
+      lastFollowUpDate: "2026-12-15T00:00:00.000Z",
+      preferredCommunication: ["call"],
+    };
+    const created = await postInquiry(payload);
+    expect(created.statusCode).toBe(201);
+    expect(created.body.inquiry.isProperty).toBe(false);
+    expect(created.body.inquiry.listingType).toBe(LISTING_TYPE_SELL_ID);
+    expect(created.body.inquiry.propertyType).toBeUndefined();
+    expect(created.body.inquiry.bhk).toBe(2);
+
+    const mine = await request(app)
+      .get(`/api/mixed/inquiries/my?search=${encodeURIComponent(city)}`)
+      .set("Authorization", `Bearer ${USER_TOKEN}`);
+    expect(mine.statusCode).toBe(200);
+    const persisted = mine.body.data.inquiries.find((inquiry) => inquiry._id === created.body.inquiry._id);
+    expect(persisted?.bhk).toBe(2);
+  });
+
+  underConstructionFixtureTest("201 — Under Construction Commercial requirement stores carpet area and configured Ideal For choices", async () => {
+    const option = await IdealFor.findOne({ isActive: true }).sort({ order: 1, _id: 1 }).lean();
+    expect(option).toBeDefined();
+    const city = `UnderConstructionCommercial${Date.now()}`;
+    const payload = {
+      isProperty: false,
+      listingType: LISTING_TYPE_SELL_ID,
+      propertyCategory: CATEGORY_COMMERCIAL_ID,
+      preferredCity: city,
+      budget: { min: 10000000, max: 30000000 },
+      carpetArea: { value: 1200, unit: "sqft" },
+      idealFor: [String(option._id)],
+      inquiryClassification: "warm",
+      lastFollowUpDate: "2026-12-15T00:00:00.000Z",
+      preferredCommunication: ["email"],
+    };
+    const created = await postInquiry(payload);
+    expect(created.statusCode).toBe(201);
+    expect(created.body.inquiry.propertyType).toBeUndefined();
+    expect(created.body.inquiry.carpetArea).toEqual(payload.carpetArea);
+    expect(created.body.inquiry.idealFor.map(String)).toContain(String(option._id));
+
+    const mine = await request(app)
+      .get(`/api/mixed/inquiries/my?search=${encodeURIComponent(city)}`)
+      .set("Authorization", `Bearer ${USER_TOKEN}`);
+    expect(mine.statusCode).toBe(200);
+    const persisted = mine.body.data.inquiries.find((inquiry) => inquiry._id === created.body.inquiry._id);
+    expect(persisted?.idealFor?.[0]?.name).toBe(option.name);
+    expect(persisted?.carpetArea).toEqual(payload.carpetArea);
+  });
+
+  underConstructionFixtureTest("400 — Under Construction Commercial requires Ideal For options", async () => {
     const res = await postInquiry({
-      isProperty:             false,
-      listingType:            LISTING_TYPE_SELL_ID,
-      preferredCity:          "Chennai",
-      budget:                 { min: 10000000, max: 30000000 },
-      furnishingType:         "Unfurnished",
-      inquiryClassification:  "warm",
-      lastFollowUpDate:       "2026-12-15T00:00:00.000Z",
+      isProperty: false,
+      listingType: LISTING_TYPE_SELL_ID,
+      propertyCategory: CATEGORY_COMMERCIAL_ID,
+      preferredCity: "Chennai",
+      budget: { min: 10000000, max: 30000000 },
+      carpetArea: { value: 1200, unit: "sqft" },
+      inquiryClassification: "warm",
+      lastFollowUpDate: "2026-12-15T00:00:00.000Z",
       preferredCommunication: ["call"],
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.message).toMatch(/only individual property enquiries are supported/i);
+    expect(res.body.message).toMatch(/idealFor/i);
+  });
+
+  underConstructionFixtureTest("400 — Under Construction Commercial accepts only one Ideal For option", async () => {
+    const option = await IdealFor.findOne({ isActive: true }).sort({ order: 1, _id: 1 }).lean();
+    expect(option).toBeDefined();
+    const res = await postInquiry({
+      isProperty: false,
+      listingType: LISTING_TYPE_SELL_ID,
+      propertyCategory: CATEGORY_COMMERCIAL_ID,
+      preferredCity: "Chennai",
+      budget: { min: 10000000, max: 30000000 },
+      carpetArea: { value: 1200, unit: "sqft" },
+      idealFor: [String(option._id), FAKE_VALID_ID],
+      inquiryClassification: "warm",
+      lastFollowUpDate: "2026-12-15T00:00:00.000Z",
+      preferredCommunication: ["call"],
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/exactly one/i);
   });
 
   test("201 — Response shape has all expected top-level keys", async () => {
@@ -1033,6 +1116,51 @@ describe("GET /api/mixed/inquiries/assigned", () => {
       expect(response.body.data.assignments[0]?.inquiry.coworkingWorkspaces).toEqual([
         { type: "hall", requiredSeats: 8, minRentPerSeat: 3000, maxRentPerSeat: 5000 },
       ]);
+    } finally {
+      if (inquiryId) {
+        await AssignedInquiry.deleteMany({ inquiry: inquiryId });
+        await Inquiry.deleteOne({ _id: inquiryId });
+      }
+    }
+  });
+
+  underConstructionFixtureTest("200 — assigned inquiry results include carpet area and populated Ideal For options", async () => {
+    const option = await IdealFor.findOne({ isActive: true }).sort({ order: 1, _id: 1 }).lean();
+    expect(option).toBeDefined();
+    const { id: decodedUserId } = jwt.verify(USER_TOKEN, process.env.USER_JWT_SECRET);
+    const userId = new mongoose.Types.ObjectId(decodedUserId);
+    const roleId = new mongoose.Types.ObjectId();
+    const uniqueCity = `UnderConstructionAssigned${Date.now()}`;
+    let inquiryId;
+
+    try {
+      const inquiry = await Inquiry.create({
+        createdBy: { id: userId, name: "Under Construction Test Creator", mobile: "9000000000", role: roleId },
+        isProperty: false,
+        listingType: LISTING_TYPE_SELL_ID,
+        propertyCategory: CATEGORY_COMMERCIAL_ID,
+        preferredCity: uniqueCity,
+        budget: { min: 10000000, max: 30000000 },
+        carpetArea: { value: 1200, unit: "sqft" },
+        idealFor: [option._id],
+        inquiryClassification: "warm",
+        lastFollowUpDate: new Date("2026-12-15T00:00:00.000Z"),
+        preferredCommunication: ["call"],
+        status: "active",
+      });
+      inquiryId = inquiry._id;
+      await AssignedInquiry.create({
+        inquiry: inquiry._id,
+        assignedTo: { id: userId, name: "Under Construction Test Assignee", mobile: "9111111111", role: roleId },
+        status: "active",
+        assignmentSource: "automatic",
+      });
+
+      const response = await getAssigned(USER_TOKEN, { search: uniqueCity });
+      expect(response.statusCode).toBe(200);
+      const persisted = response.body.data.assignments[0]?.inquiry;
+      expect(persisted?.carpetArea).toEqual({ value: 1200, unit: "sqft" });
+      expect(persisted?.idealFor?.[0]?.name).toBe(option.name);
     } finally {
       if (inquiryId) {
         await AssignedInquiry.deleteMany({ inquiry: inquiryId });

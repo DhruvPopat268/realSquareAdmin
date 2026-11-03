@@ -27,7 +27,7 @@ const createInquiry = async (req, res) => {
     const {
       isProperty, listingType, propertyCategory, propertyType,
       preferredCity, preferredArea, budget, bhk, builtUpArea,
-      plotArea, coworkingWorkspaces, furnishingType, inquiryClassification, lastFollowUpDate,
+      plotArea, carpetArea, idealFor, coworkingWorkspaces, furnishingType, inquiryClassification, lastFollowUpDate,
       remarks, preferredCommunication,
     } = req.body;
 
@@ -67,6 +67,8 @@ const createInquiry = async (req, res) => {
       ...(bhk !== undefined               && { bhk }),
       ...(builtUpArea                     && { builtUpArea }),
       ...(plotArea                        && { plotArea }),
+      ...(carpetArea                      && { carpetArea }),
+      ...(idealFor                        && { idealFor }),
       ...(remarks                         && { remarks }),
     };
 
@@ -379,14 +381,25 @@ const getAssignedInquiries = async (req, res) => {
           },
         },
         { $set: { "inquiry.propertyType": { $arrayElemAt: ["$inquiry.propertyType", 0] } } },
+        // Resolve configured Ideal For options on project requirements.
+        {
+          $lookup: {
+            from: "idealfors",
+            localField: "inquiry.idealFor",
+            foreignField: "_id",
+            as: "resolvedIdealFor",
+          },
+        },
         // Only keep name from each ref
         {
           $set: {
             "inquiry.listingType":      { $cond: { if: { $ifNull: ["$inquiry.listingType._id", false] }, then: { _id: "$inquiry.listingType._id", name: "$inquiry.listingType.name" }, else: null } },
             "inquiry.propertyCategory": { $cond: { if: { $ifNull: ["$inquiry.propertyCategory._id", false] }, then: { _id: "$inquiry.propertyCategory._id", name: "$inquiry.propertyCategory.name" }, else: null } },
             "inquiry.propertyType":     { $cond: { if: { $ifNull: ["$inquiry.propertyType._id", false] }, then: { _id: "$inquiry.propertyType._id", name: "$inquiry.propertyType.name" }, else: null } },
+            "inquiry.idealFor":         { $map: { input: { $ifNull: ["$resolvedIdealFor", []] }, as: "option", in: { _id: "$$option._id", name: "$$option.name", image: "$$option.image", order: "$$option.order" } } },
           },
         },
+        { $unset: "resolvedIdealFor" },
       ]),
       AssignedInquiry.aggregate([
         ...visibleAssignmentsPipeline,
@@ -483,6 +496,7 @@ const getMyInquiries = async (req, res) => {
         .populate("listingType",      "name")
         .populate("propertyCategory", "name")
         .populate("propertyType",     "name")
+        .populate("idealFor",         "name image order")
         .lean(),
       Inquiry.countDocuments(filter),
       Inquiry.aggregate([

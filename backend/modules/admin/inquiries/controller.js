@@ -140,6 +140,7 @@ const getInquiries = async (req, res) => {
         .populate("listingType", "name")
         .populate("propertyCategory", "name")
         .populate("propertyType", "name")
+        .populate("idealFor", "name image order")
         .populate("createdBy.role", "name")
         .sort({ createdAt: -1 })
         .skip(skip)

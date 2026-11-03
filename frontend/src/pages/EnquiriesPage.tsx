@@ -573,6 +573,8 @@ export default function EnquiriesPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">BHK</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Built Up Area</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Plot Area</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Carpet Area</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Ideal For</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Furnishing</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Communication</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Last Follow Up Date</th>
@@ -581,16 +583,16 @@ export default function EnquiriesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={22} className="py-16"><Spinner fullPage={false} size="md" label="Loading requirements..." /></td></tr>
+              <tr><td colSpan={24} className="py-16"><Spinner fullPage={false} size="md" label="Loading requirements..." /></td></tr>
             ) : error ? (
               <tr>
-                <td colSpan={22} className="py-16 text-center">
+                <td colSpan={24} className="py-16 text-center">
                   <p className="mb-3 text-destructive">{error}</p>
                   <Button variant="outline" size="sm" onClick={() => setQuery((q) => ({ ...q }))}>Retry</Button>
                 </td>
               </tr>
             ) : enquiries.length === 0 ? (
-              <tr><td colSpan={22} className="py-16 text-center text-muted-foreground">No requirements found</td></tr>
+              <tr><td colSpan={24} className="py-16 text-center text-muted-foreground">No requirements found</td></tr>
             ) : enquiries.map((enquiry, index) => (
               <tr key={enquiry._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3">
@@ -682,7 +684,7 @@ export default function EnquiriesPage() {
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatBudget(enquiry.budget?.min, enquiry.budget?.max)}</td>
                 {/* BHK */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                  {enquiry.bhk != null ? enquiry.bhk : "—"}
+                  {enquiry.bhk != null ? (enquiry.bhk === 0 ? "1 RK" : `${enquiry.bhk} BHK`) : "—"}
                 </td>
                 {/* Built Up Area */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -691,6 +693,14 @@ export default function EnquiriesPage() {
                 {/* Plot Area */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                   {enquiry.plotArea?.value != null ? `${enquiry.plotArea.value} ${enquiry.plotArea.unit ?? ""}`.trim() : "—"}
+                </td>
+                {/* Carpet Area — Under Construction Commercial */}
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  {enquiry.carpetArea?.value != null ? `${enquiry.carpetArea.value} ${enquiry.carpetArea.unit ?? ""}`.trim() : "—"}
+                </td>
+                {/* Ideal For — Under Construction Commercial */}
+                <td className="px-4 py-3 text-muted-foreground min-w-[160px]">
+                  {enquiry.idealFor?.length ? enquiry.idealFor.map((option) => option.name).join(", ") : "—"}
                 </td>
                 {/* Furnishing */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{enquiry.furnishingType ?? "—"}</td>

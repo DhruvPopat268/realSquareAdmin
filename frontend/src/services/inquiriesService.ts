@@ -24,6 +24,8 @@ export interface AdminInquiry {
   bhk?: number;
   builtUpArea?: { value?: number; unit?: string };
   plotArea?: { value?: number; unit?: string };
+  carpetArea?: { value?: number; unit?: string };
+  idealFor?: InquiryReference[];
   furnishingType?: string;
   inquiryClassification: "hot" | "warm" | "cold";
   lastFollowUpDate: string;

@@ -159,6 +159,16 @@ const inquirySchema = new mongoose.Schema(
       },
     },
 
+    // Project requirement details for Under Construction inquiries.
+    carpetArea: {
+      value: { type: Number, min: 0 },
+      unit: { type: String, enum: ["sqft", "sqyd", "sqmt"] },
+    },
+    idealFor: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "IdealFor",
+    }],
+
     // Furnishing preference
     furnishingType: {
       type: String,
