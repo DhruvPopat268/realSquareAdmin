@@ -28,6 +28,7 @@ export interface AdminInquiry {
     maxRentPerSeat?: number;
     minMonthlyRent?: number;
     maxMonthlyRent?: number;
+    furnishingType: "Unfurnished" | "Semi-Furnished" | "Fully-Furnished";
   }>;
   bhk?: number;
   builtUpArea?: { value?: number; unit?: string };

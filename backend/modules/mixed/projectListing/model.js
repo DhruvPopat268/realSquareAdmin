@@ -155,6 +155,9 @@ const projectListingSchema = new Schema(
     // ── Derived price range (from configurations) ─────────────────────────────
     minPrice: { type: Number },
     maxPrice: { type: Number },
+    perSqFtPrice: { type: Number, default: null },
+    perSqYdPrice: { type: Number, default: null },
+    perSqMtPrice: { type: Number, default: null },
 
     // ── Location ──────────────────────────────────────────────────────────────
     cityName: { type: String, trim: true, required: true },

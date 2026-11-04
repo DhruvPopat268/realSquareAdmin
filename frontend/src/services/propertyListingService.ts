@@ -158,6 +158,9 @@ export interface PropertyListing {
   commercialDetails?: CommercialDetails;
   sellInfo?: SellInfo;
   rentInfo?: RentInfo;
+  perSqFtPrice?: number | null;
+  perSqYdPrice?: number | null;
+  perSqMtPrice?: number | null;
   rera?: ReraDetails;
   status: string;
   createdAt: string;

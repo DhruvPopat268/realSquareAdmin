@@ -78,6 +78,30 @@ const formatBudgetRange = (minPrice, maxPrice) => {
   return `${formatBudgetAmount(minPrice)} – ${formatBudgetAmount(maxPrice)}`;
 };
 
+function recalculateProjectPerAreaPrice(project) {
+  project.perSqFtPrice = null;
+  project.perSqYdPrice = null;
+  project.perSqMtPrice = null;
+
+  const category = project.category?.name?.toLowerCase();
+  const details = category === "commercial" ? project.commercialDetails : project.residentialDetails;
+  const configurations = details?.configurations ?? [];
+  const areas = configurations
+    .map((configuration) => Number(configuration.carpetArea))
+    .filter((area) => Number.isFinite(area) && area > 0);
+  const minPrice = Number(project.minPrice);
+  const maxPrice = Number(project.maxPrice);
+  if (!areas.length || !Number.isFinite(minPrice) || !Number.isFinite(maxPrice)) return;
+
+  const averageArea = areas.reduce((sum, area) => sum + area, 0) / areas.length;
+  const averagePrice = (minPrice + maxPrice) / 2;
+  const perAreaPrice = Math.round((averagePrice / averageArea) * 100) / 100;
+  const unit = details?.areaUnit ?? "sqft";
+  if (unit === "sqft") project.perSqFtPrice = perAreaPrice;
+  else if (unit === "sqyd") project.perSqYdPrice = perAreaPrice;
+  else if (unit === "sqmt") project.perSqMtPrice = perAreaPrice;
+}
+
 const getActiveIdealFor = async (_req, res) => {
   try {
     const options = await IdealFor.find({ isActive: true }).select("name image order").sort({ order: 1, _id: 1 });
@@ -113,7 +137,7 @@ const getMyListings = async (req, res) => {
 
     const [projectRecords, totalCount, statusCounts] = await Promise.all([
       ProjectListing.find(filter)
-        .select("category projectName developerName projectDescription locality cityName projectStatus possessionDate rera.reraId launchDate idealFor minPrice maxPrice status residentialDetails commercialDetails totalUnits availableUnits towerCount furnishings amenities media createdAt")
+        .select("category projectName developerName projectDescription locality cityName projectStatus possessionDate rera.reraId launchDate idealFor minPrice maxPrice perSqFtPrice perSqYdPrice perSqMtPrice status residentialDetails commercialDetails totalUnits availableUnits towerCount furnishings amenities media createdAt")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -589,6 +613,7 @@ const create = async (req, res) => {
       status,
     });
 
+    recalculateProjectPerAreaPrice(listing);
     await listing.save();
 
     if (validPlan) {
@@ -793,6 +818,7 @@ const updateMedia = async (req, res) => {
     const oldBrochureUrl = listing.brochureUrl;
     if (brochureFile) listing.brochureUrl = toUrl(brochureFile.path);
     else if (clearBrochure) listing.brochureUrl = undefined;
+    recalculateProjectPerAreaPrice(listing);
     listing.status = await resolveStatus(req.user);
     await listing.save();
     if (oldBrochureUrl && oldBrochureUrl !== listing.brochureUrl) {

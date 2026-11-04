@@ -15,6 +15,9 @@ export interface ProjectListingRecord {
   towerCount?: number;
   minPrice?: number;
   maxPrice?: number;
+  perSqFtPrice?: number | null;
+  perSqYdPrice?: number | null;
+  perSqMtPrice?: number | null;
   cityName?: string;
   locality?: { address?: string; latitude?: number; longitude?: number };
   listedBy?: { id?: string; name?: string; mobile?: string; email?: string; profilePhoto?: string; role?: { id?: string; name?: string } };

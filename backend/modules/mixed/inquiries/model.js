@@ -39,6 +39,7 @@ const coworkingWorkspaceRequirementSchema = new mongoose.Schema(
       required: function () { return this.type === "virtual_office"; },
       validate: { validator: function (value) { return value >= this.minMonthlyRent; }, message: "maxMonthlyRent must be at least minMonthlyRent" },
     },
+    furnishingType: { type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] },
   },
   { _id: false },
 );

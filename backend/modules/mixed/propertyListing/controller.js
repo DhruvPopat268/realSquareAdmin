@@ -78,6 +78,27 @@ const resolveStoredVideoPath = (videoUrl) => {
 const toUrl = (filePath) =>
   `${process.env.BACKEND_URL}${filePath.replace("/var/www/storage", "/storage")}`;
 
+function recalculatePerAreaPrices(listing) {
+  const price = listing.sellInfo?.price ?? listing.rentInfo?.monthlyRent ?? null;
+  const area =
+    listing.residentialDetails?.carpetArea?.value != null ? listing.residentialDetails.carpetArea :
+    listing.plotDetails?.plotArea?.value != null ? listing.plotDetails.plotArea :
+    listing.commercialDetails?.carpetArea?.value != null ? listing.commercialDetails.carpetArea :
+    null;
+
+  listing.perSqFtPrice = null;
+  listing.perSqYdPrice = null;
+  listing.perSqMtPrice = null;
+
+  if (price == null || area?.value == null || Number(area.value) <= 0) return;
+
+  const perAreaPrice = Math.round((Number(price) / Number(area.value)) * 100) / 100;
+  const unit = area.unit ?? "sqft";
+  if (unit === "sqft") listing.perSqFtPrice = perAreaPrice;
+  else if (unit === "sqyd") listing.perSqYdPrice = perAreaPrice;
+  else if (unit === "sqmt") listing.perSqMtPrice = perAreaPrice;
+}
+
 function normalizePropertyStatusUpdate(section, incoming, existing) {
   if (incoming === undefined || incoming === null) return null;
   if (typeof incoming !== "object" || Array.isArray(incoming)) return `${section} must be an object`;
@@ -345,7 +366,7 @@ const create = async (req, res) => {
 
     const status = await resolveStatus(u);
 
-    const listing = await PropertyListing.create({
+    const listing = new PropertyListing({
       category:    { id: category._id,      name: category.name },
       listingType: { id: listingType._id,   name: listingType.name },
       propertyType: propertyType ? { id: propertyType._id, name: propertyType.name } : undefined,
@@ -366,6 +387,9 @@ const create = async (req, res) => {
       zeroBrokerage: req.userRole === process.env.BROKER_ROLE_ID ? false : undefined,
       status,
     });
+
+    recalculatePerAreaPrices(listing);
+    await listing.save();
 
     // ── Deduct credit ─────────────────────────────────────────────────────────
     if (validPlan) {
@@ -1112,7 +1136,11 @@ const updateListing = async (req, res) => {
         }
 
         const selectedGroups = workspaces
-          .filter((workspace) => workspace.type === "virtual_office")
+          .filter(
+            (workspace) =>
+              workspace.type === "virtual_office" &&
+              changedWorkspaceTypes.has(workspace.type),
+          )
           .flatMap((workspace) => workspace.benefits);
         const benefitIds = [...new Set(selectedGroups.map((group) => group._id.toString()))];
         const benefitMasters = await VirtualSpace.find({ _id: { $in: benefitIds } })
@@ -1148,7 +1176,12 @@ const updateListing = async (req, res) => {
         }
 
         const resolvedWorkspaces = workspaces.map((workspace) => {
-          if (workspace.type !== "virtual_office") return workspace;
+          if (
+            workspace.type !== "virtual_office" ||
+            !changedWorkspaceTypes.has(workspace.type)
+          ) {
+            return workspace;
+          }
 
           return {
             ...workspace,
@@ -1291,33 +1324,7 @@ const updateListing = async (req, res) => {
     const autoApprovalStatus = await resolveStatus(req.user);
     listing.status = autoApprovalStatus;
 
-    // ── Compute per sq. price ─────────────────────────────────────────────────
-    // Price: sellInfo.price for Sell listings, rentInfo.monthlyRent for Rent/PG
-    // Area:  residentialDetails.carpetArea → plotDetails.plotArea → commercialDetails.carpetArea
-    const price =
-      listing.sellInfo?.price ??
-      listing.rentInfo?.monthlyRent ??
-      null;
-
-    const area =
-      listing.residentialDetails?.carpetArea?.value != null ? listing.residentialDetails.carpetArea :
-      listing.plotDetails?.plotArea?.value         != null ? listing.plotDetails.plotArea           :
-      listing.commercialDetails?.carpetArea?.value != null ? listing.commercialDetails.carpetArea   :
-      null;
-
-    // Reset all three before recomputing
-    listing.perSqFtPrice = null;
-    listing.perSqYdPrice = null;
-    listing.perSqMtPrice = null;
-
-    if (price != null && area?.value != null && Number(area.value) > 0) {
-      const perSq = Math.round((Number(price) / Number(area.value)) * 100) / 100;
-      const unit  = area.unit ?? "sqft"; // default to sqft when unit is not set
-      if      (unit === "sqft") listing.perSqFtPrice = perSq;
-      else if (unit === "sqyd") listing.perSqYdPrice = perSq;
-      else if (unit === "sqmt") listing.perSqMtPrice = perSq;
-    } else {
-    }
+    recalculatePerAreaPrices(listing);
 
     await listing.save();
 

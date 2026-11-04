@@ -39,7 +39,7 @@ const getAll = async (req, res) => {
     const filter = buildQuery(req.query);
     const [records, total, statusGroups] = await Promise.all([
       ProjectListing.find(filter)
-        .select("category projectName developerName cityName locality listedBy media.images status approvedAt rejectedAt rejectedReasons idealFor projectStatus possessionDate minPrice maxPrice totalUnits availableUnits towerCount residentialDetails commercialDetails rera.reraId createdAt updatedAt")
+        .select("category projectName developerName cityName locality listedBy media.images status approvedAt rejectedAt rejectedReasons idealFor projectStatus possessionDate minPrice maxPrice perSqFtPrice perSqYdPrice perSqMtPrice totalUnits availableUnits towerCount residentialDetails commercialDetails rera.reraId createdAt updatedAt")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -78,7 +78,7 @@ const getMapPins = async (req, res) => {
     filter["locality.longitude"] = { $exists: true, $ne: null };
 
     const pins = await ProjectListing.find(filter)
-      .select("projectName developerName category cityName locality media.images status projectStatus minPrice maxPrice totalUnits availableUnits possessionDate")
+      .select("projectName developerName category cityName locality media.images status projectStatus minPrice maxPrice perSqFtPrice perSqYdPrice perSqMtPrice totalUnits availableUnits possessionDate")
       .sort({ createdAt: -1 })
       .lean();
 

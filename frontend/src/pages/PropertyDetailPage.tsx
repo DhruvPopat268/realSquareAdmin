@@ -529,6 +529,9 @@ export default function PropertyDetailPage() {
                   <span className="font-bold text-foreground text-base">{formatPrice(p.rentInfo.monthlyRent)}/month</span>
                 </div>
               )}
+              {p.perSqFtPrice != null && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Price per Sq Ft</span><span className="font-semibold text-foreground">₹{p.perSqFtPrice.toLocaleString("en-IN")}/sqft</span></div>}
+              {p.perSqYdPrice != null && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Price per Sq Yd</span><span className="font-semibold text-foreground">₹{p.perSqYdPrice.toLocaleString("en-IN")}/sqyd</span></div>}
+              {p.perSqMtPrice != null && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Price per Sq Mt</span><span className="font-semibold text-foreground">₹{p.perSqMtPrice.toLocaleString("en-IN")}/sqmt</span></div>}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Listed On</span>
                 <span className="font-medium text-foreground">{formatDate(p.createdAt)}</span>

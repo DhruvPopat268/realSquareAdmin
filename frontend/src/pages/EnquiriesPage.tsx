@@ -704,6 +704,7 @@ export default function EnquiriesPage() {
                             {workspaceLabel(workspace.type)}
                             {workspace.requiredSeats ? ` · ${workspace.requiredSeats} seats` : ""}
                             {` · ${rent} ${isVirtualOffice ? "monthly" : "per seat/month"}`}
+                            {` · ${workspace.furnishingType}`}
                           </p>
                         );
                       })}

@@ -146,6 +146,7 @@ const createInquiryValidator = [
     }
 
     if (req.body.budget !== undefined) throw new Error("budget must be omitted for co-working inquiries");
+    if (req.body.furnishingType !== undefined) throw new Error("furnishingType must be provided separately for each coworking workspace");
     if (!Array.isArray(workspaces) || workspaces.length < 1 || workspaces.length > 3) {
       throw new Error("coworkingWorkspaces must contain one to three workspace types");
     }
@@ -160,6 +161,10 @@ const createInquiryValidator = [
       }
       if (seenTypes.has(workspace.type)) throw new Error(`coworkingWorkspaces cannot contain duplicate ${workspace.type} entries`);
       seenTypes.add(workspace.type);
+
+      if (!["Unfurnished", "Semi-Furnished", "Fully-Furnished"].includes(workspace.furnishingType)) {
+        throw new Error(`coworkingWorkspaces[${index}].furnishingType must be Unfurnished, Semi-Furnished, or Fully-Furnished`);
+      }
 
       const isVirtual = workspace.type === "virtual_office";
       const minRent = Number(isVirtual ? workspace.minMonthlyRent : workspace.minRentPerSeat);
