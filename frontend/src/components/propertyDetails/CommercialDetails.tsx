@@ -153,14 +153,14 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
             {data.workspaces.map((workspace, index) => (
               <div key={index} className="rounded-xl border bg-card p-4">
                   <p className="font-semibold">
-                    {workspace.type === "virtualSpace"
-                      ? "Virtual Space"
-                      : workspace.type === "cabin"
-                        ? "Cabins"
-                        : "Hall"}
+                    {workspace.type === "virtual_office"
+                      ? "Virtual Office"
+                      : workspace.type === "individual_private_cabin"
+                        ? "Individual Private Cabin"
+                        : "Dedicated Coworking Desk"}
                   </p>
 
-                  {workspace.type === "virtualSpace" ? (
+                  {workspace.type === "virtual_office" ? (
                     <>
                       {workspace.benefits?.length ? (
                         <div className="mt-2 space-y-2 text-sm">
@@ -182,7 +182,7 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
                         </div>
                       ) : null}
                     </>
-                  ) : workspace.type === "hall" ? (
+                  ) : workspace.type === "dedicated_coworking_desk" ? (
                     <p className="mt-1 text-sm text-muted-foreground">
                       {workspace.availableSeats} seats · ₹
                       {workspace.rentPerSeat?.toLocaleString("en-IN")} / seat / month
@@ -191,7 +191,7 @@ export default function CommercialDetails({ data, rentInfo, propertyTypeName }: 
                     <div className="mt-2 space-y-1 text-sm text-muted-foreground">
                       {workspace.config?.map((cabin, cabinIndex) => (
                         <p key={cabinIndex}>
-                          Cabin {cabinIndex + 1}: {cabin.availableSeats} seats · ₹
+                          Individual Private Cabin {cabinIndex + 1}: {cabin.availableSeats} seats · ₹
                           {cabin.rentPerSeat?.toLocaleString("en-IN")} / seat / month
                         </p>
                       ))}

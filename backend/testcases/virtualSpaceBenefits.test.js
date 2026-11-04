@@ -146,7 +146,7 @@ describe("virtual space listing benefits", () => {
     await expect(
       validateActiveCoworkingBenefits([
         {
-          type: "virtualSpace",
+          type: "virtual_office",
           benefits: [
             {
               _id: masterId,
@@ -174,7 +174,7 @@ describe("virtual space listing benefits", () => {
     await expect(
       validateActiveCoworkingBenefits([
         {
-          type: "virtualSpace",
+          type: "virtual_office",
           benefits: [
             {
               _id: masterId,

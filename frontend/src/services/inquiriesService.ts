@@ -21,6 +21,14 @@ export interface AdminInquiry {
   preferredCity: string;
   preferredArea?: string;
   budget?: { min?: number; max?: number } | null;
+  coworkingWorkspaces?: Array<{
+    type: "dedicated_coworking_desk" | "individual_private_cabin" | "virtual_office";
+    requiredSeats?: number;
+    minRentPerSeat?: number;
+    maxRentPerSeat?: number;
+    minMonthlyRent?: number;
+    maxMonthlyRent?: number;
+  }>;
   bhk?: number;
   builtUpArea?: { value?: number; unit?: string };
   plotArea?: { value?: number; unit?: string };

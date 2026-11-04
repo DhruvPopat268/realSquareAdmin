@@ -65,13 +65,13 @@ const validateCoworkingDetails = (details) => {
       throw new Error(`commercialDetails.workspaces[${workspaceIndex}] must be an object`);
     if (workspace.depositPerSeat !== undefined || workspace.securityDeposit !== undefined)
       throw new Error("Coworking workspaces do not accept deposit fields");
-    if (!["cabin", "hall", "virtualSpace"].includes(workspace.type))
-      throw new Error(`commercialDetails.workspaces[${workspaceIndex}].type must be cabin, hall, or virtualSpace`);
+    if (!["individual_private_cabin", "dedicated_coworking_desk", "virtual_office"].includes(workspace.type))
+      throw new Error(`commercialDetails.workspaces[${workspaceIndex}].type must be individual_private_cabin, dedicated_coworking_desk, or virtual_office`);
     if (seenTypes.has(workspace.type))
       throw new Error(`commercialDetails.workspaces cannot contain duplicate ${workspace.type} entries`);
     seenTypes.add(workspace.type);
 
-    if (workspace.type === "virtualSpace") {
+    if (workspace.type === "virtual_office") {
       if (
         !Array.isArray(workspace.benefits) ||
         workspace.benefits.length < 1 ||
@@ -111,7 +111,7 @@ const validateCoworkingDetails = (details) => {
       return;
     }
 
-    if (workspace.type === "cabin") {
+    if (workspace.type === "individual_private_cabin") {
       const available = Number(workspace.available);
       if (!Number.isInteger(available) || available <= 0)
         throw new Error("Cabin workspace available must be a positive integer");
@@ -148,7 +148,7 @@ const validateCoworkingDetails = (details) => {
 
 const validateActiveCoworkingBenefits = async (workspaces) => {
   const selectedGroups = workspaces
-    .filter((item) => item.type === "virtualSpace")
+    .filter((item) => item.type === "virtual_office")
     .flatMap((item) => item.benefits);
   if (!selectedGroups.length) return true;
 

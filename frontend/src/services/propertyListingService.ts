@@ -62,7 +62,7 @@ export interface PGDetails extends PropertyStatusDetails {
 }
 
 export interface CoworkingWorkspace {
-  type?: "cabin" | "hall" | "virtualSpace";
+  type?: "individual_private_cabin" | "dedicated_coworking_desk" | "virtual_office";
   available?: number;
   config?: { availableSeats?: number; rentPerSeat?: number }[];
   availableSeats?: number;

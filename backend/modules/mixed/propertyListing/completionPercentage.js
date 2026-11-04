@@ -59,17 +59,17 @@ function addCoworkingChecks(checks, details) {
 
   for (const workspace of workspaces) {
     checks.push(hasValue(workspace.type));
-    if (workspace.type === "cabin") {
+    if (workspace.type === "individual_private_cabin") {
       const cabins = workspace.config ?? [];
       checks.push(cabins.length > 0);
       for (const cabin of cabins) {
         checks.push(hasValue(cabin.availableSeats));
         checks.push(hasValue(cabin.rentPerSeat));
       }
-    } else if (workspace.type === "hall") {
+    } else if (workspace.type === "dedicated_coworking_desk") {
       checks.push(hasValue(workspace.availableSeats));
       checks.push(hasValue(workspace.rentPerSeat));
-    } else if (workspace.type === "virtualSpace") {
+    } else if (workspace.type === "virtual_office") {
       const plans = workspace.benefits ?? [];
       checks.push(plans.length > 0);
       for (const plan of plans) {

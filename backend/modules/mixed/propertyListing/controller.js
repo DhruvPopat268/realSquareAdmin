@@ -257,7 +257,7 @@ const create = async (req, res) => {
 
     let resolvedCommercialDetails = commercialDetails;
     const virtualSpaceWorkspaces = commercialDetails?.workspaces?.filter(
-      (workspace) => workspace.type === "virtualSpace",
+      (workspace) => workspace.type === "virtual_office",
     ) ?? [];
     if (virtualSpaceWorkspaces.length) {
       const benefitIds = virtualSpaceWorkspaces.flatMap((workspace) =>
@@ -283,7 +283,7 @@ const create = async (req, res) => {
       resolvedCommercialDetails = {
         ...commercialDetails,
         workspaces: commercialDetails.workspaces.map((workspace) => {
-          if (workspace.type !== "virtualSpace") return workspace;
+          if (workspace.type !== "virtual_office") return workspace;
 
           return {
             ...workspace,
@@ -531,7 +531,7 @@ function normalizeListingCard(listing) {
     priceLabel = price ? `₹${formatPrice(price)}` : "Price on request";
   } else if (listingTypeId === process.env.LISTING_TYPE_RENT_ID) {
     const virtualSpace = listing.commercialDetails?.workspaces
-      ?.find((workspace) => workspace.type === "virtualSpace");
+      ?.find((workspace) => workspace.type === "virtual_office");
     const virtualSpaceRents = virtualSpace?.benefits
       ?.map((group) => Number(group.monthlyRent))
       .filter((rent) => Number.isFinite(rent) && rent > 0) ?? [];
@@ -614,7 +614,7 @@ const getListingById = async (req, res) => {
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
 
     for (const workspace of listing.commercialDetails?.workspaces ?? []) {
-      if (workspace.type !== "virtualSpace" || workspace.monthlyRent == null) continue;
+      if (workspace.type !== "virtual_office" || workspace.monthlyRent == null) continue;
       workspace.benefits = (workspace.benefits ?? []).map((group) => ({
         ...group,
         monthlyRent: group.monthlyRent ?? workspace.monthlyRent,
@@ -977,13 +977,13 @@ const updateListing = async (req, res) => {
         );
         const legacyVirtualRents = new Map(
           (storedCommercialDetails?.commercialDetails?.workspaces ?? [])
-            .filter((workspace) => workspace.type === "virtualSpace" && workspace.monthlyRent != null)
+            .filter((workspace) => workspace.type === "virtual_office" && workspace.monthlyRent != null)
             .map((workspace) => [workspace.type, workspace.monthlyRent]),
         );
         const currentWorkspaces = listing.commercialDetails?.workspaces ?? [];
         let mergedWorkspaces = currentWorkspaces.map((workspace) => {
           const current = workspace.toObject?.() ?? workspace;
-          if (current.type !== "virtualSpace") return current;
+          if (current.type !== "virtual_office") return current;
 
           const legacyMonthlyRent = current.monthlyRent ?? legacyVirtualRents.get(current.type);
           const migrated = {
@@ -1028,7 +1028,7 @@ const updateListing = async (req, res) => {
             if (!patchedTypes.has(workspace.type)) return workspace;
 
             const normalized = { ...workspace };
-            if (workspace.type === "virtualSpace") {
+            if (workspace.type === "virtual_office") {
               const legacyMonthlyRent = normalized.monthlyRent;
               normalized.benefits = (normalized.benefits ?? []).map((group) => ({
                 ...group.toObject?.() ?? group,
@@ -1041,10 +1041,10 @@ const updateListing = async (req, res) => {
               delete normalized.rentPerSeat;
               delete normalized.depositPerSeat;
               delete normalized.securityDeposit;
-            } else if (workspace.type === "cabin") {
+            } else if (workspace.type === "individual_private_cabin") {
               delete normalized.availableSeats;
               delete normalized.rentPerSeat;
-            } else if (workspace.type === "hall") {
+            } else if (workspace.type === "dedicated_coworking_desk") {
               delete normalized.available;
               delete normalized.config;
             }
@@ -1083,12 +1083,12 @@ const updateListing = async (req, res) => {
         }
         const workspaceTypes = workspaces.map((workspace) => workspace.type);
         if (
-          workspaceTypes.some((type) => !["cabin", "hall", "virtualSpace"].includes(type)) ||
+          workspaceTypes.some((type) => !["individual_private_cabin", "dedicated_coworking_desk", "virtual_office"].includes(type)) ||
           new Set(workspaceTypes).size !== workspaceTypes.length
         ) {
           return res.status(400).json({
             success: false,
-            message: "Coworking workspaces must contain unique cabin, hall, or virtualSpace types",
+            message: "Coworking workspaces must contain unique individual_private_cabin, dedicated_coworking_desk, or virtual_office types",
           });
         }
 
@@ -1112,7 +1112,7 @@ const updateListing = async (req, res) => {
         }
 
         const selectedGroups = workspaces
-          .filter((workspace) => workspace.type === "virtualSpace")
+          .filter((workspace) => workspace.type === "virtual_office")
           .flatMap((workspace) => workspace.benefits);
         const benefitIds = [...new Set(selectedGroups.map((group) => group._id.toString()))];
         const benefitMasters = await VirtualSpace.find({ _id: { $in: benefitIds } })
@@ -1123,7 +1123,7 @@ const updateListing = async (req, res) => {
         );
         const existingGroups = new Map(
           (listing.commercialDetails?.workspaces ?? [])
-            .filter((workspace) => workspace.type === "virtualSpace")
+            .filter((workspace) => workspace.type === "virtual_office")
             .flatMap((workspace) => workspace.benefits ?? [])
             .map((group) => [group._id.toString(), group]),
         );
@@ -1148,7 +1148,7 @@ const updateListing = async (req, res) => {
         }
 
         const resolvedWorkspaces = workspaces.map((workspace) => {
-          if (workspace.type !== "virtualSpace") return workspace;
+          if (workspace.type !== "virtual_office") return workspace;
 
           return {
             ...workspace,

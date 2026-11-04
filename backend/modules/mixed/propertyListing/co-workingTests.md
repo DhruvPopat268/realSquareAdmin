@@ -18,7 +18,7 @@ Use the configured coworking `propertyTypeId`, commercial `categoryId`, and vali
   "commercialDetails": {
     "workSpaceFloor": 0,
     "workspaces": [
-      { "type": "hall", "availableSeats": 30, "rentPerSeat": 2000 }
+      { "type": "dedicated_coworking_desk", "availableSeats": 30, "rentPerSeat": 2000 }
     ]
   }
 }
@@ -39,7 +39,7 @@ Expected: create succeeds and the saved listing purpose is Rent, regardless of t
     "workSpaceFloor": -1,
     "workspaces": [
       {
-        "type": "cabin",
+        "type": "individual_private_cabin",
         "available": 2,
         "config": [
           { "availableSeats": 4, "rentPerSeat": 5000 },
@@ -55,7 +55,7 @@ Expected: create succeeds without built-up/carpet area or property-wide `rentInf
 
 ### Hall and Cabins together
 
-Expected: create succeeds when the `workspaces` array contains one valid `hall` and one valid `cabin` entry.
+Expected: create succeeds when the `workspaces` array contains one valid `dedicated_coworking_desk` and one valid `individual_private_cabin` entry.
 
 ### Virtual Space with selected benefits
 
@@ -70,7 +70,7 @@ Expected: create succeeds when the `workspaces` array contains one valid `hall` 
     "workSpaceFloor": 0,
     "workspaces": [
       {
-        "type": "virtualSpace",
+        "type": "virtual_office",
         "benefits": [
           {
             "_id": "<activeBenefitPlanId>",
@@ -91,8 +91,8 @@ Expected: create succeeds; the API loads the plan title from the master and save
 Each case should return HTTP 400 with a validation error:
 
 - `workspaces` missing or empty.
-- Two `hall` entries or two `cabin` entries.
-- Workspace type other than `hall`, `cabin`, or `virtualSpace`.
+- Two `dedicated_coworking_desk` entries or two `individual_private_cabin` entries.
+- Workspace type other than `dedicated_coworking_desk`, `individual_private_cabin`, or `virtual_office`.
 - `workSpaceFloor` missing, less than `-1`, or not an integer.
 - Hall seat count missing, zero, negative, or fractional; Hall rent missing or negative.
 - Cabin count missing, zero, negative, or fractional; `config` count not equal to `available`.

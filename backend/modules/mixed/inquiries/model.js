@@ -11,32 +11,32 @@ const isCoworkingInquiry = (inquiry) => Boolean(
 
 const coworkingWorkspaceRequirementSchema = new mongoose.Schema(
   {
-    type: { type: String, enum: ["hall", "cabin", "virtualSpace"], required: true },
+    type: { type: String, enum: ["dedicated_coworking_desk", "individual_private_cabin", "virtual_office"], required: true },
     requiredSeats: {
       type: Number,
       min: 1,
-      required: function () { return this.type === "hall" || this.type === "cabin"; },
+      required: function () { return this.type === "dedicated_coworking_desk" || this.type === "individual_private_cabin"; },
     },
     minRentPerSeat: {
       type: Number,
       min: 1,
-      required: function () { return this.type === "hall" || this.type === "cabin"; },
+      required: function () { return this.type === "dedicated_coworking_desk" || this.type === "individual_private_cabin"; },
     },
     maxRentPerSeat: {
       type: Number,
       min: 1,
-      required: function () { return this.type === "hall" || this.type === "cabin"; },
+      required: function () { return this.type === "dedicated_coworking_desk" || this.type === "individual_private_cabin"; },
       validate: { validator: function (value) { return value >= this.minRentPerSeat; }, message: "maxRentPerSeat must be at least minRentPerSeat" },
     },
     minMonthlyRent: {
       type: Number,
       min: 1,
-      required: function () { return this.type === "virtualSpace"; },
+      required: function () { return this.type === "virtual_office"; },
     },
     maxMonthlyRent: {
       type: Number,
       min: 1,
-      required: function () { return this.type === "virtualSpace"; },
+      required: function () { return this.type === "virtual_office"; },
       validate: { validator: function (value) { return value >= this.minMonthlyRent; }, message: "maxMonthlyRent must be at least minMonthlyRent" },
     },
   },

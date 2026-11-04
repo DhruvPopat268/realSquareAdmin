@@ -35,7 +35,7 @@ export default function VirtualSpaceBenefitsPage() {
     } catch {
       toast({
         variant: "destructive",
-        title: "Failed to load virtual space benefits",
+        title: "Failed to load virtual office benefits",
       });
     } finally {
       setLoading(false);
@@ -139,9 +139,9 @@ export default function VirtualSpaceBenefitsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Virtual Space Benefits</h1>
+          <h1 className="text-2xl font-bold">Virtual Office Benefits</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Manage choices available when listing a virtual coworking space.
+            Manage choices available when listing a virtual office.
           </p>
         </div>
         <Button size="sm" onClick={create}>
@@ -184,7 +184,7 @@ export default function VirtualSpaceBenefitsPage() {
             ) : items.length === 0 ? (
               <tr>
                 <td colSpan={5} className="py-12 text-center text-muted-foreground">
-                  No virtual space benefits found
+                  No virtual office benefits found
                 </td>
               </tr>
             ) : (
@@ -242,7 +242,7 @@ export default function VirtualSpaceBenefitsPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Edit Virtual Space Benefits" : "Add Virtual Space Benefits"}
+              {editing ? "Edit Virtual Office Benefits" : "Add Virtual Office Benefits"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">

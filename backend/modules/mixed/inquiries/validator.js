@@ -155,13 +155,13 @@ const createInquiryValidator = [
       if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) {
         throw new Error(`coworkingWorkspaces[${index}] must be an object`);
       }
-      if (!["hall", "cabin", "virtualSpace"].includes(workspace.type)) {
-        throw new Error(`coworkingWorkspaces[${index}].type must be hall, cabin, or virtualSpace`);
+      if (!["dedicated_coworking_desk", "individual_private_cabin", "virtual_office"].includes(workspace.type)) {
+        throw new Error(`coworkingWorkspaces[${index}].type must be dedicated_coworking_desk, individual_private_cabin, or virtual_office`);
       }
       if (seenTypes.has(workspace.type)) throw new Error(`coworkingWorkspaces cannot contain duplicate ${workspace.type} entries`);
       seenTypes.add(workspace.type);
 
-      const isVirtual = workspace.type === "virtualSpace";
+      const isVirtual = workspace.type === "virtual_office";
       const minRent = Number(isVirtual ? workspace.minMonthlyRent : workspace.minRentPerSeat);
       const maxRent = Number(isVirtual ? workspace.maxMonthlyRent : workspace.maxRentPerSeat);
       if (!Number.isFinite(minRent) || minRent <= 0 || !Number.isFinite(maxRent) || maxRent <= 0 || maxRent < minRent) {

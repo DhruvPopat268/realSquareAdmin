@@ -681,9 +681,9 @@ describe("Happy path — 201 successful inquiry creation", () => {
       preferredCity: "Hyderabad",
       preferredArea: "HITEC City",
       coworkingWorkspaces: [
-        { type: "hall", requiredSeats: 12, minRentPerSeat: 4000, maxRentPerSeat: 6000 },
-        { type: "cabin", requiredSeats: 4, minRentPerSeat: 7000, maxRentPerSeat: 10000 },
-        { type: "virtualSpace", minMonthlyRent: 1500, maxMonthlyRent: 3000 },
+        { type: "dedicated_coworking_desk", requiredSeats: 12, minRentPerSeat: 4000, maxRentPerSeat: 6000 },
+        { type: "individual_private_cabin", requiredSeats: 4, minRentPerSeat: 7000, maxRentPerSeat: 10000 },
+        { type: "virtual_office", minMonthlyRent: 1500, maxMonthlyRent: 3000 },
       ],
       inquiryClassification: "warm",
       lastFollowUpDate: "2026-12-15T00:00:00.000Z",
@@ -710,7 +710,7 @@ describe("Happy path — 201 successful inquiry creation", () => {
       propertyCategory: CATEGORY_COMMERCIAL_ID,
       propertyType: PT_COMMERCIAL_COWORKING,
       preferredCity: "Hyderabad",
-      coworkingWorkspaces: [{ type: "hall", requiredSeats: 4, minRentPerSeat: 6000, maxRentPerSeat: 5000 }],
+      coworkingWorkspaces: [{ type: "dedicated_coworking_desk", requiredSeats: 4, minRentPerSeat: 6000, maxRentPerSeat: 5000 }],
       inquiryClassification: "warm",
       lastFollowUpDate: "2026-12-15T00:00:00.000Z",
       preferredCommunication: ["call"],
@@ -1097,7 +1097,7 @@ describe("GET /api/mixed/inquiries/assigned", () => {
         propertyCategory: CATEGORY_COMMERCIAL_ID,
         propertyType: PT_COMMERCIAL_COWORKING,
         preferredCity: uniqueCity,
-        coworkingWorkspaces: [{ type: "hall", requiredSeats: 8, minRentPerSeat: 3000, maxRentPerSeat: 5000 }],
+        coworkingWorkspaces: [{ type: "dedicated_coworking_desk", requiredSeats: 8, minRentPerSeat: 3000, maxRentPerSeat: 5000 }],
         inquiryClassification: "warm",
         lastFollowUpDate: new Date("2026-12-15T00:00:00.000Z"),
         preferredCommunication: ["call"],
@@ -1114,7 +1114,7 @@ describe("GET /api/mixed/inquiries/assigned", () => {
       const response = await getAssigned(USER_TOKEN, { search: uniqueCity });
       expect(response.statusCode).toBe(200);
       expect(response.body.data.assignments[0]?.inquiry.coworkingWorkspaces).toEqual([
-        { type: "hall", requiredSeats: 8, minRentPerSeat: 3000, maxRentPerSeat: 5000 },
+        { type: "dedicated_coworking_desk", requiredSeats: 8, minRentPerSeat: 3000, maxRentPerSeat: 5000 },
       ]);
     } finally {
       if (inquiryId) {

@@ -129,7 +129,7 @@ const coworkingVirtualSpaceBenefitSchema = new Schema(
 
 const coworkingWorkspaceSchema = new Schema(
   {
-    type: { type: String, enum: ["cabin", "hall", "virtualSpace"] },
+    type: { type: String, enum: ["individual_private_cabin", "dedicated_coworking_desk", "virtual_office"] },
     available: { type: Number },             // number of cabins
     config: [coworkingCabinConfigSchema],    // per-cabin seat and rent details
     availableSeats: { type: Number },        // hall seats

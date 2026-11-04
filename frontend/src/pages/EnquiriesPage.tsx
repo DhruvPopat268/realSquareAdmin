@@ -69,6 +69,14 @@ function formatBudget(min?: number, max?: number) {
   return `${format(min)} – ${format(max)}`;
 }
 
+function workspaceLabel(type: NonNullable<AdminInquiry["coworkingWorkspaces"]>[number]["type"]) {
+  return {
+    dedicated_coworking_desk: "Dedicated Coworking Desk",
+    individual_private_cabin: "Individual Private Cabin",
+    virtual_office: "Virtual Office",
+  }[type];
+}
+
 function formatDate(value: string) {
   if (!value) return "—";
   const date = new Date(value);
@@ -570,6 +578,7 @@ export default function EnquiriesPage() {
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Property Type</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">City / Area</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Budget</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Workspace Requirements</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">BHK</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Built Up Area</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Plot Area</th>
@@ -583,16 +592,16 @@ export default function EnquiriesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={24} className="py-16"><Spinner fullPage={false} size="md" label="Loading requirements..." /></td></tr>
+              <tr><td colSpan={25} className="py-16"><Spinner fullPage={false} size="md" label="Loading requirements..." /></td></tr>
             ) : error ? (
               <tr>
-                <td colSpan={24} className="py-16 text-center">
+                <td colSpan={25} className="py-16 text-center">
                   <p className="mb-3 text-destructive">{error}</p>
                   <Button variant="outline" size="sm" onClick={() => setQuery((q) => ({ ...q }))}>Retry</Button>
                 </td>
               </tr>
             ) : enquiries.length === 0 ? (
-              <tr><td colSpan={24} className="py-16 text-center text-muted-foreground">No requirements found</td></tr>
+              <tr><td colSpan={25} className="py-16 text-center text-muted-foreground">No requirements found</td></tr>
             ) : enquiries.map((enquiry, index) => (
               <tr key={enquiry._id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3">
@@ -682,6 +691,25 @@ export default function EnquiriesPage() {
                 </td>
                 {/* Budget */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatBudget(enquiry.budget?.min, enquiry.budget?.max)}</td>
+                <td className="px-4 py-3 text-muted-foreground min-w-[220px]">
+                  {enquiry.coworkingWorkspaces?.length ? (
+                    <div className="space-y-1">
+                      {enquiry.coworkingWorkspaces.map((workspace) => {
+                        const isVirtualOffice = workspace.type === "virtual_office";
+                        const rent = isVirtualOffice
+                          ? formatBudget(workspace.minMonthlyRent, workspace.maxMonthlyRent)
+                          : formatBudget(workspace.minRentPerSeat, workspace.maxRentPerSeat);
+                        return (
+                          <p key={workspace.type}>
+                            {workspaceLabel(workspace.type)}
+                            {workspace.requiredSeats ? ` · ${workspace.requiredSeats} seats` : ""}
+                            {` · ${rent} ${isVirtualOffice ? "monthly" : "per seat/month"}`}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  ) : "—"}
+                </td>
                 {/* BHK */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                   {enquiry.bhk != null ? (enquiry.bhk === 0 ? "1 RK" : `${enquiry.bhk} BHK`) : "—"}

@@ -6,14 +6,14 @@ describe("coworking create validation", () => {
     workSpaceFloor: 0,
     workspaces: [
       {
-        type: "cabin",
+        type: "individual_private_cabin",
         available: 2,
         config: [
           { availableSeats: 4, rentPerSeat: 5000 },
           { availableSeats: 3, rentPerSeat: 7000 },
         ],
       },
-      { type: "hall", availableSeats: 30, rentPerSeat: 2000 },
+      { type: "dedicated_coworking_desk", availableSeats: 30, rentPerSeat: 2000 },
     ],
   };
 
@@ -25,7 +25,7 @@ describe("coworking create validation", () => {
         workspaces: [
           ...details.workspaces,
           {
-            type: "virtualSpace",
+            type: "virtual_office",
             benefits: [
               {
                 _id: "6ad8604cdaad6d32b13b7d67",
@@ -57,7 +57,7 @@ describe("coworking create validation", () => {
         workSpaceFloor: 0,
         workspaces: [
           {
-            type: "virtualSpace",
+            type: "virtual_office",
             benefits: [
               {
                 _id: "6ad8604cdaad6d32b13b7d67",
@@ -80,7 +80,7 @@ describe("coworking create validation", () => {
           workSpaceFloor: 0,
           workspaces: [
             {
-              type: "virtualSpace",
+              type: "virtual_office",
               benefits: [
                 {
                   _id: "6ad8604cdaad6d32b13b7d67",
@@ -102,7 +102,7 @@ describe("coworking create validation", () => {
         workSpaceFloor: 0,
         workspaces: [
           {
-            type: "virtualSpace",
+            type: "virtual_office",
             benefits: [],
           },
         ],
@@ -125,7 +125,7 @@ describe("coworking create validation", () => {
     expect(() => validateCoworkingDetails({
       workSpaceFloor: 0,
       workspaces: [{ type: "virtual" }],
-    })).toThrow(/type must be cabin, hall, or virtualSpace/);
+    })).toThrow(/type must be individual_private_cabin, dedicated_coworking_desk, or virtual_office/);
   });
 
   test("requires cabin config count to match available cabins", () => {
@@ -139,7 +139,7 @@ describe("coworking create validation", () => {
     expect(() => validateCoworkingDetails({
       workSpaceFloor: 0,
       workspaces: [{
-        type: "cabin",
+        type: "individual_private_cabin",
         available: 1,
         config: [{ availableSeats, rentPerSeat: 1000 }],
       }],
@@ -150,7 +150,7 @@ describe("coworking create validation", () => {
     expect(() => validateCoworkingDetails({
       workSpaceFloor: 0,
       workspaces: [{
-        type: "cabin",
+        type: "individual_private_cabin",
         available: 1,
         config: [{ availableSeats: 2, rentPerSeat }],
       }],
@@ -160,14 +160,14 @@ describe("coworking create validation", () => {
   test("rejects hall data with zero seats", () => {
     expect(() => validateCoworkingDetails({
       workSpaceFloor: 0,
-      workspaces: [{ type: "hall", availableSeats: 0, rentPerSeat: 1000 }],
+      workspaces: [{ type: "dedicated_coworking_desk", availableSeats: 0, rentPerSeat: 1000 }],
     })).toThrow(/Hall availableSeats must be a positive integer/);
   });
 
   test("rejects negative hall rent", () => {
     expect(() => validateCoworkingDetails({
       workSpaceFloor: 0,
-      workspaces: [{ type: "hall", availableSeats: 10, rentPerSeat: -1 }],
+      workspaces: [{ type: "dedicated_coworking_desk", availableSeats: 10, rentPerSeat: -1 }],
     })).toThrow(/Hall rentPerSeat must be zero or greater/);
   });
 
