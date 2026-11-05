@@ -23,6 +23,7 @@ const invoiceConfigRoutes          = require("./invoiceConfig/routes");
 const gstConfigRoutes              = require("./gstConfig/routes");
 const virtualSpaceRoutes            = require("./virtualSpace/routes");
 const idealForRoutes                 = require("./idealFor/routes");
+const uploadsRoutes                  = require("./uploads/routes");
 // add more admin feature routes here as you build them
 // const propertyRoutes = require("./property/routes");
 // const leadRoutes     = require("./lead/routes");
@@ -52,6 +53,7 @@ router.use("/invoice-config",          invoiceConfigRoutes);
 router.use("/gst-config",              gstConfigRoutes);
 router.use("/virtual-space-benefits",   virtualSpaceRoutes);
 router.use("/ideal-for",               idealForRoutes);
+router.use("/uploads",                 uploadsRoutes);
 // router.use("/properties", propertyRoutes);
 // router.use("/leads",      leadRoutes);
 
