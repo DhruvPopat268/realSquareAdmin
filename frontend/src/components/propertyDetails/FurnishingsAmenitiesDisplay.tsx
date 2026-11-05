@@ -21,6 +21,7 @@ interface AmenityItem {
 
 interface Props {
   furnishType?: string;
+  furnishTypes?: string[];
   furnishings?: FurnishingItem[];
   amenities?:   AmenityItem[];
 }
@@ -88,21 +89,22 @@ function FurnishTypeBadge({ value }: { value: string }) {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export default function FurnishingsAmenitiesDisplay({ furnishType, furnishings = [], amenities = [] }: Props) {
+export default function FurnishingsAmenitiesDisplay({ furnishType, furnishTypes, furnishings = [], amenities = [] }: Props) {
+  const statuses = Array.isArray(furnishTypes) ? furnishTypes : (furnishType ? [furnishType] : []);
   const hasFurnishings = furnishings.length > 0;
   const hasAmenities   = amenities.length > 0;
 
-  if (!furnishType && !hasFurnishings && !hasAmenities) return null;
+  if (!statuses.length && !hasFurnishings && !hasAmenities) return null;
 
   return (
     <div className="space-y-6">
 
       {/* Furnish Type */}
-      {furnishType && (
+      {statuses.length > 0 && (
         <section>
           <h2 className="text-base font-bold text-foreground mb-1">Furnishing Status</h2>
           <p className="text-xs text-muted-foreground mb-3">Overall furnishing level of this property</p>
-          <FurnishTypeBadge value={furnishType} />
+          <div className="flex flex-wrap gap-2">{statuses.map((status) => <FurnishTypeBadge key={status} value={status} />)}</div>
         </section>
       )}
 

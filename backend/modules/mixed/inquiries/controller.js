@@ -273,6 +273,7 @@ const expireOldInquiries = async (req, res) => {
  *   page, limit
  *   status         — assignment status: "active" | "purchased"
  *   classification — inquiry classification: "hot" | "warm" | "cold"
+ *   isProperty     — inquiry type: "true" (ready to move) | "false" (under construction)
  *   purposeId      — inquiry listingType ObjectId
  *   categoryId     — inquiry propertyCategory ObjectId
  *   typeId         — inquiry propertyType ObjectId
@@ -288,12 +289,16 @@ const getAssignedInquiries = async (req, res) => {
     const page   = Math.max(1, parseInt(req.query.page)  || 1);
     const limit  = Math.max(1, parseInt(req.query.limit) || 10);
     const skip   = (page - 1) * limit;
+    if (req.query.isProperty !== undefined && !["true", "false"].includes(req.query.isProperty)) {
+      return res.status(400).json({ success: false, message: "isProperty must be true or false" });
+    }
 
     // ── Base assignments for this user ────────────────────────────────────────
     const assignmentMatch = { "assignedTo.id": userId };
 
     // ── Build the post-lookup match on the joined inquiry ────────────────────
     const inquiryMatch = {};
+    if (req.query.isProperty !== undefined) inquiryMatch["inquiry.isProperty"] = req.query.isProperty === "true";
     if (req.query.classification) inquiryMatch["inquiry.inquiryClassification"] = req.query.classification;
     if (req.query.purposeId)      inquiryMatch["inquiry.listingType"]            = new Types.ObjectId(req.query.purposeId);
     if (req.query.categoryId)     inquiryMatch["inquiry.propertyCategory"]       = new Types.ObjectId(req.query.categoryId);
@@ -469,7 +474,12 @@ const getMyInquiries = async (req, res) => {
     const limit  = Math.max(1, parseInt(req.query.limit) || 10);
     const skip   = (page - 1) * limit;
 
+    if (req.query.isProperty !== undefined && !["true", "false"].includes(req.query.isProperty)) {
+      return res.status(400).json({ success: false, message: "isProperty must be true or false" });
+    }
+
     const filter = { "createdBy.id": userId };
+    if (req.query.isProperty !== undefined) filter.isProperty = req.query.isProperty === "true";
     if (req.query.purposeId)        filter.listingType             = req.query.purposeId;
     if (req.query.categoryId)       filter.propertyCategory        = req.query.categoryId;
     if (req.query.typeId)           filter.propertyType            = req.query.typeId;

@@ -679,7 +679,9 @@ export default function EnquiriesPage() {
                   {enquiry.isProperty ? "Ready To Move Property" : "Under Construction Property"}
                 </td>
                 {/* Purpose */}
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{referenceName(enquiry.listingType)}</td>
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  {enquiry.isProperty ? referenceName(enquiry.listingType) : "—"}
+                </td>
                 {/* Category */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{referenceName(enquiry.propertyCategory)}</td>
                 {/* Property Type */}

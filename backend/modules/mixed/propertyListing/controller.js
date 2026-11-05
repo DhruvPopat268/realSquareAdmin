@@ -921,18 +921,26 @@ const updateListing = async (req, res) => {
 
     // ── Helper: resolve furnishingId/amenityId → { id, name, icon, count } ─────
     async function resolveFurnishingsAmenities(details, existingDetails) {
+      const clearFurnishings = Array.isArray(details.furnishTypes)
+        ? !details.furnishTypes.includes("Fully-Furnished") &&
+          !details.furnishTypes.includes("Semi-Furnished")
+        : details.furnishType === "Unfurnished";
       const hasNewFurnishings = Array.isArray(details.furnishings) &&
-        details.furnishings.some((f) => f.furnishingId);
+        details.furnishings.some((f) => f.furnishingId || f.id);
       const hasNewAmenities = Array.isArray(details.amenities) &&
-        details.amenities.some((a) => a.amenityId);
+        details.amenities.some((a) => a.amenityId || a.id);
 
       if (!hasNewFurnishings && !hasNewAmenities) {
-        return { ...existingDetails?.toObject?.() ?? {}, ...details };
+        return {
+          ...existingDetails?.toObject?.() ?? {},
+          ...details,
+          furnishings: clearFurnishings ? [] : (details.furnishings ?? existingDetails?.furnishings ?? []),
+        };
       }
 
       const allIds = [
-        ...(hasNewFurnishings ? details.furnishings.map((f) => f.furnishingId) : []),
-        ...(hasNewAmenities   ? details.amenities.map((a) => a.amenityId)     : []),
+        ...(hasNewFurnishings ? details.furnishings.map((f) => f.furnishingId ?? f.id) : []),
+        ...(hasNewAmenities   ? details.amenities.map((a) => a.amenityId ?? a.id)     : []),
       ].filter(Boolean);
 
       const items   = await FurnishingAmenity.find({ _id: { $in: allIds } }).select("name icon");
@@ -941,11 +949,13 @@ const updateListing = async (req, res) => {
       return {
         ...existingDetails?.toObject?.() ?? {},
         ...details,
-        furnishings: hasNewFurnishings
+        furnishings: clearFurnishings
+          ? []
+          : hasNewFurnishings
           ? details.furnishings.map((f) => ({
-              id:    f.furnishingId,
-              name:  itemMap[f.furnishingId]?.name,
-              icon:  itemMap[f.furnishingId]?.icon,
+              id:    f.furnishingId ?? f.id,
+              name:  itemMap[f.furnishingId ?? f.id]?.name,
+              icon:  itemMap[f.furnishingId ?? f.id]?.icon,
               count: f.count,
             }))
           : details.furnishings === undefined
@@ -953,9 +963,9 @@ const updateListing = async (req, res) => {
             : details.furnishings,
         amenities: hasNewAmenities
           ? details.amenities.map((a) => ({
-              id:   a.amenityId,
-              name: itemMap[a.amenityId]?.name,
-              icon: itemMap[a.amenityId]?.icon,
+              id:   a.amenityId ?? a.id,
+              name: itemMap[a.amenityId ?? a.id]?.name,
+              icon: itemMap[a.amenityId ?? a.id]?.icon,
               count: a.count,
             }))
           : details.amenities === undefined
@@ -995,6 +1005,17 @@ const updateListing = async (req, res) => {
       if (commercialDetails === null) {
         listing.commercialDetails = null;
       } else if (propertyTypeId === process.env.COMMERCIAL_PROPERTY_TYPE_co_working_space_ID) {
+        if (commercialDetails.furnishTypes !== undefined) {
+          const allowedFurnishTypes = ["Unfurnished", "Semi-Furnished", "Fully-Furnished"];
+          if (!Array.isArray(commercialDetails.furnishTypes) ||
+              commercialDetails.furnishTypes.some((type) => !allowedFurnishTypes.includes(type)) ||
+              new Set(commercialDetails.furnishTypes).size !== commercialDetails.furnishTypes.length) {
+            return res.status(400).json({
+              success: false,
+              message: "commercialDetails.furnishTypes must contain unique valid furnishing statuses",
+            });
+          }
+        }
         const storedCommercialDetails = await PropertyListing.collection.findOne(
           { _id: listing._id },
           { projection: { "commercialDetails.workspaces": 1 } },
@@ -1084,6 +1105,9 @@ const updateListing = async (req, res) => {
           ...commercialDetails,
           workspaces: mergedWorkspaces,
         };
+        if (commercialDetails.furnishTypes !== undefined) {
+          effectiveCommercialDetails.furnishType = undefined;
+        }
 
         const workspaces = effectiveCommercialDetails.workspaces;
         const floor = Number(effectiveCommercialDetails.workSpaceFloor);

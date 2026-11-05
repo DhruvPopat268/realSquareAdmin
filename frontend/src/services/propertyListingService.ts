@@ -95,6 +95,7 @@ export interface CommercialDetails extends PropertyStatusDetails {
   workSpaceFloor?: number;
   workspaces?: CoworkingWorkspace[];
   furnishType?: "Unfurnished" | "Semi-Furnished" | "Fully-Furnished";
+  furnishTypes?: ("Unfurnished" | "Semi-Furnished" | "Fully-Furnished")[];
   furnishings?: FurnishingItem[];
   amenities?: FurnishingItem[];
 }

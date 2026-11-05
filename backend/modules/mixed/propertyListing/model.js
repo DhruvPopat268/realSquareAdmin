@@ -161,6 +161,10 @@ const commercialDetailsSchema = new Schema(
     yourFloor: { type: String, trim: true },
     workSpaceFloor: { type: Number },
     workspaces: [coworkingWorkspaceSchema],
+    furnishTypes: {
+      type: [{ type: String, enum: ["Unfurnished", "Semi-Furnished", "Fully-Furnished"] }],
+      default: undefined,
+    },
     minSeats: { type: Number },              // office only
     minCabins: { type: Number },           // office only
     minMeetingRooms: { type: Number },     // office only
