@@ -100,10 +100,10 @@ const generateProfileQr = async (user) => {
   if (!["http:", "https:"].includes(parsedPanelUrl.protocol)) {
     throw new Error("CUSTOMER_PANEL_URL must use HTTP or HTTPS");
   }
-  const profileQrToken = encryptProfileId(user._id);
-  const targetUrl = `${customerPanelUrl.replace(/\/+$/, "")}/public-profile/${encodeURIComponent(profileQrToken)}`;
+  const profileEncryptedId = encryptProfileId(user._id);
+  const targetUrl = `${customerPanelUrl.replace(/\/+$/, "")}/public-profile/${encodeURIComponent(profileEncryptedId)}`;
   const profileQr = await generateQrImage(targetUrl, "profile-qr");
-  return { profileQr, profileQrToken };
+  return { profileQr, profileEncryptedId };
 };
 
 module.exports = { encryptProfileId, decryptProfileId, generateQrImage, generateProfileQr };

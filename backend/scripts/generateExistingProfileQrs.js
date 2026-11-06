@@ -1,8 +1,23 @@
 const path = require("path");
+const fs = require("fs/promises");
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const mongoose = require("mongoose");
 const SystemUser = require("../modules/systemUsers.model");
+const { IMAGES_DIR } = require("../utils/upload");
 const { generateProfileQr } = require("../utils/generateQr");
+
+const removePreviousQrFile = async (url) => {
+  if (typeof url !== "string") return;
+  try {
+    const filename = path.basename(new URL(url).pathname);
+    if (!/^profile-qr-[a-f\d]{32}\.png$/i.test(filename)) return;
+    const imagesDir = path.resolve(IMAGES_DIR);
+    const oldFile = path.resolve(imagesDir, filename);
+    if (path.dirname(oldFile) === imagesDir) await fs.unlink(oldFile).catch(() => {});
+  } catch {
+    // Ignore old URLs that are not valid generated QR image links.
+  }
+};
 
 const main = async () => {
   if (!process.env.MONGO_URI) throw new Error("MONGO_URI is not configured");
@@ -18,10 +33,6 @@ const main = async () => {
       role: { $in: eligibleRoleIds },
       name: { $exists: true, $ne: "" },
       mobile: { $exists: true, $ne: "" },
-      $or: [
-        { profileQr: { $in: [null, ""] } },
-        { profileQrToken: { $in: [null, ""] } },
-      ],
       isDeleted: { $ne: true },
     }).select("_id name mobile role").cursor();
 
@@ -31,13 +42,10 @@ const main = async () => {
         continue;
       }
       const qrData = await generateProfileQr(user);
-      await SystemUser.updateOne({
-        _id: user._id,
-        $or: [
-          { profileQr: { $in: [null, ""] } },
-          { profileQrToken: { $in: [null, ""] } },
-        ],
-      }, { $set: qrData });
+      const updateResult = await SystemUser.updateOne({ _id: user._id }, {
+        $set: qrData,
+      });
+      if (updateResult.modifiedCount > 0) await removePreviousQrFile(user.profileQr);
       updated += 1;
       console.log(`Generated profile QR for ${user._id}`);
     }

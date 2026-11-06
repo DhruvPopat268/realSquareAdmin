@@ -63,23 +63,28 @@ const normalizeLocationText = (value = "") => value.normalize("NFKC").trim().rep
 
 const ensureEligibleProfileQr = async (user) => {
   if (!user) return user;
-  const currentUser = await SystemUser.findById(user._id).select("+profileQrToken").populate("role", "name permissions isActive");
+  const currentUser = await SystemUser.findById(user._id).select("+profileEncryptedId").populate("role", "name permissions isActive");
   if (!currentUser) return user;
   const roleId = currentUser.role?._id?.toString?.() || currentUser.role?.toString?.() || "";
   const profileField = ALLOWED_ROLES[roleId];
   const eligibleRole = ["ownerProfile", "brokerProfile", "builderProfile"].includes(profileField);
   if (!eligibleRole || !mongoose.Types.ObjectId.isValid(roleId) || !currentUser.name?.trim() || !currentUser.mobile?.trim()) {
-    if (currentUser.profileQr || currentUser.profileQrToken) {
-      await SystemUser.updateOne({ _id: currentUser._id }, { $unset: { profileQr: 1, profileQrToken: 1 } });
+    if (currentUser.profileQr || currentUser.profileEncryptedId) {
+      await SystemUser.updateOne({ _id: currentUser._id }, { $unset: { profileQr: 1, profileEncryptedId: 1 } });
       currentUser.profileQr = undefined;
     }
     return currentUser;
   }
-  if (currentUser.profileQr && currentUser.profileQrToken) return currentUser;
+  if (currentUser.profileQr && currentUser.profileEncryptedId) {
+    currentUser.profileEncryptedId = undefined;
+    return currentUser;
+  }
 
   try {
     const qrData = await generateProfileQr(currentUser);
-    const updated = await SystemUser.findByIdAndUpdate(currentUser._id, { $set: qrData }, { new: true })
+    const updated = await SystemUser.findByIdAndUpdate(currentUser._id, {
+      $set: qrData,
+    }, { new: true })
       .populate("role", "name permissions isActive");
     return updated || currentUser;
   } catch (error) {
@@ -864,7 +869,7 @@ const switchRole = async (req, res) => {
         $unset: {
           role: 1,
           profileQr: 1,
-          profileQrToken: 1,
+          profileEncryptedId: 1,
           customerProfile: 1,
           ownerProfile: 1,
           brokerProfile: 1,

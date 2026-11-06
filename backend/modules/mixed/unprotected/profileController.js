@@ -20,12 +20,12 @@ const getPublicProfile = async (req, res) => {
       _id: userId,
       isActive: { $ne: false },
       isDeleted: { $ne: true },
-    }).select("+profileQrToken").populate("role", "name").lean();
+    }).select("+profileEncryptedId").populate("role", "name").lean();
 
     const roleId = user?.role?._id?.toString();
     const profileField = roleId ? ROLE_FIELDS[roleId] : null;
     const details = profileField ? user?.[profileField] : null;
-    if (!user || user.profileQrToken !== encryptedId || !profileField || !details || !user.name?.trim() || !user.mobile?.trim()) {
+    if (!user || user.profileEncryptedId !== encryptedId || !profileField || !details || !user.name?.trim() || !user.mobile?.trim()) {
       return res.status(404).json({ success: false, message: "Profile not found" });
     }
 

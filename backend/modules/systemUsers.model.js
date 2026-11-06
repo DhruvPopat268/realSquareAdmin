@@ -90,7 +90,7 @@ const systemUserSchema = new mongoose.Schema(
     mobile:         { type: String, trim: true, required: true, unique: true },
     profilePhoto:   { type: String },
     profileQr:      { type: String },
-    profileQrToken: { type: String, select: false },
+    profileEncryptedId: { type: String, select: false },
     role:           { type: mongoose.Schema.Types.ObjectId, ref: "SystemUserRole" },
     isSuperAdmin:   { type: Boolean, default: false },
     isActive:       { type: Boolean, default: true },
