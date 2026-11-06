@@ -10,7 +10,8 @@
     "test:status": "NODE_ENV=test jest --testPathPatterns=testcases/statusTransition --forceExit --detectOpenHandles",
     "test:inquiry": "NODE_ENV=test jest --testPathPatterns=modules/mixed/inquiries/inquiry --forceExit --detectOpenHandles",
     "test:assigned": "NODE_ENV=test jest --testPathPatterns=modules/mixed/inquiries/inquiry --forceExit --detectOpenHandles -t \"GET /api/mixed/inquiries/assigned\"",
-    "migrate:project-property-type": "node scripts/unsetProjectListingPropertyType.js"
+    "migrate:project-property-type": "node scripts/unsetProjectListingPropertyType.js",
+    "backfill:profile-qrs": "node scripts/generateExistingProfileQrs.js"
   },
   "jest": {
     "testEnvironment": "node",
@@ -39,8 +40,10 @@
     "nodemailer": "^9.0.1",
     "nodemon": "^3.1.14",
     "puppeteer-core": "^22.15.0",
+    "qrcode": "^1.5.4",
     "razorpay": "^2.9.6",
-    "redis": "^6.1.0"
+    "redis": "^6.1.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "jest": "^30.5.2",

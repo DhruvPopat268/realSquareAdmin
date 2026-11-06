@@ -18,6 +18,7 @@ const locationSchema = new mongoose.Schema({
 // ── Owner profile sub-schema ─────────────────────────────────────────────────
 const ownerBusinessDetailsSchema = new mongoose.Schema({
   name:       { type: String, trim: true },
+  email:      { type: String, lowercase: true, trim: true },
   logo:       { type: String },
   type:       { type: String, enum: ["private_owner", "real_estate_investment_trust", "property_management_group", "family_office"] },
   gstNumber:  { type: String, trim: true },
@@ -88,6 +89,8 @@ const systemUserSchema = new mongoose.Schema(
     emailOtpExpiresAt: { type: Date, select: false },
     mobile:         { type: String, trim: true, required: true, unique: true },
     profilePhoto:   { type: String },
+    profileQr:      { type: String },
+    profileQrToken: { type: String, select: false },
     role:           { type: mongoose.Schema.Types.ObjectId, ref: "SystemUserRole" },
     isSuperAdmin:   { type: Boolean, default: false },
     isActive:       { type: Boolean, default: true },

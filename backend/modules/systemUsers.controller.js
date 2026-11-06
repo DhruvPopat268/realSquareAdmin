@@ -17,6 +17,7 @@ const { runReraVerification } = require("./mixed/reraVerification/controller");
 const { sendEmail }     = require("../utils/emailService");
 const { calculateProfileCompletionPercentage } = require("./systemUsers.profileCompletion.weighate");
 const { resolveProfileLocation } = require("../utils/locationState");
+const { generateProfileQr } = require("../utils/generateQr");
 
 const DUMMY_OTP = "123456";
 
@@ -59,6 +60,34 @@ const getNestedValue = (obj, path) => {
 const CITY_SUGGESTIONS_URL = "https://places.googleapis.com/v1/places:autocomplete";
 const CITY_SESSION_TOKEN_REGEX = /^[A-Za-z0-9._~-]{1,128}$/;
 const normalizeLocationText = (value = "") => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+const ensureEligibleProfileQr = async (user) => {
+  if (!user) return user;
+  const currentUser = await SystemUser.findById(user._id).select("+profileQrToken").populate("role", "name permissions isActive");
+  if (!currentUser) return user;
+  const roleId = currentUser.role?._id?.toString?.() || currentUser.role?.toString?.() || "";
+  const profileField = ALLOWED_ROLES[roleId];
+  const eligibleRole = ["ownerProfile", "brokerProfile", "builderProfile"].includes(profileField);
+  if (!eligibleRole || !mongoose.Types.ObjectId.isValid(roleId) || !currentUser.name?.trim() || !currentUser.mobile?.trim()) {
+    if (currentUser.profileQr || currentUser.profileQrToken) {
+      await SystemUser.updateOne({ _id: currentUser._id }, { $unset: { profileQr: 1, profileQrToken: 1 } });
+      currentUser.profileQr = undefined;
+    }
+    return currentUser;
+  }
+  if (currentUser.profileQr && currentUser.profileQrToken) return currentUser;
+
+  try {
+    const qrData = await generateProfileQr(currentUser);
+    const updated = await SystemUser.findByIdAndUpdate(currentUser._id, { $set: qrData }, { new: true })
+      .populate("role", "name permissions isActive");
+    return updated || currentUser;
+  } catch (error) {
+    // Profile completion should succeed if QR generation is temporarily unavailable.
+    console.error("[Profile QR] Could not generate profile QR:", error.message);
+    return currentUser;
+  }
+};
 
 const getCitySuggestions = async (req, res) => {
   const input = typeof req.body?.input === "string" ? req.body.input.trim() : "";
@@ -599,11 +628,13 @@ const completeProfile = async (req, res) => {
     // Store remaining fields in nested profile
     rootLevelData[profileField] = profileData;
 
-    const user = await SystemUser.findByIdAndUpdate(
+    let user = await SystemUser.findByIdAndUpdate(
       req.user._id,
       rootLevelData,
       { new: true, runValidators: true }
     ).populate("role", "name permissions isActive");
+
+    user = await ensureEligibleProfileQr(user);
 
     res.status(201).json({ success: true, data: user });
   } catch (err) {
@@ -790,16 +821,19 @@ const updateProfile = async (req, res) => {
     if (Object.keys(unsetData).length) updateOperation.$unset = unsetData;
 
     if (!Object.keys(updateOperation).length) {
-      const user = await SystemUser.findById(req.user._id)
+      let user = await SystemUser.findById(req.user._id)
         .populate("role", "name permissions isActive");
+      user = await ensureEligibleProfileQr(user);
       return res.json({ success: true, data: user });
     }
 
-    const user = await SystemUser.findByIdAndUpdate(
+    let user = await SystemUser.findByIdAndUpdate(
       req.user._id,
       updateOperation,
       { new: true, runValidators: true }
     ).populate("role", "name permissions isActive");
+
+    user = await ensureEligibleProfileQr(user);
 
     res.json({ success: true, data: user });
   } catch (err) {
@@ -829,6 +863,8 @@ const switchRole = async (req, res) => {
       {
         $unset: {
           role: 1,
+          profileQr: 1,
+          profileQrToken: 1,
           customerProfile: 1,
           ownerProfile: 1,
           brokerProfile: 1,
@@ -1005,6 +1041,7 @@ const getMe = async (req, res) => {
         emailVerified: req.user.emailVerified === true,
         mobile: req.user.mobile,
         profilePhoto: req.user.profilePhoto,
+        profileQr: req.user.profileQr,
         role: req.user.role,
         customerProfile: req.user.customerProfile,
         ownerProfile: req.user.ownerProfile,
