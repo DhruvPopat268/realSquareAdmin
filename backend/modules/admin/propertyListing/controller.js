@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const PropertyListing = require("../../mixed/propertyListing/model");
 const SystemUserRole = require("../systemUsersRoles/model");
+const { generatePropertyQr, removeGeneratedQrImage } = require("../../../utils/generateQr");
 
 const LISTING_TYPE_SELL_ID = process.env.LISTING_TYPE_SELL_ID;
 const LISTING_TYPE_RENT_ID = process.env.LISTING_TYPE_RENT_ID;
@@ -245,20 +246,9 @@ const approve = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid listing ID" });
     }
 
-    const listing = await PropertyListing.findOneAndUpdate(
-      { _id: req.params.id, status: "UnderReview" },
-      {
-        $set: {
-          status:          "Active",
-          approvedAt:      new Date(),
-          rejectedAt:      null,
-          rejectedReasons: [],
-        },
-      },
-      { new: true }
-    );
-
-    if (!listing) {
+    const pendingListing = await PropertyListing.findOne({ _id: req.params.id, status: "UnderReview" })
+      .select("+propertyEncryptedId").lean();
+    if (!pendingListing) {
       const exists = await PropertyListing.findById(req.params.id).select("status");
       if (!exists) return res.status(404).json({ success: false, message: "Listing not found" });
       return res.status(400).json({
@@ -267,13 +257,42 @@ const approve = async (req, res) => {
       });
     }
 
+    // Prepare a fresh QR before activation so approval and new QR credentials
+    // are stored together. If generation fails, the listing stays UnderReview.
+    const qrData = await generatePropertyQr(pendingListing);
+    const listing = await PropertyListing.findOneAndUpdate(
+      { _id: req.params.id, status: "UnderReview" },
+      { $set: {
+        status: "Active",
+        approvedAt: new Date(),
+        rejectedAt: null,
+        rejectedReasons: [],
+        ...qrData,
+      } },
+      { new: true }
+    );
+
+    if (!listing) {
+      await removeGeneratedQrImage(qrData.propertyQr, "property");
+      const exists = await PropertyListing.findById(req.params.id).select("status");
+      if (!exists) return res.status(404).json({ success: false, message: "Listing not found" });
+      return res.status(400).json({
+        success: false,
+        message: `Listing cannot be approved. Current status is '${exists.status}', expected 'UnderReview'`,
+      });
+    }
+
+    if (pendingListing.propertyQr && pendingListing.propertyQr !== listing.propertyQr) {
+      await removeGeneratedQrImage(pendingListing.propertyQr, "property");
+    }
+
     // If the listing has a RERA ID attached, mark it admin-approved
     if (listing.rera?.reraId) {
       listing.rera.reraAdminApproved = true;
       await listing.save();
     }
 
-    res.json({ success: true, message: "Listing approved successfully", data: { status: listing.status, approvedAt: listing.approvedAt } });
+    res.json({ success: true, message: "Listing approved successfully", data: { status: listing.status, approvedAt: listing.approvedAt, propertyQr: listing.propertyQr } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

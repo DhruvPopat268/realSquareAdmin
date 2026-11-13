@@ -149,6 +149,21 @@ const generateListingQr = async (type, listing) => {
 const generatePropertyQr = (listing) => generateListingQr("property", listing);
 const generateProjectQr = (listing) => generateListingQr("project", listing);
 
+const removeGeneratedQrImage = async (qrUrl, type) => {
+  if (!qrUrl || !["profile", "property", "project"].includes(type)) return false;
+  try {
+    const filename = path.basename(new URL(qrUrl).pathname);
+    if (!new RegExp(`^${type}-qr-[a-f\\d]{32}\\.png$`, "i").test(filename)) return false;
+    const imagesDir = path.resolve(IMAGES_DIR);
+    const imagePath = path.resolve(imagesDir, filename);
+    if (path.dirname(imagePath) !== imagesDir) return false;
+    await fs.unlink(imagePath).catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 module.exports = {
   encryptQrId,
   decryptQrToken,
@@ -158,4 +173,5 @@ module.exports = {
   generateProfileQr,
   generatePropertyQr,
   generateProjectQr,
+  removeGeneratedQrImage,
 };

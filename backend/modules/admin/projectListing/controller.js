@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const ProjectListing = require("../../mixed/projectListing/model");
 const { groupConfigurations } = require("../../../utils/projectConfigurationGroups");
+const { generateProjectQr, removeGeneratedQrImage } = require("../../../utils/generateQr");
 
 const STATUSES = ["Active", "Inactive", "UnderReview", "Rejected", "Sold"];
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -111,21 +112,36 @@ const getById = async (req, res) => {
 const approve = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid project listing ID" });
-    const project = await ProjectListing.findOneAndUpdate(
-      { _id: req.params.id, status: "UnderReview" },
-      { $set: { status: "Active", approvedAt: new Date(), rejectedAt: null, rejectedReasons: [] } },
-      { new: true }
-    );
-    if (!project) {
+    const pendingProject = await ProjectListing.findOne({ _id: req.params.id, status: "UnderReview" })
+      .select("+projectEncryptedId").lean();
+    if (!pendingProject) {
       const existing = await ProjectListing.findById(req.params.id).select("status");
       if (!existing) return res.status(404).json({ success: false, message: "Project listing not found" });
       return res.status(400).json({ success: false, message: `Project cannot be approved. Current status is '${existing.status}', expected 'UnderReview'` });
+    }
+
+    // Prepare a fresh QR before activation so approval and new QR credentials
+    // are stored together. If generation fails, the project stays UnderReview.
+    const qrData = await generateProjectQr(pendingProject);
+    const project = await ProjectListing.findOneAndUpdate(
+      { _id: req.params.id, status: "UnderReview" },
+      { $set: { status: "Active", approvedAt: new Date(), rejectedAt: null, rejectedReasons: [], ...qrData } },
+      { new: true }
+    );
+    if (!project) {
+      await removeGeneratedQrImage(qrData.projectQr, "project");
+      const existing = await ProjectListing.findById(req.params.id).select("status");
+      if (!existing) return res.status(404).json({ success: false, message: "Project listing not found" });
+      return res.status(400).json({ success: false, message: `Project cannot be approved. Current status is '${existing.status}', expected 'UnderReview'` });
+    }
+    if (pendingProject.projectQr && pendingProject.projectQr !== project.projectQr) {
+      await removeGeneratedQrImage(pendingProject.projectQr, "project");
     }
     if (project.rera?.reraId) {
       project.rera.reraAdminApproved = true;
       await project.save();
     }
-    return res.json({ success: true, message: "Project approved successfully", data: { status: project.status, approvedAt: project.approvedAt } });
+    return res.json({ success: true, message: "Project approved successfully", data: { status: project.status, approvedAt: project.approvedAt, projectQr: project.projectQr } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

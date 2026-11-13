@@ -640,12 +640,14 @@ const create = async (req, res) => {
 
     recalculateProjectPerAreaPrice(listing);
     await listing.save();
-    try {
-      const qrData = await generateProjectQr(listing);
-      await ProjectListing.updateOne({ _id: listing._id }, { $set: qrData });
-      Object.assign(listing, qrData);
-    } catch (qrError) {
-      console.error("[Project QR] Could not generate listing QR:", qrError.message);
+    if (status === "Active") {
+      try {
+        const qrData = await generateProjectQr(listing);
+        await ProjectListing.updateOne({ _id: listing._id }, { $set: qrData });
+        Object.assign(listing, qrData);
+      } catch (qrError) {
+        console.error("[Project QR] Could not generate listing QR:", qrError.message);
+      }
     }
 
     if (validPlan) {

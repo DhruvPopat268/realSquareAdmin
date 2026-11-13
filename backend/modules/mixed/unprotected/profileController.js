@@ -38,11 +38,9 @@ const getPublicProfile = async (req, res) => {
       PropertyListing.find({ "listedBy.id": user._id })
         .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo perSqFtPrice perSqYdPrice perSqMtPrice")
         .sort({ createdAt: -1 }).lean(),
-      ["broker", "builder"].includes(profileField.replace("Profile", ""))
-        ? ProjectListing.find({ "listedBy.id": user._id })
-          .select("category projectName developerName cityName locality media status projectStatus totalUnits availableUnits residentialDetails commercialDetails minPrice maxPrice")
-          .sort({ createdAt: -1 }).lean()
-        : Promise.resolve([]),
+      ProjectListing.find({ "listedBy.id": user._id })
+        .select("category projectName developerName cityName locality media status projectStatus totalUnits availableUnits residentialDetails commercialDetails minPrice maxPrice")
+        .sort({ createdAt: -1 }).lean(),
     ]);
 
     const data = {
@@ -149,7 +147,14 @@ const getPublicListing = async ({ type, id, token, profileToken }) => {
   delete listing[tokenField];
   delete listing.propertyQr;
   delete listing.projectQr;
-  delete listing.listedBy;
+  const listedBy = listing.listedBy || {};
+  listing.listedBy = {
+    name: listedBy.name || "",
+    mobile: listedBy.mobile || "",
+    email: listedBy.email || "",
+    profilePhoto: listedBy.profilePhoto || "",
+    role: listedBy.role?.name || "",
+  };
   if (type === "property") {
     const normalized = normalizeListingCard(listing);
     return { ...listing, title: normalized.title, price: normalized.price };

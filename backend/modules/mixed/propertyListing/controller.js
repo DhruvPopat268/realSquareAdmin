@@ -391,12 +391,14 @@ const create = async (req, res) => {
 
     recalculatePerAreaPrices(listing);
     await listing.save();
-    try {
-      const qrData = await generatePropertyQr(listing);
-      await PropertyListing.updateOne({ _id: listing._id }, { $set: qrData });
-      Object.assign(listing, qrData);
-    } catch (qrError) {
-      console.error("[Property QR] Could not generate listing QR:", qrError.message);
+    if (status === "Active") {
+      try {
+        const qrData = await generatePropertyQr(listing);
+        await PropertyListing.updateOne({ _id: listing._id }, { $set: qrData });
+        Object.assign(listing, qrData);
+      } catch (qrError) {
+        console.error("[Property QR] Could not generate listing QR:", qrError.message);
+      }
     }
 
     // ── Deduct credit ─────────────────────────────────────────────────────────
