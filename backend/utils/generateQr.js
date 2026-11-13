@@ -37,28 +37,10 @@ const decryptProfileId = (token) => {
 };
 
 const normalizeColor = (value) => {
-  let color = String(value || "").trim();
-  if (/^#[a-f\d]{3}$/i.test(color)) {
-    color = `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
-  }
-  if (!/^#[a-f\d]{6}$/i.test(color)) color = "#7B2FFF";
-
-  const rgb = [1, 3, 5].map((index) => parseInt(color.slice(index, index + 2), 16));
-  const luminance = (channels) => {
-    const [red, green, blue] = channels.map((channel) => {
-      const normalized = channel / 255;
-      return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-  };
-
-  // QR modules need strong contrast against the white background. Darken
-  // bright brand colors while preserving their hue so scanners can read them.
-  let factor = 1;
-  while (1.05 / (luminance(rgb.map((channel) => Math.round(channel * factor))) + 0.05) < 4.5 && factor > 0.1) {
-    factor -= 0.02;
-  }
-  return `#${rgb.map((channel) => Math.round(channel * factor).toString(16).padStart(2, "0")).join("")}`;
+  const color = String(value || "").trim();
+  if (/^#[a-f\d]{6}$/i.test(color)) return color;
+  if (/^#[a-f\d]{3}$/i.test(color)) return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+  return "#7B2FFF";
 };
 
 const getLogoBuffer = async () => {
