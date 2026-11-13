@@ -13,6 +13,7 @@ const jwt               = require("jsonwebtoken");
 const mongoose          = require("mongoose");
 const crypto            = require("crypto");
 const path              = require("path");
+const { IMAGES_DIR } = require("../utils/upload");
 const { runReraVerification } = require("./mixed/reraVerification/controller");
 const { sendEmail }     = require("../utils/emailService");
 const { calculateProfileCompletionPercentage } = require("./systemUsers.profileCompletion.weighate");
@@ -92,6 +93,41 @@ const ensureEligibleProfileQr = async (user) => {
     console.error("[Profile QR] Could not generate profile QR:", error.message);
     return currentUser;
   }
+};
+
+const downloadOwnProfileQrImage = (req, res) => {
+  const filename = req.params.filename;
+  if (!/^profile-qr-[a-f\d]{32}\.png$/i.test(filename)) {
+    return res.status(404).json({ success: false, message: "QR image not found" });
+  }
+
+  let currentFilename = "";
+  try {
+    currentFilename = path.basename(new URL(req.user.profileQr).pathname);
+  } catch {
+    return res.status(404).json({ success: false, message: "QR image not found" });
+  }
+  if (currentFilename !== filename) {
+    return res.status(404).json({ success: false, message: "QR image not found" });
+  }
+
+  const imagesDir = path.resolve(IMAGES_DIR);
+  const imagePath = path.resolve(imagesDir, filename);
+  if (path.dirname(imagePath) !== imagesDir) {
+    return res.status(404).json({ success: false, message: "QR image not found" });
+  }
+
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Content-Disposition", 'attachment; filename="realsquare-profile-qr.png"');
+  return res.sendFile(imagePath, (error) => {
+    if (error && !res.headersSent) {
+      res.status(error.statusCode === 404 ? 404 : 500).json({
+        success: false,
+        message: error.statusCode === 404 ? "QR image not found" : "Could not download the QR image",
+      });
+    }
+  });
 };
 
 const getCitySuggestions = async (req, res) => {
@@ -1155,6 +1191,6 @@ const logout = async (req, res) => {
 
 module.exports = {
   sendOtp, verifyOtp, sendEmailOtp, verifyEmailOtp, completeProfile, assignCustomerRole,
-  updateProfile, switchRole, logout, getMe, getActiveUsers,
+  updateProfile, switchRole, logout, getMe, getActiveUsers, downloadOwnProfileQrImage,
   expirePurchasedPlans, consumePurchasedPlans, getCitySuggestions, getCityAddressSuggestions,
 };

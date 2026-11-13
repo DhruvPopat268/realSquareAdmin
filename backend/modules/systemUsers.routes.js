@@ -1,5 +1,5 @@
 const express            = require("express");
-const { completeProfile, assignCustomerRole, sendEmailOtp, verifyEmailOtp, sendOtp, verifyOtp, logout, updateProfile, switchRole, getMe, getActiveUsers, expirePurchasedPlans, consumePurchasedPlans, getCitySuggestions, getCityAddressSuggestions } = require("./systemUsers.controller");
+const { completeProfile, assignCustomerRole, sendEmailOtp, verifyEmailOtp, sendOtp, verifyOtp, logout, updateProfile, switchRole, getMe, getActiveUsers, expirePurchasedPlans, consumePurchasedPlans, getCitySuggestions, getCityAddressSuggestions, downloadOwnProfileQrImage } = require("./systemUsers.controller");
 const { uploadImage }    = require("../utils/upload");
 const cronProtect = require("../utils/cronProtect");
 const citySuggestionsRateLimit = require("../utils/citySuggestionsRateLimit");
@@ -8,6 +8,7 @@ const { userProtect } = require("../middleware/userAuth");
 const router = express.Router();
 
 router.get("/me",                        userProtect, getMe);
+router.get("/profile-qr-image/:filename", userProtect, downloadOwnProfileQrImage);
 router.get("/cron-expire-plans",         cronProtect, expirePurchasedPlans);
 router.get("/cron-consume-plans",        cronProtect, consumePurchasedPlans);
 router.get("/active-users",              getActiveUsers);
