@@ -1,5 +1,5 @@
 const express  = require("express");
-const { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
+const { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, downloadOwnPropertyQrImage, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties } = require("./controller");
 const { createListingValidator }        = require("./validator");
 const { userProtect }                   = require("../../../middleware/userAuth");
 const cronProtect                       = require("../../../utils/cronProtect");
@@ -16,6 +16,7 @@ router.get("/active-purposes",              userProtect, getActivePropertyPurpos
 router.get("/active-property-types",        userProtect, getActivePropertyTypes);
 router.get("/active-virtual-space-benefits", userProtect, getActiveVirtualSpaceBenefits);
 router.get("/my-listings",                  userProtect, getMyListings);
+router.get("/:id/qr-image",                 userProtect, downloadOwnPropertyQrImage);
 router.get("/cron-6-month-inactive",         cronProtect, get6MonthInactiveProperties);
 router.get("/cron-1-year-inactive",          cronProtect, get1YearInactiveProperties);
 

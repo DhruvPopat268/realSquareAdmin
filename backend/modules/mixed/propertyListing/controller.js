@@ -17,6 +17,7 @@ const SystemUser         = require("../../systemUsers.model");
 const { runReraVerification } = require("../reraVerification/controller");
 const { calculatePropertyCompletionPercentage } = require("./completionPercentage");
 const { verifyCityAndLocality } = require("../../../utils/locationState");
+const { generatePropertyQr } = require("../../../utils/generateQr");
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const AUTO_INACTIVE_STATUSES = ["Active", "UnderReview", "Rejected"];
@@ -390,6 +391,13 @@ const create = async (req, res) => {
 
     recalculatePerAreaPrices(listing);
     await listing.save();
+    try {
+      const qrData = await generatePropertyQr(listing);
+      await PropertyListing.updateOne({ _id: listing._id }, { $set: qrData });
+      Object.assign(listing, qrData);
+    } catch (qrError) {
+      console.error("[Property QR] Could not generate listing QR:", qrError.message);
+    }
 
     // ── Deduct credit ─────────────────────────────────────────────────────────
     if (validPlan) {
@@ -408,7 +416,7 @@ const create = async (req, res) => {
     res.status(201).json({
       success: true,
       message: status === "Active" ? "Property listed successfully" : "Property is in under review",
-      data: { _id: listing._id, status: listing.status, listedBy: listing.listedBy },
+      data: { _id: listing._id, status: listing.status, listedBy: listing.listedBy, propertyQr: listing.propertyQr ?? null },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -623,9 +631,32 @@ function normalizeMyListingCard(listing) {
   return {
     ...normalizeListingCard(listing),
     zeroBrokerage: listing.zeroBrokerage ?? null,
+    propertyQr: listing.propertyQr ?? null,
     propertyCompletionPercentage: calculatePropertyCompletionPercentage(listing),
   };
 }
+
+const downloadOwnPropertyQrImage = async (req, res) => {
+  try {
+    const listing = await PropertyListing.findOne({ _id: req.params.id, "listedBy.id": req.user._id })
+      .select("propertyQr").lean();
+    const filename = listing?.propertyQr ? path.basename(new URL(listing.propertyQr).pathname) : "";
+    if (!/^property-qr-[a-f\d]{32}\.png$/i.test(filename)) {
+      return res.status(404).json({ success: false, message: "QR image not found" });
+    }
+    const imagesDir = path.resolve(IMAGES_DIR);
+    const imagePath = path.resolve(imagesDir, filename);
+    if (path.dirname(imagePath) !== imagesDir) return res.status(404).json({ success: false, message: "QR image not found" });
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Disposition", 'attachment; filename="realsquare-property-qr.png"');
+    return res.sendFile(imagePath, (error) => {
+      if (error && !res.headersSent) res.status(error.statusCode === 404 ? 404 : 500).json({ success: false, message: "Could not download the QR image" });
+    });
+  } catch {
+    return res.status(404).json({ success: false, message: "QR image not found" });
+  }
+};
 
 // ── GET /property-listings/:id (public) ──────────────────────────────────────
 const getListingById = async (req, res) => {
@@ -695,7 +726,7 @@ const getMyListings = async (req, res) => {
       const limit = parseInt(req.query.limit);
       if (limit > 0) {
         const listings = await PropertyListing.find({ "listedBy.id": req.user._id })
-          .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice zeroBrokerage")
+          .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice zeroBrokerage propertyQr")
           .sort({ createdAt: -1 })
           .limit(limit)
           .lean();
@@ -722,7 +753,7 @@ const getMyListings = async (req, res) => {
     const baseFilter = { "listedBy.id": req.user._id };
     const parallelTasks = [
       PropertyListing.find(filter)
-        .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice zeroBrokerage")
+        .select("category listingType propertyType cityName locality media status residentialDetails plotDetails pgDetails commercialDetails sellInfo rentInfo rera createdAt listedBy perSqFtPrice perSqYdPrice perSqMtPrice zeroBrokerage propertyQr")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(PAGE_LIMIT)
@@ -1891,4 +1922,4 @@ const markRented = async (req, res) => {
   }
 };
 
-module.exports = { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };
+module.exports = { canList, create, ensureCoworkingRentPurpose, getActiveVirtualSpaceBenefits, uploadMedia, appendMedia, updateListing, updateMedia, getActiveFurnishingsAndAmenities, getActivePropertyCategories, getActivePropertyPurposes, getActivePropertyTypes, getMyListings, getListingById, normalizeListingCard, downloadOwnPropertyQrImage, markInactive, markActive, markSold, markRented, get6MonthInactiveProperties, get1YearInactiveProperties };

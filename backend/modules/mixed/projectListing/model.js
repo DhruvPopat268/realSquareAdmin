@@ -175,6 +175,8 @@ const projectListingSchema = new Schema(
         name: { type: String, trim: true },
       },
     },
+    projectQr: { type: String, trim: true },
+    projectEncryptedId: { type: String, trim: true, select: false },
 
     // ── Media ─────────────────────────────────────────────────────────────────
     media: {

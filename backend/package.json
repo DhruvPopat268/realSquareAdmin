@@ -11,7 +11,9 @@
     "test:inquiry": "NODE_ENV=test jest --testPathPatterns=modules/mixed/inquiries/inquiry --forceExit --detectOpenHandles",
     "test:assigned": "NODE_ENV=test jest --testPathPatterns=modules/mixed/inquiries/inquiry --forceExit --detectOpenHandles -t \"GET /api/mixed/inquiries/assigned\"",
     "migrate:project-property-type": "node scripts/unsetProjectListingPropertyType.js",
-    "backfill:profile-qrs": "node scripts/generateExistingProfileQrs.js"
+    "backfill:profile-qrs": "node scripts/generateExistingProfileQrs.js",
+    "backfill:property-qrs": "node scripts/generateExistingPropertyQrs.js",
+    "backfill:project-qrs": "node scripts/generateExistingProjectQrs.js"
   },
   "jest": {
     "testEnvironment": "node",

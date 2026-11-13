@@ -15,7 +15,8 @@ const SystemUser = require("../../systemUsers.model");
 const { verifyCityAndLocality } = require("../../../utils/locationState");
 const { runReraVerification } = require("../reraVerification/controller");
 const { groupConfigurations } = require("../../../utils/projectConfigurationGroups");
-const { DOCUMENTS_DIR } = require("../../../utils/upload");
+const { DOCUMENTS_DIR, IMAGES_DIR } = require("../../../utils/upload");
+const { generateProjectQr } = require("../../../utils/generateQr");
 
 const nowIST = () => new Date(Date.now() + 5.5 * 60 * 60 * 1000);
 const toIST = (value) => new Date(new Date(value).getTime() + 5.5 * 60 * 60 * 1000);
@@ -137,7 +138,7 @@ const getMyListings = async (req, res) => {
 
     const [projectRecords, totalCount, statusCounts] = await Promise.all([
       ProjectListing.find(filter)
-        .select("category projectName developerName projectDescription locality cityName projectStatus possessionDate rera.reraId launchDate idealFor minPrice maxPrice perSqFtPrice perSqYdPrice perSqMtPrice status residentialDetails commercialDetails totalUnits availableUnits towerCount furnishings amenities media createdAt")
+        .select("category projectName developerName projectDescription locality cityName projectStatus possessionDate rera.reraId launchDate idealFor minPrice maxPrice perSqFtPrice perSqYdPrice perSqMtPrice status residentialDetails commercialDetails totalUnits availableUnits towerCount furnishings amenities media createdAt projectQr")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -190,8 +191,10 @@ const getProjectById = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid project listing ID" });
     }
 
-    const project = await ProjectListing.findById(req.params.id).lean().select('-listedBy');
+    const project = await ProjectListing.findById(req.params.id).lean();
     if (!project) return res.status(404).json({ success: false, message: "Project listing not found" });
+    const isListedByCurrentUser = String(project.listedBy?.id ?? "") === String(req.user?._id ?? "");
+    delete project.listedBy;
 
     return res.json({
       success: true,
@@ -202,7 +205,7 @@ const getProjectById = async (req, res) => {
           commercial: project.commercialDetails?.configurations ?? [],
         }),
         budgetRange: formatBudgetRange(project.minPrice, project.maxPrice),
-        isListedByCurrentUser: String(project.listedBy?.id ?? "") === String(req.user?._id ?? ""),
+        isListedByCurrentUser,
       },
     });
   } catch (error) {
@@ -210,6 +213,28 @@ const getProjectById = async (req, res) => {
       return res.status(404).json({ success: false, message: "Project listing not found" });
     }
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const downloadOwnProjectQrImage = async (req, res) => {
+  try {
+    const project = await ProjectListing.findOne({ _id: req.params.id, "listedBy.id": req.user._id })
+      .select("projectQr").lean();
+    const filename = project?.projectQr ? path.basename(new URL(project.projectQr).pathname) : "";
+    if (!/^project-qr-[a-f\d]{32}\.png$/i.test(filename)) {
+      return res.status(404).json({ success: false, message: "QR image not found" });
+    }
+    const imagesDir = path.resolve(IMAGES_DIR);
+    const imagePath = path.resolve(imagesDir, filename);
+    if (path.dirname(imagePath) !== imagesDir) return res.status(404).json({ success: false, message: "QR image not found" });
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Disposition", 'attachment; filename="realsquare-project-qr.png"');
+    return res.sendFile(imagePath, (error) => {
+      if (error && !res.headersSent) res.status(error.statusCode === 404 ? 404 : 500).json({ success: false, message: "Could not download the QR image" });
+    });
+  } catch {
+    return res.status(404).json({ success: false, message: "QR image not found" });
   }
 };
 
@@ -615,6 +640,13 @@ const create = async (req, res) => {
 
     recalculateProjectPerAreaPrice(listing);
     await listing.save();
+    try {
+      const qrData = await generateProjectQr(listing);
+      await ProjectListing.updateOne({ _id: listing._id }, { $set: qrData });
+      Object.assign(listing, qrData);
+    } catch (qrError) {
+      console.error("[Project QR] Could not generate listing QR:", qrError.message);
+    }
 
     if (validPlan) {
       if (validPlan.plan.numberOfPropertiesGiven !== -1) {
@@ -629,7 +661,7 @@ const create = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: status === "Active" ? "Project listed successfully" : "Project is in under review",
-      data: { _id: listing._id, status: listing.status, listedBy: listing.listedBy },
+      data: { _id: listing._id, status: listing.status, listedBy: listing.listedBy, projectQr: listing.projectQr ?? null },
     });
   } catch (error) {
     if (error.name === "ValidationError") {
@@ -834,4 +866,4 @@ const updateMedia = async (req, res) => {
   }
 };
 
-module.exports = { create, uploadMedia, updateProject, updateProjectStatus, updateProjectAvailableUnits, updateMedia, getActiveIdealFor, getMyListings, getProjectById };
+module.exports = { create, uploadMedia, updateProject, updateProjectStatus, updateProjectAvailableUnits, updateMedia, getActiveIdealFor, getMyListings, getProjectById, downloadOwnProjectQrImage, formatBudgetRange };

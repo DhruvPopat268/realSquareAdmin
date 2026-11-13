@@ -258,6 +258,8 @@ const propertyListingSchema = new Schema(
         name: { type: String, trim: true },
       },
     },
+    propertyQr: { type: String, trim: true },
+    propertyEncryptedId: { type: String, trim: true, select: false },
     zeroBrokerage: { type: Boolean },
 
     // ── Media ─────────────────────────────────────────────────────────────────
